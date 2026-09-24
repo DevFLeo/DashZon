@@ -2,9 +2,15 @@
 //
 // Contrato: recebe um JSON via stdin ({"cmd": "...", "records": [...], ...})
 // e escreve um JSON de resultado em stdout. O Ruby (backend) eh o unico
-// responsavel por falar com o SQLite; este binario so processa listas de
-// registros ja carregadas em memoria — mantendo os dois lados desacoplados
-// e o binario reutilizavel para qualquer tabela.
+// responsavel por falar com o banco; este binario so processa listas de
+// registros ja carregadas em memoria, sem conhecer nenhum modulo especifico.
+// Qualquer template (financas, fluxo de caixa, demandas, mapeamento...) usa
+// os mesmos comandos genericos abaixo.
+//
+// Comandos:
+//   aggregate  -> agrupa/filtra/soma um conjunto de registros
+//   multi      -> varios "aggregate" sobre os mesmos registros (1 processo)
+//   search     -> busca textual + filtros exatos
 #include "json.hpp"
 #include <iostream>
 #include <sstream>
@@ -18,21 +24,27 @@ namespace {
 
 std::string toLower(const std::string& s) {
     std::string r = s;
-    std::transform(r.begin(), r.end(), r.begin(), [](unsigned char c) { return std::tolower(c); });
+    std::transform(r.begin(), r.end(), r.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return r;
+}
+
+std::string valueAsString(const Value& v) {
+    switch (v.type) {
+        case json::Type::String: return v.str;
+        case json::Type::Bool: return v.b ? "true" : "false";
+        case json::Type::Number: {
+            std::ostringstream os;
+            v.dumpTo(os);
+            return os.str();
+        }
+        default: return "";
+    }
 }
 
 std::string fieldAsString(const Value& record, const std::string& field) {
     if (field.empty()) return "";
     auto v = record.find(field);
-    if (!v) return "";
-    if (v->isString()) return v->str;
-    if (v->isNumber()) {
-        std::ostringstream os;
-        v->dumpTo(os);
-        return os.str();
-    }
-    return "";
+    return v ? valueAsString(*v) : "";
 }
 
 double fieldAsNumber(const Value& record, const std::string& field) {
@@ -46,149 +58,182 @@ double fieldAsNumber(const Value& record, const std::string& field) {
     return 0.0;
 }
 
+std::vector<std::pair<std::string, std::string>> readFilters(const Value& opts) {
+    std::vector<std::pair<std::string, std::string>> out;
+    auto f = opts.find("filters");
+    if (f && f->isObject()) {
+        for (auto& kv : f->obj) {
+            std::string v = valueAsString(kv.second);
+            if (!v.empty()) out.emplace_back(kv.first, v);
+        }
+    }
+    return out;
+}
+
+bool passesFilters(const Value& rec, const std::vector<std::pair<std::string, std::string>>& filters) {
+    for (auto& f : filters) {
+        if (fieldAsString(rec, f.first) != f.second) return false;
+    }
+    return true;
+}
+
 struct Acc {
     double sum = 0;
     long count = 0;
 };
 
-// cmd "aggregate": agrupa `records` por `group_by` e soma/conta/tira media de `value_field`.
-// Usado tanto pelos widgets do dashboard builder quanto por qualquer outra tela que precise
-// de contagens rapidas sobre uma tabela.
-Value runAggregate(const Value& root) {
-    auto recordsPtr = root.findArray("records");
-    std::string groupBy = root.getString("group_by");
-    std::string valueField = root.getString("value_field");
+struct GroupAcc {
+    Acc total;
+    std::map<std::string, Acc> series;
+};
+
+// Opcoes (todas opcionais):
+//   group_by        campo usado como chave de agrupamento
+//   group_format    "mes" -> usa YYYY-MM de um campo data
+//   series_by       campo que quebra cada grupo em series (ex.: entrada/saida)
+//   value_field     campo numerico somado (sem ele, so contagem)
+//   filters         {campo: valor} aplicados antes de agregar
+//   sign_field      campo que define o sinal do valor...
+//   negative_values ...e os valores dele que tornam o valor negativo (ex.: ["saida"])
+Value aggregate(const Value* records, const Value& opts) {
+    std::string groupBy = opts.getString("group_by");
+    std::string groupFormat = opts.getString("group_format");
+    std::string seriesBy = opts.getString("series_by");
+    std::string valueField = opts.getString("value_field");
+    std::string signField = opts.getString("sign_field");
+    auto filters = readFilters(opts);
+
+    std::vector<std::string> negatives;
+    if (auto neg = opts.findArray("negative_values")) {
+        for (auto& n : neg->arr) negatives.push_back(valueAsString(n));
+    }
 
     std::vector<std::string> order;
-    std::map<std::string, Acc> groups;
+    std::vector<std::string> seriesOrder;
+    std::map<std::string, GroupAcc> groups;
+    Acc grand;
 
-    if (recordsPtr) {
-        for (auto& rec : recordsPtr->arr) {
-            std::string key = groupBy.empty() ? "Total" : fieldAsString(rec, groupBy);
-            if (key.empty()) key = "(vazio)";
+    if (records) {
+        for (auto& rec : records->arr) {
+            if (!passesFilters(rec, filters)) continue;
+
+            std::string key;
+            if (groupBy.empty()) {
+                key = "Total";
+            } else {
+                key = fieldAsString(rec, groupBy);
+                if (groupFormat == "mes") key = key.size() >= 7 ? key.substr(0, 7) : "";
+                if (key.empty()) key = "(vazio)";
+            }
+
+            double value = fieldAsNumber(rec, valueField);
+            if (!signField.empty()) {
+                std::string s = fieldAsString(rec, signField);
+                if (std::find(negatives.begin(), negatives.end(), s) != negatives.end()) value = -value;
+            }
+
             if (!groups.count(key)) order.push_back(key);
-            auto& acc = groups[key];
-            acc.count++;
-            acc.sum += fieldAsNumber(rec, valueField);
+            auto& g = groups[key];
+            g.total.count++;
+            g.total.sum += value;
+            grand.count++;
+            grand.sum += value;
+
+            if (!seriesBy.empty()) {
+                std::string sk = fieldAsString(rec, seriesBy);
+                if (sk.empty()) sk = "(vazio)";
+                if (std::find(seriesOrder.begin(), seriesOrder.end(), sk) == seriesOrder.end()) seriesOrder.push_back(sk);
+                auto& sa = g.series[sk];
+                sa.count++;
+                sa.sum += value;
+            }
         }
     }
+
+    if (groupFormat == "mes") std::sort(order.begin(), order.end());
 
     Value result = Value::makeArray();
     for (auto& key : order) {
-        auto& acc = groups[key];
+        auto& g = groups[key];
         Value row = Value::makeObject();
         row.set("key", Value::makeString(key));
-        row.set("count", Value::makeNumber(static_cast<double>(acc.count)));
-        row.set("sum", Value::makeNumber(acc.sum));
-        row.set("avg", Value::makeNumber(acc.count ? acc.sum / acc.count : 0.0));
+        row.set("count", Value::makeNumber(static_cast<double>(g.total.count)));
+        row.set("sum", Value::makeNumber(g.total.sum));
+        row.set("avg", Value::makeNumber(g.total.count ? g.total.sum / g.total.count : 0.0));
+        if (!seriesBy.empty()) {
+            Value s = Value::makeObject();
+            for (auto& sk : seriesOrder) {
+                auto it = g.series.find(sk);
+                Value cell = Value::makeObject();
+                cell.set("count", Value::makeNumber(it == g.series.end() ? 0.0 : static_cast<double>(it->second.count)));
+                cell.set("sum", Value::makeNumber(it == g.series.end() ? 0.0 : it->second.sum));
+                s.set(sk, std::move(cell));
+            }
+            row.set("series", std::move(s));
+        }
         result.push(std::move(row));
     }
 
+    Value seriesKeys = Value::makeArray();
+    for (auto& sk : seriesOrder) seriesKeys.push(Value::makeString(sk));
+
     Value out = Value::makeObject();
     out.set("result", std::move(result));
-    out.set("total_count", Value::makeNumber(recordsPtr ? static_cast<double>(recordsPtr->arr.size()) : 0.0));
+    out.set("series_keys", std::move(seriesKeys));
+    out.set("total_count", Value::makeNumber(static_cast<double>(grand.count)));
+    out.set("total_sum", Value::makeNumber(grand.sum));
+    out.set("total_avg", Value::makeNumber(grand.count ? grand.sum / grand.count : 0.0));
     return out;
 }
 
-// cmd "search": busca textual (titulo/descricao) + filtros exatos sobre `records`,
-// devolvendo tambem uma contagem rapida por status (usado no kanban de demandas).
+Value runMulti(const Value& root) {
+    auto records = root.findArray("records");
+    Value results = Value::makeArray();
+    if (auto queries = root.findArray("queries")) {
+        for (auto& q : queries->arr) results.push(aggregate(records, q));
+    }
+    Value out = Value::makeObject();
+    out.set("results", std::move(results));
+    return out;
+}
+
+// Busca textual (case-insensitive, substring) em `text_fields` (ou em todos os
+// campos texto do registro, se nao informado) + filtros exatos.
 Value runSearch(const Value& root) {
-    auto recordsPtr = root.findArray("records");
+    auto records = root.findArray("records");
     std::string q = toLower(root.getString("q"));
-    std::string statusFilter = root.getString("status");
-    std::string etapaFilter = root.getString("etapa_fluxo");
+    auto filters = readFilters(root);
+
+    std::vector<std::string> textFields;
+    if (auto tf = root.findArray("text_fields")) {
+        for (auto& f : tf->arr) textFields.push_back(valueAsString(f));
+    }
 
     Value matched = Value::makeArray();
-    std::map<std::string, long> byStatus;
-    std::vector<std::string> statusOrder;
-
-    if (recordsPtr) {
-        for (auto& rec : recordsPtr->arr) {
-            if (!statusFilter.empty() && fieldAsString(rec, "status") != statusFilter) continue;
-            if (!etapaFilter.empty() && fieldAsString(rec, "etapa_fluxo") != etapaFilter) continue;
+    if (records) {
+        for (auto& rec : records->arr) {
+            if (!passesFilters(rec, filters)) continue;
             if (!q.empty()) {
-                std::string titulo = toLower(fieldAsString(rec, "titulo"));
-                std::string desc = toLower(fieldAsString(rec, "descricao"));
-                if (titulo.find(q) == std::string::npos && desc.find(q) == std::string::npos) continue;
+                bool hit = false;
+                if (textFields.empty()) {
+                    for (auto& kv : rec.obj) {
+                        if (kv.second.isString() && toLower(kv.second.str).find(q) != std::string::npos) { hit = true; break; }
+                    }
+                } else {
+                    for (auto& f : textFields) {
+                        if (toLower(fieldAsString(rec, f)).find(q) != std::string::npos) { hit = true; break; }
+                    }
+                }
+                if (!hit) continue;
             }
             matched.push(rec);
-            std::string st = fieldAsString(rec, "status");
-            if (!byStatus.count(st)) statusOrder.push_back(st);
-            byStatus[st]++;
         }
     }
 
-    Value byStatusObj = Value::makeObject();
-    for (auto& st : statusOrder) byStatusObj.set(st, Value::makeNumber(static_cast<double>(byStatus[st])));
-
-    double matchedCount = static_cast<double>(matched.arr.size());
+    double count = static_cast<double>(matched.arr.size());
     Value out = Value::makeObject();
     out.set("result", std::move(matched));
-    out.set("count", Value::makeNumber(matchedCount));
-    out.set("by_status", std::move(byStatusObj));
-    return out;
-}
-
-// cmd "fluxo_summary": totais de entrada/saida/saldo, e quebras por mes e por categoria.
-Value runFluxoSummary(const Value& root) {
-    auto recordsPtr = root.findArray("records");
-    double totalEntrada = 0, totalSaida = 0;
-
-    struct Par { double entrada = 0, saida = 0; };
-    std::map<std::string, Par> byMes;
-    std::vector<std::string> mesOrder;
-    std::map<std::string, Par> byCat;
-    std::vector<std::string> catOrder;
-
-    if (recordsPtr) {
-        for (auto& rec : recordsPtr->arr) {
-            std::string tipo = fieldAsString(rec, "tipo");
-            double valor = fieldAsNumber(rec, "valor");
-            std::string categoria = fieldAsString(rec, "categoria");
-            if (categoria.empty()) categoria = "(sem categoria)";
-            std::string data = fieldAsString(rec, "data");
-            std::string mes = data.size() >= 7 ? data.substr(0, 7) : "(sem data)";
-
-            if (tipo == "entrada") totalEntrada += valor;
-            else if (tipo == "saida") totalSaida += valor;
-
-            if (!byMes.count(mes)) mesOrder.push_back(mes);
-            if (tipo == "entrada") byMes[mes].entrada += valor;
-            else if (tipo == "saida") byMes[mes].saida += valor;
-
-            if (!byCat.count(categoria)) catOrder.push_back(categoria);
-            if (tipo == "entrada") byCat[categoria].entrada += valor;
-            else if (tipo == "saida") byCat[categoria].saida += valor;
-        }
-    }
-
-    std::sort(mesOrder.begin(), mesOrder.end());
-
-    Value byMesArr = Value::makeArray();
-    for (auto& mes : mesOrder) {
-        Value row = Value::makeObject();
-        row.set("mes", Value::makeString(mes));
-        row.set("entrada", Value::makeNumber(byMes[mes].entrada));
-        row.set("saida", Value::makeNumber(byMes[mes].saida));
-        row.set("saldo", Value::makeNumber(byMes[mes].entrada - byMes[mes].saida));
-        byMesArr.push(std::move(row));
-    }
-
-    Value byCatArr = Value::makeArray();
-    for (auto& cat : catOrder) {
-        Value row = Value::makeObject();
-        row.set("categoria", Value::makeString(cat));
-        row.set("entrada", Value::makeNumber(byCat[cat].entrada));
-        row.set("saida", Value::makeNumber(byCat[cat].saida));
-        byCatArr.push(std::move(row));
-    }
-
-    Value out = Value::makeObject();
-    out.set("total_entrada", Value::makeNumber(totalEntrada));
-    out.set("total_saida", Value::makeNumber(totalSaida));
-    out.set("saldo", Value::makeNumber(totalEntrada - totalSaida));
-    out.set("by_mes", std::move(byMesArr));
-    out.set("by_categoria", std::move(byCatArr));
+    out.set("count", Value::makeNumber(count));
     return out;
 }
 
@@ -197,15 +242,14 @@ Value runFluxoSummary(const Value& root) {
 int main() {
     std::ostringstream buf;
     buf << std::cin.rdbuf();
-    std::string input = buf.str();
 
     Value out;
     try {
-        Value root = json::parse(input);
+        Value root = json::parse(buf.str());
         std::string cmd = root.getString("cmd");
-        if (cmd == "aggregate") out = runAggregate(root);
+        if (cmd == "aggregate") out = aggregate(root.findArray("records"), root);
+        else if (cmd == "multi") out = runMulti(root);
         else if (cmd == "search") out = runSearch(root);
-        else if (cmd == "fluxo_summary") out = runFluxoSummary(root);
         else {
             out = Value::makeObject();
             out.set("error", Value::makeString("comando desconhecido: " + cmd));
