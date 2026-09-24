@@ -2,6 +2,8 @@
 
 Este guia explica como o DashZon funciona por dentro, o que faz cada arquivo e cada função importante, e traz um mini tutorial para manutenção e para apresentar o projeto.
 
+> **Regra do projeto (ver `CLAUDE.md`):** a lógica de funcionamento e a fórmula de organização dos dashboards e gráficos não mudam sem pedido explícito. Isso cobre a agregação do motor C++, o formato do `config` de um widget (`normalize_consulta!` / `engine_query`) e o desenho/ordem/layout em `dashboards.js` (`valorDe` … `renderGrafico`, GridStack). O código marca esses trechos com comentários `REGRA:`. Melhorar **como** o usuário alimenta o dashboard é permitido, desde que gere o mesmo `config`.
+
 Sumário:
 
 1. [A ideia em uma frase](#1-a-ideia-em-uma-frase)
@@ -196,6 +198,7 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 | `salvar_json!(tipo, nome, obj)` | Guarda um JSON; um template idêntico a um já salvo não é duplicado |
 | `jsons(tipo)` / `json_salvo(id)` / `excluir_json!` | Lista (sem o conteúdo), lê e remove JSON guardados |
 | `modulos` / `modulo(slug)` | Lista ou busca módulos, já com o `schema` convertido de JSON |
+| `modulo_por_nome(nome, exceto_id:)` | Acha um módulo pelo nome, sem diferenciar maiúsculas (comparado em Ruby para tratar acentos). Base da regra "nome de módulo é único" |
 | `registros(modulo_id)` | Registros do módulo, "achatados" (ver seção 3) |
 
 ### `backend/lib/module_schema.rb` (módulo `ModuleSchema`)
@@ -222,12 +225,17 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 | `salvar_importado!(bruto)` | Guarda um template importado na tabela `jsons` |
 | `summary(t)` | Versão resumida para a galeria do setup |
 | `normalize!(t)` | Valida o template inteiro sem gravar: módulos, seeds e widgets apontando para módulos existentes |
-| `install!(tpl, com_exemplos:)` | Grava tudo numa transação. Se o slug já existe, usa `slug_2`, `slug_3`... e corrige os widgets. Devolve `{modulos: [slugs], dashboards: [ids]}` |
+| `install!(tpl, com_exemplos:)` | Grava tudo numa transação. **Módulo com o mesmo nome de um existente é reaproveitado** (não duplica, não repete os dados de exemplo; widgets do template passam a apontar para ele e os que não cabem mais no schema atual são pulados). Se só o slug colidir, usa `slug_2`, `slug_3`... Devolve `{modulos, dashboards, reaproveitados, widgets_pulados}` |
+| `nome_dashboard_livre` | Dashboard de nome repetido vira "Nome (2)", "Nome (3)"... |
 | `export(com_dados:)` | Gera um template com a configuração atual, reimportável |
 
 ### `backend/lib/engine_client.rb` (módulo `EngineClient`)
 
 `run(payload)` procura o binário (`DASHZON_ENGINE` ou `engine-cpp/build/...`), manda o JSON pelo stdin e lê a resposta. Se o binário não existe ou devolve `error`, levanta `EngineError`, que vira resposta **500**.
+
+### `backend/lib/dados_ficticios.rb` (módulo `DadosFicticios`)
+
+`registros(schema)` inventa 72 registros a partir dos campos do módulo, só para a prévia do criador de card: valores em moeda entre 40 e 2.400, datas espalhadas pelos últimos 6 meses, mais saídas que entradas, e as primeiras opções de cada seleção aparecendo mais (para as barras variarem). A semente é fixa por módulo, então a prévia não "pula" a cada ajuste.
 
 ### `backend/app.rb` (rotas)
 
@@ -250,6 +258,9 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 | `POST /api/dashboards/:id/widgets`, `PUT/DELETE /api/widgets/:id` | Widgets |
 | `PUT /api/widgets/:id/layout` | Só posição e tamanho (chamado a cada arrastar, nunca apaga a config) |
 | `GET /api/widgets/:id/data` | Dados do widget (C++ `aggregate`) |
+| `POST /api/widgets/preview` | Prévia do criador de card: mesma validação e mesma consulta do `/data`, sobre registros **fictícios** gerados do schema (`lib/dados_ficticios.rb`, semente fixa por módulo). Nada é gravado |
+
+`POST /api/modulos` e `PUT /api/modulos/:slug` respondem **422** se o nome já pertence a outro módulo.
 
 ## 6. Motor C++
 
@@ -296,7 +307,7 @@ Todas as opções são opcionais. Resposta:
 
 ## 7. Frontend
 
-`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `api` → `setup` → `login` → `modulos` → `dashboards` → `app`.
+`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `ajuda` → `api` → `setup` → `login` → `modulos` → `dashboards` → `app`.
 
 ### Navegação
 
@@ -338,6 +349,8 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 | `coletar` | Lê o formulário e converte números e booleanos antes de enviar |
 | `abrirEstrutura` / `salvarEstrutura` | Editor JSON do módulo (`PUT /api/modulos/:slug`) |
 | `abrirAdicionar` / `comoTemplate` / `instalar` | Galeria e importação. Um módulo solto é embrulhado num template antes de validar e instalar |
+| `abrirFormulario(registro, modulo, depois)` | Formulário de registro de qualquer módulo; `depois` roda após salvar (na tela do módulo, recarrega a tabela) |
+| `lancar(slug, depois)` | Novo registro sem sair da tela atual: é o que o "+ Lançar" do dashboard usa |
 
 ### `js/dashboards.js` (`Dashboards`)
 
@@ -352,6 +365,30 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 | `renderGrafico` | Chart.js: até 2 séries lado a lado, mais que isso empilhadas; cor da série pela opção (`Util.corSerie`) |
 | `preencherOpcoes` | Monta o formulário de widget a partir dos campos do módulo escolhido. Filtros extras são mantidos |
 | `abrirNovo` | Modal "Novo dashboard": aba **A partir de um template** (instala os módulos do template e abre o dashboard dele) ou **Em branco** (só o nome) |
+| `escolherLancar` / `aposLancar` | "+ Lançar": se o dashboard usa um módulo só, abre direto o formulário dele; senão pergunta qual (os usados primeiro). Depois de salvar, recarrega todos os cards. Cada card também tem um "+" que lança no módulo dele |
+
+#### Criador de card
+
+O formulário de card (`abrirFormulario` / `salvarWidget`) tem 5 passos e uma prévia ao lado. Ele só ajuda a **preencher** os mesmos campos `w-*` de antes; o card salvo sai de `montarCorpo()` com o mesmo `config`.
+
+| Função | O que faz |
+|---|---|
+| `sugestoes(modulo)` / `renderSugestoes` | Atalhos gerados dos campos do módulo: total de registros, saldo ou total, valor por categoria, entradas × saídas por mês, evolução mês a mês, tabela por categoria. Clicar preenche tudo |
+| `setTipo` | Os 4 botões de tipo (número, barras, linha, tabela) gravam no `<input hidden id="w-tipo">` |
+| `tituloSugerido` | Nome automático ("Valor por Categoria", "Saldo mês a mês"...) até o usuário digitar um nome |
+| `frase` | Explica em português o que o card vai mostrar |
+| `montarCorpo` | Monta `{titulo, tipo, modulo, config}`, usado por salvar e pela prévia |
+| `atualizarPrevia` | `POST /api/widgets/preview` e desenha com os **mesmos** `renderKpi` / `renderTabela` / `renderGrafico` (gráfico com id `previa`). Respostas atrasadas são ignoradas |
+
+### `js/ajuda.js` (`Ajuda`)
+
+Os ícones **(?)** com prévia em imagem. `CATALOGO` guarda, para cada chave (`card-kpi`, `modulo-lancamentos`, `template-fluxo-caixa`, `criar-modulo`...), um título, um texto e as imagens de `frontend/preview/`.
+
+- `icone(chave)` devolve o HTML do ícone (um `<span role="button">`, para poder ficar dentro dos cartões da galeria, que são `<button>`). Chave sem entrada no catálogo não gera ícone.
+- Passar o mouse mostra um tooltip flutuante com a primeira imagem; clicar (ou Enter/Espaço) abre o popup `#modal-dica` com o texto e todas as imagens.
+- O clique é tratado na fase de captura e não propaga: clicar no (?) de um template **não** instala o template.
+
+Os prints são gerados por `scripts/gerar-previews.js` (ver seção 8). Para um módulo novo ter (?), acrescente a entrada `modulo-<slug>` no `CATALOGO` e o slug na lista `MODULOS` do script.
 
 ### `js/util.js` (`Util`)
 
@@ -397,6 +434,10 @@ curl -s "$B/api/modulos/movimentacoes/registros?q=folha&f%5Bsituacao%5D=Realizad
 curl -s -X POST $B/api/modulos/movimentacoes/registros -H "Content-Type: application/json" \
   -d '{"descricao":"Venda balcão","tipo":"entrada","valor":"1.250,00","categoria":"Vendas","situacao":"Realizado"}'
 ```
+
+### Refazer os prints de prévia (?)
+
+Quando a tela mudar, gere os prints de novo numa instância **separada** (banco próprio, dados de exemplo fictícios), para não expor nem mexer nos seus dados. O passo a passo completo está no topo de `scripts/gerar-previews.js`; em resumo: suba o backend com `DASHZON_DB_PATH` apontando para um banco temporário e `PORT=4600`, faça o setup com os 4 templates e `com_exemplos: true`, e rode `npm i --no-save puppeteer` e `node scripts/gerar-previews.js http://127.0.0.1:4600 demo demo`. Os PNG vão para `frontend/preview/`.
 
 ### Criar o seu próprio template
 
@@ -447,7 +488,7 @@ Antes de começar: renomeie o `data/dashzon.db` (se existir) para abrir no assis
 3. **Uso (1 min 30 s).** No dashboard de finanças, aponte receitas, despesas e saldo. Vá em **Lançamentos**, cadastre um gasto e volte: os números mudaram. Use a busca e o filtro "Pago: Não".
 4. **Modularidade (1 min 30 s).** Clique em **Estrutura (JSON)**, acrescente uma categoria (por exemplo, "Pets") e salve: ela já aparece no formulário. Depois, em **+ Módulos → Importar ou criar em JSON → Começar do zero**, instale um módulo novo ao vivo.
 5. **Versatilidade (1 min).** Em **Novo dashboard → A partir de um template**, escolha **Mapeamento de dados do setor** (LGPD): outro assunto, no mesmo sistema, sem código novo, e o dashboard dele já abre pronto.
-6. **Dashboard (1 min).** Crie um dashboard, adicione um widget do módulo novo, arraste e redimensione. Ligue **Ocultar valores** para mostrar o modo privacidade.
+6. **Dashboard (1 min).** Em **+ Card**, passe o mouse no (?) de "Linha" para mostrar a prévia em imagem, escolha um atalho e mostre a prévia com dados fictícios mudando a cada ajuste. Adicione, arraste e redimensione. Use **+ Lançar** para cadastrar um gasto sem sair do dashboard e veja os cards atualizarem. Ligue **Ocultar valores** para mostrar o modo privacidade.
 7. **Arquitetura (1 min).** Mostre um template em `backend/templates/`. Ruby cuida das regras e do banco, e o C++ faz as contas. Rode o motor sozinho: `echo '{...}' | dashzon_engine.exe`.
 8. **Próximos passos (30 s).** Servidor (já configurável por variáveis de ambiente), executável, orçamento × realizado, importação de CSV e usuários com permissões (o login de hoje é simulado).
 
