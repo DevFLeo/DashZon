@@ -7,6 +7,10 @@ const Modulos = (() => {
   let filtros = {};
   let busca = "";
   let editandoId = null;
+  // O formulário de registro também é aberto pelo dashboard ("Lançar"), então
+  // guarda o próprio módulo e o que fazer depois de salvar.
+  let formModulo = null;
+  let aoSalvar = null;
 
   const $ = (id) => document.getElementById(id);
   const esc = Util.escapeHtml;
@@ -148,10 +152,12 @@ const Modulos = (() => {
     }
   }
 
-  function abrirFormulario(registro = null) {
+  function abrirFormulario(registro = null, modulo = atual, depois = recarregar) {
+    formModulo = modulo;
+    aoSalvar = depois;
     editandoId = registro ? registro.id : null;
-    $("registro-titulo").textContent = registro ? `Editar registro · ${atual.nome}` : `Novo registro · ${atual.nome}`;
-    $("registro-campos").innerHTML = campos().map((c) => inputHtml(c, registro ? registro[c.id] : Util.resolverToken(c.padrao))).join("");
+    $("registro-titulo").textContent = registro ? `Editar registro · ${modulo.nome}` : `Novo registro · ${modulo.nome}`;
+    $("registro-campos").innerHTML = modulo.schema.campos.map((c) => inputHtml(c, registro ? registro[c.id] : Util.resolverToken(c.padrao))).join("");
     erroRegistro("");
     Util.abrirModal("modal-registro");
     $("registro-campos").querySelector("input, select, textarea")?.focus();
@@ -159,7 +165,7 @@ const Modulos = (() => {
 
   function coletar() {
     const dados = {};
-    campos().forEach((c) => {
+    formModulo.schema.campos.forEach((c) => {
       const el = $(`r-${c.id}`);
       if (c.tipo === "booleano") dados[c.id] = el.checked;
       else if (Util.NUMERICOS.includes(c.tipo)) dados[c.id] = el.value === "" ? null : Number(el.value);
@@ -177,11 +183,12 @@ const Modulos = (() => {
     ev.preventDefault();
     try {
       const dados = coletar();
-      if (editandoId) await Api.put(`/api/modulos/${atual.slug}/registros/${editandoId}`, dados);
-      else await Api.post(`/api/modulos/${atual.slug}/registros`, dados);
+      const slug = formModulo.slug;
+      if (editandoId) await Api.put(`/api/modulos/${slug}/registros/${editandoId}`, dados);
+      else await Api.post(`/api/modulos/${slug}/registros`, dados);
       Util.fecharModal("modal-registro");
-      Util.aviso(editandoId ? "Registro atualizado" : "Registro criado");
-      await recarregar();
+      Util.aviso(editandoId ? "Registro atualizado" : `Lançado em ${formModulo.nome}`);
+      await aoSalvar();
     } catch (e) {
       erroRegistro(e.message);
     }
@@ -257,7 +264,7 @@ const Modulos = (() => {
   async function instalar(corpo) {
     const res = await Api.post("/api/templates/instalar", { ...corpo, com_exemplos: $("add-exemplos").checked });
     Util.fecharModal("modal-add-modulo");
-    Util.aviso(`Instalado: ${res.modulos.length} módulo(s)`);
+    Util.aviso(Util.resumoInstalacao(res));
     await App.recarregarNav();
     App.ir(`#/m/${res.modulos[0]}`);
   }
@@ -333,5 +340,13 @@ const Modulos = (() => {
     });
   }
 
-  return { init, abrir, abrirAdicionar };
+  // Novo registro num módulo qualquer, sem sair da tela atual (usado pelo
+  // "+ Lançar" do dashboard).
+  function lancar(slug, depois) {
+    const modulo = App.modulo(slug);
+    if (!modulo) { Util.aviso("Módulo não encontrado", "erro"); return; }
+    abrirFormulario(null, modulo, depois);
+  }
+
+  return { init, abrir, abrirAdicionar, lancar };
 })();

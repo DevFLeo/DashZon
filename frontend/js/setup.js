@@ -13,7 +13,7 @@ const Setup = (() => {
       <button type="button" class="tpl-card ${selecionado ? "selected" : ""}" data-id="${Util.escapeHtml(id)}"
               ${selecionavel ? `aria-pressed="${selecionado ? "true" : "false"}"` : ""}>
         ${tag ? `<span class="tag">${Util.escapeHtml(tag)}</span>` : ""}
-        <h3>${Util.escapeHtml(nome)} ${selecionavel ? '<span class="check"></span>' : ""}</h3>
+        <h3><span>${Util.escapeHtml(nome)} ${Ajuda.icone(`template-${id}`)}</span> ${selecionavel ? '<span class="check"></span>' : ""}</h3>
         ${descricao ? `<p>${Util.escapeHtml(descricao)}</p>` : ""}
         <ul>${(modulos || []).map((m) => `<li>${Util.escapeHtml(m)}</li>`).join("")}</ul>
         ${dashboards && dashboards.length ? `<span class="hint">Dashboard: ${dashboards.map(Util.escapeHtml).join(", ")}</span>` : ""}

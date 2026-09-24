@@ -36,10 +36,17 @@ const Dashboards = (() => {
     $("btn-renomear-dashboard").addEventListener("click", renomear);
     $("btn-excluir-dashboard").addEventListener("click", excluir);
     $("form-widget").addEventListener("submit", salvarWidget);
-    $("w-modulo").addEventListener("change", () => preencherOpcoes(null));
-    $("w-tipo").addEventListener("change", atualizarVisibilidade);
+    $("w-modulo").addEventListener("change", trocarModulo);
     $("w-agregacao").addEventListener("change", atualizarVisibilidade);
     $("w-filtro-campo").addEventListener("change", () => preencherValoresFiltro(""));
+    document.querySelectorAll("#w-tipos .tipo-card").forEach((b) => b.addEventListener("click", () => { setTipo(b.dataset.tipo); aoMudar(); }));
+    ["w-agregacao", "w-campo", "w-agrupar", "w-serie", "w-filtro-campo", "w-filtro-valor"]
+      .forEach((id) => $(id).addEventListener("change", () => aoMudar()));
+    $("w-titulo").addEventListener("input", () => {
+      tituloManual = $("w-titulo").value.trim() !== "";
+      previaAtrasada();
+    });
+    $("btn-lancar").addEventListener("click", escolherLancar);
     initNovo();
 
     // Troca de tema claro/escuro: redesenha os gráficos com as novas cores.
@@ -83,12 +90,14 @@ const Dashboards = (() => {
         <div class="widget-header">
           <span class="title">${esc(w.titulo)}</span>
           <span class="tools">
-            <button class="icon-btn" data-editar title="Editar widget" aria-label="Editar widget">✎</button>
-            <button class="icon-btn" data-remover title="Remover widget" aria-label="Remover widget">×</button>
+            <button class="icon-btn" data-lancar title="Lançar em ${esc(App.modulo(w.modulo_slug)?.nome || "")}" aria-label="Lançar registro">+</button>
+            <button class="icon-btn" data-editar title="Editar card" aria-label="Editar card">✎</button>
+            <button class="icon-btn" data-remover title="Remover card" aria-label="Remover card">×</button>
           </span>
         </div>
         <div class="widget-body" id="wb-${w.id}"></div>
       </div>`;
+    item.querySelector("[data-lancar]").addEventListener("click", () => Modulos.lancar(w.modulo_slug, aposLancar));
     item.querySelector("[data-editar]").addEventListener("click", () => abrirFormulario(atual.widgets.find((x) => x.id === w.id)));
     item.querySelector("[data-remover]").addEventListener("click", () => remover(w.id));
     $("grid").appendChild(item);
@@ -276,21 +285,21 @@ const Dashboards = (() => {
     const campos = modulo.schema.campos;
     const numericos = campos.filter((c) => Util.NUMERICOS.includes(c.tipo));
 
-    const agregacoes = [["contagem", "Contagem de registros"]];
-    if (numericos.length) agregacoes.push(["soma", "Soma"], ["media", "Média"]);
+    const agregacoes = [["contagem", "Quantidade de registros"]];
+    if (numericos.length) agregacoes.push(["soma", "Somar um valor"], ["media", "Média de um valor"]);
     if (numericos.length && campos.some((c) => c.tipo === "movimento")) agregacoes.push(["saldo", "Saldo (entradas − saídas)"]);
 
     opcoes("w-agregacao", agregacoes, cfg?.agregacao || "contagem");
     opcoes("w-campo", numericos.map((c) => [c.id, c.nome]), cfg?.campo || undefined);
-    opcoes("w-agrupar", [["", "— sem agrupamento —"], ...campos.filter((c) => Util.DIMENSOES.includes(c.tipo))
-      .map((c) => [c.id, c.tipo === "data" ? `${c.nome} (por mês)` : c.nome])], cfg?.agrupar_por || "");
-    opcoes("w-serie", [["", "— uma série só —"], ...campos.filter((c) => Util.SERIES.includes(c.tipo)).map((c) => [c.id, c.nome])], cfg?.serie_por || "");
+    opcoes("w-agrupar", [["", "— tudo junto —"], ...campos.filter((c) => Util.DIMENSOES.includes(c.tipo))
+      .map((c) => [c.id, c.tipo === "data" ? `${c.nome} (mês a mês)` : c.nome])], cfg?.agrupar_por || "");
+    opcoes("w-serie", [["", "— uma cor só —"], ...campos.filter((c) => Util.SERIES.includes(c.tipo)).map((c) => [c.id, c.nome])], cfg?.serie_por || "");
 
     // A tela edita um filtro; filtros adicionais (vindos de templates) são mantidos.
     const entradas = Object.entries(cfg?.filtro || {});
     const [campoFiltro, valorFiltro] = entradas[0] || ["", ""];
     filtrosExtras = Object.fromEntries(entradas.slice(1));
-    opcoes("w-filtro-campo", [["", "— sem filtro —"], ...campos.filter((c) => Util.SERIES.includes(c.tipo)).map((c) => [c.id, c.nome])], campoFiltro);
+    opcoes("w-filtro-campo", [["", "— sempre (sem filtro) —"], ...campos.filter((c) => Util.SERIES.includes(c.tipo)).map((c) => [c.id, c.nome])], campoFiltro);
     preencherValoresFiltro(valorFiltro);
 
     const extras = Object.entries(filtrosExtras).map(([k, v]) => {
@@ -315,6 +324,11 @@ const Dashboards = (() => {
     $("w-campo-wrap").hidden = $("w-agregacao").value === "contagem";
     $("w-agrupar-wrap").hidden = tipo === "kpi";
     $("w-serie-wrap").hidden = tipo === "kpi" || tipo === "table";
+    document.querySelectorAll("#w-tipos .tipo-card").forEach((b) => {
+      const ativo = b.dataset.tipo === tipo;
+      b.classList.toggle("selected", ativo);
+      b.setAttribute("aria-checked", String(ativo));
+    });
   }
 
   function erroWidget(msg) {
@@ -322,30 +336,26 @@ const Dashboards = (() => {
     $("widget-erro").hidden = !msg;
   }
 
-  function abrirFormulario(w = null) {
-    const modulos = App.modulos();
-    if (!modulos.length) { Util.aviso("Adicione um módulo antes de criar widgets.", "erro"); return; }
+  // ------------------------------------------------ criador de card ----
+  // Tudo abaixo só ajuda a PREENCHER o formulário (atalhos, nome sugerido,
+  // frase explicativa, prévia). O card salvo sai de montarCorpo(), com o
+  // mesmo config de sempre, e é desenhado pelas funções render* acima.
+  let tituloManual = false;
+  let previaSeq = 0;
 
-    editando = w;
-    $("widget-modal-titulo").textContent = w ? "Editar widget" : "Adicionar widget";
-    $("w-titulo").value = w ? w.titulo : "";
-    $("w-tipo").value = w ? w.tipo : "bar";
-    opcoes("w-modulo", modulos.map((m) => [m.slug, m.nome]), w ? w.modulo_slug : modulos[0].slug);
-    preencherOpcoes(w ? w.config : null);
-    erroWidget("");
-    Util.abrirModal("modal-widget");
-    $("w-titulo").focus();
+  function setTipo(tipo) {
+    $("w-tipo").value = tipo;
+    atualizarVisibilidade();
   }
 
-  async function salvarWidget(ev) {
-    ev.preventDefault();
+  function montarCorpo() {
     const tipo = $("w-tipo").value;
     const agregacao = $("w-agregacao").value;
     const filtro = { ...filtrosExtras };
     if ($("w-filtro-campo").value) filtro[$("w-filtro-campo").value] = $("w-filtro-valor").value;
 
-    const corpo = {
-      titulo: $("w-titulo").value.trim(),
+    return {
+      titulo: $("w-titulo").value.trim() || tituloSugerido(),
       tipo,
       modulo: $("w-modulo").value,
       config: {
@@ -356,6 +366,162 @@ const Dashboards = (() => {
         filtro
       }
     };
+  }
+
+  // Atalhos montados a partir dos campos do módulo (cada um é só um config
+  // pronto; nada novo no formato).
+  function sugestoes(modulo) {
+    const campos = modulo.schema.campos;
+    const num = campos.find((c) => c.tipo === "moeda") || campos.find((c) => c.tipo === "numero");
+    const sel = campos.find((c) => c.tipo === "selecao");
+    const data = campos.find((c) => c.tipo === "data");
+    const mov = campos.find((c) => c.tipo === "movimento");
+    const medida = num ? { agregacao: "soma", campo: num.id } : { agregacao: "contagem" };
+    const oque = num ? num.nome : "Registros";
+    const lista = [{ rotulo: "Total de registros", tipo: "kpi", cfg: { agregacao: "contagem" } }];
+
+    if (mov && num) lista.push({ rotulo: "Saldo", tipo: "kpi", cfg: { agregacao: "saldo", campo: num.id } });
+    else if (num) lista.push({ rotulo: `Total de ${num.nome}`, tipo: "kpi", cfg: medida });
+    if (sel) lista.push({ rotulo: `${oque} por ${sel.nome}`, tipo: "bar", cfg: { ...medida, agrupar_por: sel.id } });
+    if (mov && num && data) {
+      lista.push({ rotulo: "Entradas × saídas por mês", tipo: "bar", cfg: { agregacao: "soma", campo: num.id, agrupar_por: data.id, serie_por: mov.id } });
+    }
+    if (data) lista.push({ rotulo: `${oque} mês a mês`, tipo: "line", cfg: { ...(mov && num ? { agregacao: "saldo", campo: num.id } : medida), agrupar_por: data.id } });
+    if (sel) lista.push({ rotulo: `Tabela por ${sel.nome}`, tipo: "table", cfg: { ...medida, agrupar_por: sel.id } });
+    return lista.slice(0, 6);
+  }
+
+  function renderSugestoes() {
+    const modulo = App.modulo($("w-modulo").value);
+    const lista = sugestoes(modulo);
+    const icone = { kpi: "123", bar: "▮▮", line: "╱╲", table: "☰" };
+    $("w-sugestoes").innerHTML = lista.map((s, i) =>
+      `<button type="button" class="sugestao" data-i="${i}"><span class="tipo-ico">${icone[s.tipo]}</span>${esc(s.rotulo)}</button>`).join("");
+    $("w-sugestoes").querySelectorAll(".sugestao").forEach((b) => b.addEventListener("click", () => {
+      const s = lista[Number(b.dataset.i)];
+      setTipo(s.tipo);
+      preencherOpcoes({ filtro: {}, ...s.cfg });
+      $("w-sugestoes").querySelectorAll(".sugestao").forEach((x) => x.classList.toggle("selected", x === b));
+      aoMudar(false, s.rotulo);
+    }));
+  }
+
+  function tituloSugerido() {
+    const modulo = App.modulo($("w-modulo").value);
+    const tipo = $("w-tipo").value;
+    const campo = campoDe(modulo, $("w-campo").value);
+    const grupo = tipo === "kpi" ? null : campoDe(modulo, $("w-agrupar").value);
+    const base = {
+      contagem: "Quantidade",
+      soma: campo ? campo.nome : "Total",
+      media: `Média de ${campo ? campo.nome : "valor"}`,
+      saldo: "Saldo"
+    }[$("w-agregacao").value];
+    if (!grupo) return base;
+    return grupo.tipo === "data" ? `${base} mês a mês` : `${base} por ${grupo.nome}`;
+  }
+
+  // Explica em português o que o card vai mostrar.
+  function frase() {
+    const modulo = App.modulo($("w-modulo").value);
+    const c = montarCorpo();
+    const cfg = c.config;
+    const campo = campoDe(modulo, cfg.campo);
+    const oque = {
+      contagem: "a quantidade de registros",
+      soma: `a soma de ${campo?.nome}`,
+      media: `a média de ${campo?.nome}`,
+      saldo: `o saldo (entradas − saídas) de ${campo?.nome}`
+    }[cfg.agregacao];
+    const como = { kpi: "um número", bar: "barras", line: "uma linha", table: "uma tabela" }[c.tipo];
+    const partes = [`Mostra ${oque} de "${modulo.nome}" como ${como}`];
+    const grupo = campoDe(modulo, cfg.agrupar_por);
+    if (grupo) partes.push(grupo.tipo === "data" ? `mês a mês (por ${grupo.nome})` : `separado por ${grupo.nome}`);
+    const serie = campoDe(modulo, cfg.serie_por);
+    if (serie) partes.push(`com uma cor para cada ${serie.nome}`);
+    const filtros = Object.entries(cfg.filtro).map(([k, v]) => {
+      const f = campoDe(modulo, k);
+      return `${f ? f.nome : k} = ${f ? Util.rotuloChave(f, v) : v}`;
+    });
+    if (filtros.length) partes.push(`considerando só ${filtros.join(" e ")}`);
+    return `${partes.join(", ")}.`;
+  }
+
+  // Prévia com dados fictícios: mesma consulta e mesmo motor (POST
+  // /api/widgets/preview) e as MESMAS funções de desenho do dashboard.
+  async function atualizarPrevia() {
+    const seq = ++previaSeq;
+    const c = montarCorpo();
+    const modulo = App.modulo(c.modulo);
+    const corpo = $("w-previa-corpo");
+    $("w-previa-titulo").textContent = c.titulo;
+    $("w-frase").textContent = frase();
+    try {
+      const d = await Api.post("/api/widgets/preview", c);
+      if (seq !== previaSeq) return; // chegou uma resposta mais nova
+      corpo.className = "widget-body";
+      corpo.dataset.tipo = c.tipo;
+      charts.previa?.destroy();
+      delete charts.previa;
+      if (c.tipo === "kpi") renderKpi(corpo, d, modulo);
+      else if (c.tipo === "table") renderTabela(corpo, d, modulo);
+      else renderGrafico({ id: "previa", tipo: c.tipo, titulo: c.titulo }, corpo, d, modulo);
+    } catch (e) {
+      if (seq === previaSeq) corpo.innerHTML = `<div class="widget-erro">${esc(e.message)}</div>`;
+    }
+  }
+
+  const previaAtrasada = Util.debounce(atualizarPrevia, 200);
+
+  // `titulo`: nome do atalho escolhido; sem ele, o nome sai das escolhas.
+  function aoMudar(limparAtalho = true, titulo = null) {
+    if (limparAtalho) $("w-sugestoes").querySelectorAll(".sugestao.selected").forEach((x) => x.classList.remove("selected"));
+    if (!tituloManual) $("w-titulo").value = titulo || tituloSugerido();
+    previaAtrasada();
+  }
+
+  function trocarModulo() {
+    preencherOpcoes(null);
+    const slug = $("w-modulo").value;
+    $("w-modulo-dica").innerHTML = Ajuda.icone(`modulo-${slug}`);
+    renderSugestoes();
+    aoMudar();
+  }
+
+  function abrirFormulario(w = null) {
+    const modulos = App.modulos();
+    if (!modulos.length) { Util.aviso("Adicione um módulo antes de criar cards.", "erro"); return; }
+
+    editando = w;
+    tituloManual = Boolean(w);
+    $("widget-modal-titulo").textContent = w ? "Editar card" : "Criar card";
+    $("w-salvar").textContent = w ? "Salvar card" : "Adicionar ao dashboard";
+    $("w-titulo").value = w ? w.titulo : "";
+
+    // Sugere o módulo que o dashboard já usa mais.
+    const usados = (atual?.widgets || []).map((x) => x.modulo_slug);
+    const preferido = usados.sort((a, b) => usados.filter((x) => x === b).length - usados.filter((x) => x === a).length)[0];
+    const inicial = w ? w.modulo_slug : (App.modulo(preferido) ? preferido : modulos[0].slug);
+    opcoes("w-modulo", modulos.map((m) => [m.slug, m.nome]), inicial);
+    $("w-modulo-dica").innerHTML = Ajuda.icone(`modulo-${inicial}`);
+    renderSugestoes();
+
+    setTipo(w ? w.tipo : "bar");
+    preencherOpcoes(w ? w.config : null);
+    if (!w) {
+      // Card novo já começa num atalho útil (o 3º costuma ser "X por categoria").
+      const botoes = $("w-sugestoes").querySelectorAll(".sugestao");
+      (botoes[2] || botoes[botoes.length - 1])?.click();
+    }
+    erroWidget("");
+    Util.abrirModal("modal-widget");
+    if (w) aoMudar(false); // card novo: o clique no atalho já atualizou tudo
+  }
+
+  async function salvarWidget(ev) {
+    ev.preventDefault();
+    const tipo = $("w-tipo").value;
+    const corpo = montarCorpo();
 
     try {
       if (editando) {
@@ -382,7 +548,7 @@ const Dashboards = (() => {
   }
 
   async function remover(id) {
-    if (!confirm("Remover este widget do dashboard?")) return;
+    if (!confirm("Remover este card do dashboard? Os registros do módulo não são afetados.")) return;
     await Api.del(`/api/widgets/${id}`);
     charts[id]?.destroy();
     delete charts[id];
@@ -406,6 +572,32 @@ const Dashboards = (() => {
     await Api.del(`/api/dashboards/${atual.id}`);
     await App.recarregarNav();
     App.irPadrao();
+  }
+
+  // ---------------------------------------------------------- lançar ----
+  // Cadastra um registro sem sair do dashboard e atualiza os cards.
+  async function aposLancar() {
+    await App.recarregarNav();
+    atual.widgets.forEach(carregarDados);
+  }
+
+  function escolherLancar() {
+    const usados = [...new Set(atual.widgets.map((w) => w.modulo_slug))].filter((s) => App.modulo(s));
+    const outros = App.modulos().map((m) => m.slug).filter((s) => !usados.includes(s));
+    if (!usados.length && !outros.length) { Util.aviso("Adicione um módulo antes de lançar.", "erro"); return; }
+    if (usados.length === 1) { Modulos.lancar(usados[0], aposLancar); return; }
+
+    const botao = (slug, usado) => {
+      const m = App.modulo(slug);
+      return `<button type="button" class="lancar-item ${usado ? "usado" : ""}" data-slug="${esc(slug)}">
+        <strong>${esc(m.nome)}</strong><span class="hint">${usado ? "usado neste dashboard · " : ""}${m.total} registro(s)</span></button>`;
+    };
+    $("lancar-lista").innerHTML = usados.map((s) => botao(s, true)).join("") + outros.map((s) => botao(s, false)).join("");
+    $("lancar-lista").querySelectorAll(".lancar-item").forEach((b) => b.addEventListener("click", () => {
+      Util.fecharModal("modal-lancar");
+      Modulos.lancar(b.dataset.slug, aposLancar);
+    }));
+    Util.abrirModal("modal-lancar");
   }
 
   // ------------------------------------------------- novo dashboard ----
@@ -444,7 +636,7 @@ const Dashboards = (() => {
     if (!confirm(`Criar um dashboard com o template "${t.nome}"? Ele instala os módulos: ${t.modulos.map((m) => m.nome).join(", ")}.`)) return;
     try {
       const res = await Api.post("/api/templates/instalar", { template_id: t.id, com_exemplos: $("nd-exemplos").checked });
-      Util.aviso(`"${t.nome}" instalado: ${res.modulos.length} módulo(s)`);
+      Util.aviso(Util.resumoInstalacao(res));
       await concluirNovo(res.dashboards.length ? `#/d/${res.dashboards[0]}` : `#/m/${encodeURIComponent(res.modulos[0])}`);
     } catch (e) { erroNovo(e.message); }
   }

@@ -299,6 +299,73 @@ textarea.code {
 .widget-sub { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
 .widget-erro { color: var(--critical-text); font-size: 13px; }
 
+/* ---------- Ajuda (?) com prévia em imagem ---------- */
+.dica {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 18px; height: 18px; border-radius: 50%; vertical-align: middle;
+  border: 1.5px solid var(--border-strong); color: var(--text-muted);
+  font-size: 11px; font-weight: 700; line-height: 1; cursor: help; user-select: none;
+}
+.dica:hover, .dica:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+.dica-tooltip {
+  position: fixed; z-index: 400; width: 340px; max-width: calc(100vw - 16px); pointer-events: none;
+  background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .22); padding: 10px; display: grid; gap: 6px; font-size: 13px;
+}
+.dica-tooltip img { width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); display: block; }
+.dica-tooltip p { margin: 0; color: var(--text-secondary); }
+.dica-texto { color: var(--text-secondary); margin: 0 0 14px; line-height: 1.5; }
+.dica-imagens { display: grid; gap: 12px; }
+.dica-imagens img { width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border); display: block; }
+
+/* ---------- Criador de card ---------- */
+.modal-xl { max-width: 1100px; }
+.criador-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 22px; align-items: start; }
+.criador-passo { margin-bottom: 18px; }
+.criador-passo h3 { font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.criador-passo > select, .criador-passo > input {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--page-plane);
+}
+.passo-n {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;
+}
+.sugestoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.sugestao, .tipo-card {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--surface-1); border-radius: 999px;
+  padding: 6px 12px; font-size: 13px; font-weight: 600;
+}
+.sugestao:hover, .tipo-card:hover { border-color: var(--accent); }
+.sugestao.selected, .tipo-card.selected {
+  border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-1));
+}
+.tipo-ico { font-size: 11px; color: var(--text-muted); letter-spacing: -1px; font-family: var(--font-mono); }
+.tipos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tipo-card { border-radius: var(--radius-md); flex-direction: column; justify-content: center; padding: 12px 8px; position: relative; }
+.tipo-card .tipo-ico { font-size: 16px; color: var(--accent); }
+.tipo-card .dica { position: absolute; top: 6px; right: 6px; }
+
+.criador-previa { position: sticky; top: 0; display: grid; gap: 10px; }
+.previa-rotulo { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.previa-card {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 12px 14px; height: 300px; display: flex; flex-direction: column;
+}
+.previa-card .widget-header { cursor: default; }
+.previa-card .widget-body[data-tipo="kpi"] { flex: 0 0 auto; }
+.previa-frase { margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.5; background: var(--hover); border-radius: var(--radius-sm); padding: 10px 12px; }
+
+/* ---------- Lançar pelo dashboard ---------- */
+.lancar-lista { display: grid; gap: 8px; margin-top: 12px; }
+.lancar-item {
+  text-align: left; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface-1);
+  border-radius: var(--radius-md); padding: 10px 14px; display: grid; gap: 2px;
+}
+.lancar-item:hover { border-color: var(--accent); }
+.lancar-item.usado { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong)); }
+
 /* ---------- Privacy mode ---------- */
 .privado .sensivel { filter: blur(7px); user-select: none; }
 .privado .sensivel:hover { filter: none; }
@@ -323,5 +390,9 @@ textarea.code {
   .sidebar-footer .btn { flex-shrink: 0; }
   .view { padding: 16px; }
   .field-row { grid-template-columns: 1fr; }
+  .criador-grid { grid-template-columns: minmax(0, 1fr); }
+  .criador-previa { position: static; order: -1; }
+  .previa-card { height: 240px; }
+  .tipos { grid-template-columns: repeat(2, 1fr); }
   .toolbar input[type="search"] { min-width: 0; flex: 1; }
 }

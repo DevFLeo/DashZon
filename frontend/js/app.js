@@ -76,6 +76,7 @@ const App = (() => {
   }
 
   function ligarComportamentosGlobais() {
+    Ajuda.init();
     document.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => Util.fecharModal(b.dataset.fechar)));
     document.querySelectorAll(".modal-overlay").forEach((o) => o.addEventListener("mousedown", (e) => {
       if (e.target === o) o.classList.remove("open");

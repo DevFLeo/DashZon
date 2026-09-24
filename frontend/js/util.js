@@ -133,6 +133,17 @@ const Util = (() => {
     });
   }
 
+  // Mensagem depois de instalar um template. Módulos de mesmo nome não são
+  // duplicados: o backend reaproveita o existente e avisa quais foram.
+  function resumoInstalacao(res) {
+    const novos = res.modulos.length - (res.reaproveitados || []).length;
+    const partes = [];
+    if (novos > 0) partes.push(`${novos} módulo(s) novo(s)`);
+    if (res.reaproveitados?.length) partes.push(`reaproveitado(s): ${res.reaproveitados.join(", ")}`);
+    if (res.widgets_pulados) partes.push(`${res.widgets_pulados} card(s) pulado(s) por não caberem no módulo atual`);
+    return `Instalado. ${partes.join(" · ")}`;
+  }
+
   function storage(chave, valor) {
     try {
       if (valor === undefined) return localStorage.getItem(chave);
@@ -145,6 +156,6 @@ const Util = (() => {
     NUMERICOS, DIMENSOES, SERIES,
     setMoeda, fmtNumero, fmtMoeda, fmtCompacto, fmtData, fmtMes, fmtValor, rotuloChave, opcoesDe,
     hojeISO, resolverToken, cssVar, corSerie, escapeHtml, debounce,
-    abrirModal, fecharModal, aviso, lerArquivo, storage
+    abrirModal, fecharModal, aviso, lerArquivo, storage, resumoInstalacao
   };
 })();
