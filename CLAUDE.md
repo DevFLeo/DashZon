@@ -19,6 +19,27 @@ Os trechos protegidos têm um comentário `REGRA:` no código apontando para est
 - O banco só nasce no setup. Nenhuma rota pode criar `data/dashzon.db` antes disso.
 - Um banco de schema antigo nunca é apagado: vira `.bak` (`arquivar_versao_antiga!`).
 
+## Uso real: validação dupla
+
+O sistema tem uso real (várias pessoas, possivelmente na internet). Toda modificação passa por **validação dupla, em loop**:
+
+1. **Antes de mudar:** leia o código atual e confirme o comportamento que vai mudar (e o que depende dele). Não edite de memória.
+2. **Depois de mudar, valide duas vezes:**
+   - rodada 1: `bundle exec rake test` + teste de ponta a ponta no navegador numa instância separada;
+   - corrija o que falhar e **repita tudo** (rodada 2) num banco zerado. Só commite quando as duas rodadas passarem sem falha.
+3. Se algo falhou no caminho, registre em `desenvolvimento.md`.
+
+## Contas de usuário
+
+- Regras de conta ficam em `backend/lib/usuarios.rb`; as rotas (`backend/rotas/usuarios.rb`) só chamam essas funções.
+- **Hash sempre:** senha com PBKDF2 (sal por usuário; não mude `ITERACOES`, as senhas gravadas dependem dele), CPF/CNPJ com HMAC da chave do servidor (guardado mascarado para exibir; o número completo nunca é gravado), tokens de link com SHA-256. Nada disso sai na API (`Usuarios.publico`).
+- `data/segredo.key` (ou `DASHZON_SESSION_SECRET`) **não pode ser apagado nem trocado** sem necessidade: derruba as sessões e invalida os hashes de CPF/CNPJ.
+- Não existe usuário padrão nem senha conhecida. Banco sem usuário pede para criar o primeiro, que nasce administrador.
+- Sempre sobra pelo menos um administrador ativo; ninguém se exclui, se desativa ou tira o próprio perfil de administrador.
+- Trocar senha, redefinir, desativar: a sessão da pessoa cai na hora (`sessao_versao`).
+- Toda rota `/api/admin/*` é só de administrador (filtro no `app.rb`). Rota nova de administração vai nesse prefixo.
+- Respostas de login e de "esqueci a senha" não revelam se um usuário existe.
+
 ## Boas práticas
 
 ### Arquitetura
@@ -52,13 +73,15 @@ Os trechos protegidos têm um comentário `REGRA:` no código apontando para est
 ### Segurança
 
 - Senhas só com hash (PBKDF2 com sal); nunca em log, resposta da API ou commit.
-- Nada de segredo no repositório: `.env`, bancos (`*.db`), backups e JSON do usuário estão no `.gitignore`. Confira `git status` antes de commitar.
-- A sessão usa cookie `httponly` e `same_site: strict`. Em servidor, defina `DASHZON_SESSION_SECRET`.
+- Nada de segredo no repositório: `.env`, bancos (`*.db`), `data/` (inclui `segredo.key`), backups e JSON do usuário estão no `.gitignore`. Confira `git status` antes de commitar.
+- A sessão usa cookie `httponly` e `same_site: strict`; atrás de HTTPS, `DASHZON_COOKIE_SEGURO=1`.
+- Acesso por domínio (ex.: DuckDNS) só com o host listado em `DASHZON_HOSTS`. Na internet, só com HTTPS (Caddy); nunca exponha o WEBrick direto.
+- Login e links têm limite de tentativas por IP. Rotas abertas novas também precisam desse limite.
 
 ### Testes e verificação
 
 - Rode `cd backend; bundle exec rake test` antes de commitar mudanças no backend. Funcionalidade nova no backend vem com teste em `backend/test/`.
-- Os testes usam um banco temporário (`DASHZON_DB_PATH`). **Nunca teste contra `data/dashzon.db`**, o banco real do usuário.
+- Os testes usam um banco temporário (`DASHZON_DB_PATH`, definido em `test/test_helper.rb` antes de carregar o app). **Nunca teste contra `data/dashzon.db`**, o banco real do usuário.
 - Para testar pela interface, suba uma instância separada (outra `PORT` e outro `DASHZON_DB_PATH`) com dados de exemplo.
 - JS: `node --check frontend/js/*.js`. Ruby: `ruby -c` nos arquivos alterados.
 - Se um teste manual criou dados no banco real, remova-os e diga isso ao usuário.
