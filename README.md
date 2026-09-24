@@ -50,20 +50,13 @@ Motor C++ (dashzon_engine): busca e agregação
 
 Todos vêm com categorias reais, resumos (KPIs), dados de exemplo opcionais e um dashboard montado. Também dá para **importar um template seu** e **exportar a configuração atual** no mesmo formato, para backup ou para levar a um servidor.
 
-## Rodando localmente (Windows)
+## Rodando
 
-Pré-requisitos: Ruby 3.4 (`winget install RubyInstallerTeam.Ruby.3.4`), CMake e Visual Studio Build Tools (compilador C++).
+O passo a passo completo (Windows, Docker, servidor com domínio, backup) está no **[servidor.md](servidor.md)**. O resumo:
 
-```powershell
-# 1. Compilar o motor C++
-cmake -S engine-cpp -B engine-cpp/build
-cmake --build engine-cpp/build --config Release
-
-# 2. Instalar as gems e subir o backend
-cd backend
-bundle install
-bundle exec ruby app.rb
-```
+- **Pelo Claude Code:** diga **"rode o projeto"**. Ele roda um script, instala só o que falta e responde com o endereço.
+- **Windows, sem Docker:** `powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1` (e `-Reiniciar` / `-Parar`). Pré-requisitos: Ruby 3.4, CMake e o Visual Studio Build Tools (comandos no `servidor.md`).
+- **Docker (qualquer máquina):** `docker compose up -d --build`. Não precisa de Ruby nem de compilador; os dados ficam no volume `dashzon_dashzon-dados`.
 
 Depois é só abrir http://127.0.0.1:4567. No primeiro acesso você cria o seu usuário, que já nasce **administrador**. Não existe usuário padrão nem senha conhecida.
 
@@ -80,7 +73,7 @@ Para acessar de fora de casa em `https://SEUNOME.duckdns.org:2444`, siga o passo
 
 ### Em servidor
 
-O motor C++ é portável (CMake + C++17, sem dependências). Compile-o na máquina de destino e configure por variáveis de ambiente:
+Num servidor, o caminho recomendado é o Docker com o Caddy (HTTPS automático): `docker compose --profile https up -d --build`, com o domínio no `.env` (veja a Opção 3 do `servidor.md`). Tudo se configura por variáveis de ambiente (no Docker, pelo `.env`; vazias valem como não definidas):
 
 | Variável | Padrão | Uso |
 |---|---|---|
@@ -93,10 +86,6 @@ O motor C++ é portável (CMake + C++17, sem dependências). Compile-o na máqui
 | `DASHZON_COOKIE_SEGURO` | desligado | `1` no uso público: requisições por HTTPS (via Caddy) recebem o cookie de login marcado como Secure. O acesso local por `http://127.0.0.1` continua funcionando |
 | `DASHZON_URL_PUBLICA` | o endereço da requisição | Endereço usado nos links de e-mail (ex.: `https://meupainel.duckdns.org:2444`) |
 | `DASHZON_SMTP_HOST`, `_PORTA`, `_USUARIO`, `_SENHA`, `_REMETENTE` | sem e-mail | Servidor de e-mail para confirmação e "esqueci a senha". Sem isso, o admin manda os links por outro canal |
-
-```bash
-cd backend && bundle exec rackup -o 0.0.0.0 -p 8080   # usa config.ru
-```
 
 ## Perguntas e respostas (os perrengues até aqui)
 
@@ -138,6 +127,9 @@ Os suspeitos de sempre, nessa ordem: operadora com **CGNAT** (o IP da WAN do rot
 
 **"Pelo Wi-Fi de casa o meu domínio não abre, mas no 4G abre."**
 É o roteador que não faz "NAT loopback" (não deixa acessar o próprio IP público de dentro da rede). Em casa, use `http://127.0.0.1:4567`.
+
+**"Por que no Docker ele é mais rápido que no Windows?"**
+No Linux o servidor é o Puma (no Windows ele exigiria instalar o MSYS2 para compilar) e abrir o motor C++ é bem mais barato. Nos dois lugares as respostas vão comprimidas (gzip) e o resultado de cada card fica guardado até algum dado mudar.
 
 ### Erros que já apareceram
 
@@ -230,7 +222,10 @@ docs/DESENVOLVIMENTO.md  lógica, funções e tutorial
 docs/PUBLICAR-DUCKDNS.md passo a passo para rodar no seu domínio
 deploy/                  Caddyfile e scripts de publicação (instalar, iniciar, parar, DuckDNS)
 scripts/gerar-previews.js  refaz os prints de frontend/preview/
-CLAUDE.md                regras do projeto
+CLAUDE.md                regras do projeto (e o que fazer quando pedirem "rode o projeto")
+servidor.md              passo a passo do servidor: Windows, Docker, domínio, backup
+scripts/rodar.ps1        sobe/para o DashZon no Windows, instalando só o que falta
+Dockerfile, docker-compose.yml, .env.example   Docker (motor compilado no Linux, Puma, Caddy opcional)
 ```
 
 > **Regra do projeto:** a lógica de funcionamento e a fórmula de organização dos dashboards e gráficos não mudam sem pedido explícito (detalhes em `CLAUDE.md`).
@@ -243,7 +238,7 @@ CLAUDE.md                regras do projeto
 
 ## Próximos passos
 
-- Script de inicialização (um clique) e empacotamento como executável Windows.
+- Empacotamento como executável Windows.
 - Orçamento × realizado (cruzar dois módulos, como no Actual Budget).
 - Importação do extrato em CSV/OFX para dentro de um módulo (é a alternativa ao Open Finance; ver as perguntas e respostas).
 - Permissões por módulo/dashboard (hoje: usuário e administrador).
