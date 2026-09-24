@@ -47,14 +47,32 @@ Regra de ouro: **o Ruby conversa com o banco, e o C++ só faz conta.** O C++ nun
 ```
 GET  /api/status             -> {"configured": false}
 GET  /api/templates          -> galeria de templates
-POST /api/setup              -> {org_name, moeda, templates: [...ids], importados: [...JSON], com_exemplos}
+POST /api/setup              -> {org_name, moeda, usuario, senha, templates: [...ids], importados: [...JSON], com_exemplos}
        1. valida TODOS os templates primeiro (se um falhar, nada é criado)
        2. arquivar_versao_antiga!  (se existir banco de schema antigo, renomeia para .bak)
        3. create_schema!           (só aqui o arquivo data/dashzon.db nasce)
-       4. install! de cada template (módulos + dados de exemplo + dashboards)
+       4. criar_usuario!           (o login do setup; a sessão já sai autenticada)
+       5. install! de cada template (módulos + dados de exemplo + dashboards)
+       6. salvar_importado! dos JSON importados (tabela jsons, voltam na galeria)
 ```
 
-Antes do setup, qualquer rota da API que precise do banco responde **409 "O sistema ainda não foi configurado"**. Isso é o filtro `before "/api/*"` do `app.rb`.
+O filtro `before "/api/*"` do `app.rb` protege a API:
+
+- `/api/status`, `/api/login` e `/api/logout` são sempre abertas.
+- **Antes do setup**, só o setup e a galeria respondem; o resto dá **409 "O sistema ainda não foi configurado"**.
+- **Depois do setup**, tudo (inclusive a galeria, que passa a ter templates do usuário) exige login: sem sessão, **401**.
+
+### Login (simulado)
+
+```
+GET  /api/status   -> {configured: true, org_name, usuario: null, demo: true}
+POST /api/login    -> {usuario, senha}   (401 "Usuário ou senha inválidos")
+POST /api/logout   -> limpa a sessão
+```
+
+A senha é guardada com PBKDF2 (sal por usuário) na tabela `usuarios`, e a sessão é um cookie assinado do Sinatra. Não há perfis nem permissões: o objetivo é simular a entrada antes de levar o sistema a um servidor. Um banco criado antes do login ganha o usuário de demonstração **admin / admin**, e a tela de login mostra essa dica enquanto essa senha valer.
+
+A chave da sessão vem de `DASHZON_SESSION_SECRET`. Sem ela, a chave é sorteada a cada boot e todo mundo precisa entrar de novo depois de reiniciar o servidor (o frontend recebe 401 e volta para a tela de login).
 
 ## 3. Modelo de dados
 
@@ -65,6 +83,12 @@ Antes do setup, qualquer rota da API que precise do banco responde **409 "O sist
 | `registros` | Os dados de **todos** os módulos: `modulo_id` + **`dados`** (JSON com os valores dos campos) |
 | `dashboards` | Nome de cada dashboard |
 | `widgets` | Cada cartão do dashboard: título, tipo (kpi/bar/line/table), `modulo_slug`, **`config`** (JSON: o que medir e como agrupar) e posição x/y/w/h |
+| `usuarios` | Login simulado: `login`, `senha_hash` (PBKDF2) e `sal` |
+| `jsons` | JSON do usuário: `tipo` `template` (importados, aparecem na galeria) ou `exportacao` (cada backup baixado), com `nome` e `conteudo` |
+
+`usuarios` e `jsons` ficam fora do `SCHEMA` principal (`EXTRAS_SQL`) e são criadas sob demanda por `garantir_tabelas!`, então um banco existente as ganha sem migração e sem mudar o `user_version`.
+
+**Onde fica cada JSON:** os templates padrão são arquivos em `backend/templates/` e vão para o git. Tudo o que o usuário traz ou gera (templates importados, exportações) vai para a tabela `jsons` do banco, que já fica fora do git. O `.gitignore` também ignora qualquer outro `.json` solto no projeto; um template colocado em `backend/templates/` continua aparecendo na galeria localmente, mas não é versionado.
 
 Por que JSON dentro do SQLite? Porque criar ou alterar um módulo não exige migração de banco: um campo novo é só uma chave a mais no JSON. A versão do schema fica em `PRAGMA user_version` (hoje `2`).
 
@@ -166,6 +190,11 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 | `configured?` | O arquivo existe, o `user_version` está atual e há linha em `config` |
 | `arquivar_versao_antiga!` | Renomeia um banco de schema antigo para `.bak` (nunca apaga) |
 | `create_schema!` | Cria as tabelas e grava a `config` |
+| `garantir_tabelas!` | Cria `usuarios` e `jsons` se ainda não existirem (uma vez por conexão) |
+| `criar_usuario!` / `autenticar` | Grava um usuário com senha em hash / confere login e senha |
+| `garantir_usuario!` / `usuario_demo?` | Cria o admin/admin num banco sem usuários / diz se essa senha ainda vale |
+| `salvar_json!(tipo, nome, obj)` | Guarda um JSON; um template idêntico a um já salvo não é duplicado |
+| `jsons(tipo)` / `json_salvo(id)` / `excluir_json!` | Lista (sem o conteúdo), lê e remove JSON guardados |
 | `modulos` / `modulo(slug)` | Lista ou busca módulos, já com o `schema` convertido de JSON |
 | `registros(modulo_id)` | Registros do módulo, "achatados" (ver seção 3) |
 
@@ -189,10 +218,11 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 
 | Função | O que faz |
 |---|---|
-| `all` / `find(id)` | Lê `backend/templates/*.json`, ordenados pelo campo `ordem` |
+| `all` / `find(id)` | Templates padrão (`backend/templates/*.json`, pelo campo `ordem`) seguidos dos importados guardados no banco, que ganham o id `salvo-<n>` |
+| `salvar_importado!(bruto)` | Guarda um template importado na tabela `jsons` |
 | `summary(t)` | Versão resumida para a galeria do setup |
 | `normalize!(t)` | Valida o template inteiro sem gravar: módulos, seeds e widgets apontando para módulos existentes |
-| `install!(tpl, com_exemplos:)` | Grava tudo numa transação. Se o slug já existe, usa `slug_2`, `slug_3`... e corrige os widgets |
+| `install!(tpl, com_exemplos:)` | Grava tudo numa transação. Se o slug já existe, usa `slug_2`, `slug_3`... e corrige os widgets. Devolve `{modulos: [slugs], dashboards: [ids]}` |
 | `export(com_dados:)` | Gera um template com a configuração atual, reimportável |
 
 ### `backend/lib/engine_client.rb` (módulo `EngineClient`)
@@ -203,12 +233,15 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 
 | Método e rota | Para quê |
 |---|---|
-| `GET /api/status` | Se já foi configurado, com nome e moeda |
-| `GET /api/templates`, `GET /api/templates/:id` | Galeria e JSON completo de um template |
+| `GET /api/status` | Se já foi configurado, com nome, usuário conectado e moeda (ou a dica do login demo) |
+| `POST /api/login`, `POST /api/logout` | Entrar e sair (sessão por cookie) |
+| `GET /api/templates`, `GET /api/templates/:id` | Galeria (padrão + importados) e JSON completo de um template |
+| `DELETE /api/templates/salvo-<n>` | Remove um template importado da galeria (os padrão não podem ser removidos) |
 | `POST /api/templates/validar` | Pré-visualiza um JSON importado sem gravar |
-| `POST /api/setup` | Cria o banco e instala os templates escolhidos |
-| `POST /api/templates/instalar` | Adiciona um template depois do setup |
-| `GET /api/export?dados=1` | Baixa a configuração (e os dados) em JSON |
+| `POST /api/setup` | Cria o banco, o usuário e instala os templates escolhidos |
+| `POST /api/templates/instalar` | Adiciona um template depois do setup (`template_id` da galeria ou `template` colado, que fica guardado no banco) |
+| `GET /api/export?dados=1` | Baixa a configuração (e os dados) em JSON e guarda uma cópia no banco |
+| `GET /api/exportacoes`, `GET/DELETE /api/exportacoes/:id` | Histórico de exportações guardadas: listar, baixar de novo, remover |
 | `GET/POST /api/modulos`, `GET/PUT/DELETE /api/modulos/:slug` | CRUD de módulos. O slug não muda no PUT |
 | `GET /api/modulos/:slug/resumo` | KPIs do módulo (um único processo C++ com `multi`) |
 | `GET /api/modulos/:slug/registros?q=texto&f[campo]=valor` | Lista com busca e filtros (C++ `search`) |
@@ -263,7 +296,7 @@ Todas as opções são opcionais. Resposta:
 
 ## 7. Frontend
 
-`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `api` → `setup` → `modulos` → `dashboards` → `app`.
+`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `api` → `setup` → `login` → `modulos` → `dashboards` → `app`.
 
 ### Navegação
 
@@ -279,7 +312,7 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 
 | Função | O que faz |
 |---|---|
-| `boot` | Liga os comportamentos globais e decide entre o assistente (`Setup.iniciar`) e a aplicação |
+| `boot` | Liga os comportamentos globais e decide entre o assistente (`Setup.iniciar`), a tela de login (`Login.iniciar`) e a aplicação |
 | `iniciarApp` | Aplica a moeda, inicia as telas e carrega a barra lateral |
 | `recarregarNav` | Busca módulos e dashboards de novo (chame depois de criar ou excluir algo) |
 | `rotear` | Lê o hash e abre o dashboard ou o módulo. Rota inválida vai para a rota padrão |
@@ -288,7 +321,11 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 
 ### `js/setup.js` (`Setup`)
 
-`iniciar(onConcluido)` mostra a galeria (o primeiro template já vem marcado), deixa importar um JSON e, no envio, chama `POST /api/setup`. `cardHtml(...)` desenha o cartão de template e é reaproveitado no modal de "Adicionar módulo".
+`iniciar(onConcluido)` mostra a galeria (o primeiro template já vem marcado), pede usuário e senha, deixa importar um JSON e, no envio, chama `POST /api/setup`. `cardHtml(...)` desenha o cartão de template e é reaproveitado nos modais "Adicionar módulo" e "Novo dashboard"; `tagDe(t)` põe a etiqueta "Importado" nos templates vindos do banco.
+
+### `js/login.js` (`Login`)
+
+`iniciar(status, onConcluido)` mostra a tela de login (com a dica admin/admin quando `status.demo`) e chama `POST /api/login`. `sair()` chama `POST /api/logout` e recarrega a página. O `api.js` também volta para a tela de login sempre que uma chamada recebe **401** (sessão expirada).
 
 ### `js/modulos.js` (`Modulos`)
 
@@ -314,6 +351,7 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 | `ordenar` | Meses em ordem, seleções na ordem das opções do schema, o resto do maior para o menor |
 | `renderGrafico` | Chart.js: até 2 séries lado a lado, mais que isso empilhadas; cor da série pela opção (`Util.corSerie`) |
 | `preencherOpcoes` | Monta o formulário de widget a partir dos campos do módulo escolhido. Filtros extras são mantidos |
+| `abrirNovo` | Modal "Novo dashboard": aba **A partir de um template** (instala os módulos do template e abre o dashboard dele) ou **Em branco** (só o nome) |
 
 ### `js/util.js` (`Util`)
 
@@ -343,11 +381,16 @@ Pare o servidor e **renomeie** (não apague, se quiser guardar os dados) o arqui
 
 ### Testar a API sem o frontend
 
+Depois do setup a API exige login, então o `curl` precisa guardar o cookie da sessão (`-c` grava, `-b` envia):
+
 ```bash
 B=http://127.0.0.1:4567
 curl -s $B/api/status
-curl -s -X POST $B/api/setup -H "Content-Type: application/json" \
-  -d '{"org_name":"Minha empresa","moeda":"BRL","templates":["fluxo-caixa"],"com_exemplos":true}'
+curl -s -c cj -X POST $B/api/setup -H "Content-Type: application/json" \
+  -d '{"org_name":"Minha empresa","moeda":"BRL","usuario":"admin","senha":"admin","templates":["fluxo-caixa"],"com_exemplos":true}'
+# (num banco já configurado:)
+curl -s -c cj -X POST $B/api/login -H "Content-Type: application/json" -d '{"usuario":"admin","senha":"admin"}'
+alias curl='curl -b cj'
 curl -s $B/api/modulos
 curl -s $B/api/modulos/movimentacoes/resumo
 curl -s "$B/api/modulos/movimentacoes/registros?q=folha&f%5Bsituacao%5D=Realizado"
@@ -400,13 +443,13 @@ Cerca de 5 a 7 minutos:
 Antes de começar: renomeie o `data/dashzon.db` (se existir) para abrir no assistente e deixe o terminal do servidor visível.
 
 1. **O problema (30 s).** "Cada área controla suas coisas numa planilha diferente. O DashZon é um único painel que se adapta ao que você quer controlar."
-2. **Primeiro acesso (1 min).** Mostre a pasta `data/` sem o banco. No assistente, dê um nome, marque **Finanças pessoais** e **Fluxo de caixa** e crie. Mostre o `dashzon.db` aparecendo só agora.
+2. **Primeiro acesso (1 min).** Mostre a pasta `data/` sem o banco. No assistente, dê um nome, crie usuário e senha, marque **Finanças pessoais** e **Fluxo de caixa** e crie. Mostre o `dashzon.db` aparecendo só agora. Clique em **Sair** e entre de novo para mostrar o login.
 3. **Uso (1 min 30 s).** No dashboard de finanças, aponte receitas, despesas e saldo. Vá em **Lançamentos**, cadastre um gasto e volte: os números mudaram. Use a busca e o filtro "Pago: Não".
 4. **Modularidade (1 min 30 s).** Clique em **Estrutura (JSON)**, acrescente uma categoria (por exemplo, "Pets") e salve: ela já aparece no formulário. Depois, em **+ Módulos → Importar ou criar em JSON → Começar do zero**, instale um módulo novo ao vivo.
-5. **Versatilidade (1 min).** Pela galeria, instale **Mapeamento de dados do setor** (LGPD): outro assunto, no mesmo sistema, sem código novo.
+5. **Versatilidade (1 min).** Em **Novo dashboard → A partir de um template**, escolha **Mapeamento de dados do setor** (LGPD): outro assunto, no mesmo sistema, sem código novo, e o dashboard dele já abre pronto.
 6. **Dashboard (1 min).** Crie um dashboard, adicione um widget do módulo novo, arraste e redimensione. Ligue **Ocultar valores** para mostrar o modo privacidade.
 7. **Arquitetura (1 min).** Mostre um template em `backend/templates/`. Ruby cuida das regras e do banco, e o C++ faz as contas. Rode o motor sozinho: `echo '{...}' | dashzon_engine.exe`.
-8. **Próximos passos (30 s).** Servidor (já configurável por variáveis de ambiente), executável, orçamento × realizado, importação de CSV e login.
+8. **Próximos passos (30 s).** Servidor (já configurável por variáveis de ambiente), executável, orçamento × realizado, importação de CSV e usuários com permissões (o login de hoje é simulado).
 
 Perguntas que costumam aparecer:
 
