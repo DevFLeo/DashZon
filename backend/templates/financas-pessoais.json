@@ -1,0 +1,122 @@
+{
+  "formato": "dashzon-template",
+  "versao": 1,
+  "id": "financas-pessoais",
+  "ordem": 1,
+  "nome": "Finanças pessoais",
+  "icone": "carteira",
+  "descricao": "Controle de receitas e gastos do dia a dia, com contas/cartões, parcelas e orçamento mensal por categoria.",
+  "modulos": [
+    {
+      "slug": "lancamentos",
+      "nome": "Lançamentos",
+      "icone": "carteira",
+      "descricao": "Tudo que entra e sai: salário, compras, contas fixas, parcelas do cartão.",
+      "rotulo": "descricao",
+      "campos": [
+        { "id": "descricao", "nome": "Descrição", "tipo": "texto", "obrigatorio": true },
+        { "id": "tipo", "nome": "Tipo", "tipo": "movimento", "obrigatorio": true, "padrao": "saida" },
+        { "id": "valor", "nome": "Valor", "tipo": "moeda", "obrigatorio": true },
+        { "id": "categoria", "nome": "Categoria", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Moradia", "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Assinaturas", "Compras", "Salário", "Renda extra", "Investimentos", "Outros"] },
+        { "id": "conta", "nome": "Conta / cartão", "tipo": "selecao",
+          "opcoes": ["Conta corrente", "Poupança", "Cartão de crédito", "Dinheiro", "Carteira digital"], "padrao": "Conta corrente" },
+        { "id": "data", "nome": "Data", "tipo": "data", "obrigatorio": true, "padrao": "$hoje" },
+        { "id": "parcela", "nome": "Parcela", "tipo": "texto", "ajuda": "Ex.: 3/12 para compras parceladas", "lista": false },
+        { "id": "pago", "nome": "Pago", "tipo": "booleano", "padrao": true }
+      ],
+      "resumo": [
+        { "titulo": "Receitas", "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "entrada" } },
+        { "titulo": "Despesas", "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "saida" } },
+        { "titulo": "Saldo", "agregacao": "saldo", "campo": "valor" },
+        { "titulo": "A pagar", "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "saida", "pago": "false" } }
+      ],
+      "seed": [
+        { "descricao": "Salário", "tipo": "entrada", "valor": 5200, "categoria": "Salário", "conta": "Conta corrente", "data": "$hoje-35", "pago": true },
+        { "descricao": "Aluguel", "tipo": "saida", "valor": 1450, "categoria": "Moradia", "conta": "Conta corrente", "data": "$hoje-33", "pago": true },
+        { "descricao": "Supermercado", "tipo": "saida", "valor": 612.4, "categoria": "Alimentação", "conta": "Cartão de crédito", "data": "$hoje-30", "pago": true },
+        { "descricao": "Combustível", "tipo": "saida", "valor": 240, "categoria": "Transporte", "conta": "Cartão de crédito", "data": "$hoje-27", "pago": true },
+        { "descricao": "Streaming e música", "tipo": "saida", "valor": 64.8, "categoria": "Assinaturas", "conta": "Cartão de crédito", "data": "$hoje-25", "pago": true },
+        { "descricao": "Freela de design", "tipo": "entrada", "valor": 900, "categoria": "Renda extra", "conta": "Carteira digital", "data": "$hoje-20", "pago": true },
+        { "descricao": "Salário", "tipo": "entrada", "valor": 5200, "categoria": "Salário", "conta": "Conta corrente", "data": "$hoje-5", "pago": true },
+        { "descricao": "Aluguel", "tipo": "saida", "valor": 1450, "categoria": "Moradia", "conta": "Conta corrente", "data": "$hoje-3", "pago": true },
+        { "descricao": "Notebook", "tipo": "saida", "valor": 380, "categoria": "Compras", "conta": "Cartão de crédito", "data": "$hoje-2", "parcela": "2/10", "pago": false },
+        { "descricao": "Farmácia", "tipo": "saida", "valor": 89.9, "categoria": "Saúde", "conta": "Dinheiro", "data": "$hoje-1", "pago": true },
+        { "descricao": "Curso online", "tipo": "saida", "valor": 197, "categoria": "Educação", "conta": "Cartão de crédito", "data": "$hoje", "pago": false },
+        { "descricao": "Aporte na reserva", "tipo": "saida", "valor": 500, "categoria": "Investimentos", "conta": "Poupança", "data": "$hoje", "pago": true }
+      ]
+    },
+    {
+      "slug": "orcamento",
+      "nome": "Orçamento mensal",
+      "icone": "meta",
+      "descricao": "Quanto você planeja gastar por categoria em cada mês.",
+      "rotulo": "categoria",
+      "campos": [
+        { "id": "categoria", "nome": "Categoria", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Moradia", "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Assinaturas", "Compras", "Investimentos", "Outros"] },
+        { "id": "limite", "nome": "Limite do mês", "tipo": "moeda", "obrigatorio": true },
+        { "id": "observacao", "nome": "Observação", "tipo": "texto" }
+      ],
+      "resumo": [
+        { "titulo": "Orçamento total", "agregacao": "soma", "campo": "limite" },
+        { "titulo": "Categorias orçadas", "agregacao": "contagem" }
+      ],
+      "seed": [
+        { "categoria": "Moradia", "limite": 1600 },
+        { "categoria": "Alimentação", "limite": 900, "observacao": "Mercado + delivery" },
+        { "categoria": "Transporte", "limite": 350 },
+        { "categoria": "Lazer", "limite": 300 },
+        { "categoria": "Assinaturas", "limite": 80 }
+      ]
+    },
+    {
+      "slug": "contas",
+      "nome": "Contas e cartões",
+      "icone": "banco",
+      "descricao": "Onde o dinheiro está: contas, cartões e limites.",
+      "rotulo": "nome",
+      "campos": [
+        { "id": "nome", "nome": "Nome", "tipo": "texto", "obrigatorio": true },
+        { "id": "tipo", "nome": "Tipo", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Conta corrente", "Poupança", "Cartão de crédito", "Carteira digital", "Investimento"] },
+        { "id": "instituicao", "nome": "Instituição", "tipo": "texto" },
+        { "id": "limite", "nome": "Limite / saldo", "tipo": "moeda" },
+        { "id": "vencimento", "nome": "Dia de vencimento", "tipo": "numero", "ajuda": "Para cartões: dia do vencimento da fatura" },
+        { "id": "ativa", "nome": "Ativa", "tipo": "booleano", "padrao": true }
+      ],
+      "resumo": [
+        { "titulo": "Contas ativas", "agregacao": "contagem", "filtro": { "ativa": "true" } },
+        { "titulo": "Limite total", "agregacao": "soma", "campo": "limite" }
+      ],
+      "seed": [
+        { "nome": "Conta principal", "tipo": "Conta corrente", "instituicao": "Banco A", "limite": 3200, "ativa": true },
+        { "nome": "Cartão roxo", "tipo": "Cartão de crédito", "instituicao": "Banco B", "limite": 6000, "vencimento": 10, "ativa": true },
+        { "nome": "Reserva de emergência", "tipo": "Poupança", "instituicao": "Banco A", "limite": 8000, "ativa": true }
+      ]
+    }
+  ],
+  "dashboards": [
+    {
+      "nome": "Finanças pessoais",
+      "widgets": [
+        { "titulo": "Receitas", "tipo": "kpi", "modulo": "lancamentos", "x": 0, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "entrada" } } },
+        { "titulo": "Despesas", "tipo": "kpi", "modulo": "lancamentos", "x": 3, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "saida" } } },
+        { "titulo": "Saldo", "tipo": "kpi", "modulo": "lancamentos", "x": 6, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "saldo", "campo": "valor" } },
+        { "titulo": "A pagar", "tipo": "kpi", "modulo": "lancamentos", "x": 9, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "saida", "pago": "false" } } },
+        { "titulo": "Receitas x despesas por mês", "tipo": "bar", "modulo": "lancamentos", "x": 0, "y": 2, "w": 7, "h": 4,
+          "config": { "agregacao": "soma", "campo": "valor", "agrupar_por": "data", "serie_por": "tipo" } },
+        { "titulo": "Despesas por categoria", "tipo": "bar", "modulo": "lancamentos", "x": 7, "y": 2, "w": 5, "h": 4,
+          "config": { "agregacao": "soma", "campo": "valor", "agrupar_por": "categoria", "filtro": { "tipo": "saida" } } },
+        { "titulo": "Gastos por conta / cartão", "tipo": "table", "modulo": "lancamentos", "x": 0, "y": 6, "w": 5, "h": 3,
+          "config": { "agregacao": "soma", "campo": "valor", "agrupar_por": "conta", "filtro": { "tipo": "saida" } } },
+        { "titulo": "Saldo mês a mês", "tipo": "line", "modulo": "lancamentos", "x": 5, "y": 6, "w": 7, "h": 3,
+          "config": { "agregacao": "saldo", "campo": "valor", "agrupar_por": "data" } }
+      ]
+    }
+  ]
+}

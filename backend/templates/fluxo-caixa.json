@@ -1,0 +1,76 @@
+{
+  "formato": "dashzon-template",
+  "versao": 1,
+  "id": "fluxo-caixa",
+  "ordem": 2,
+  "nome": "Fluxo de caixa empresarial",
+  "icone": "caixa",
+  "descricao": "Entradas e saídas da empresa por categoria, centro de custo e conta, separando o previsto do realizado.",
+  "modulos": [
+    {
+      "slug": "movimentacoes",
+      "nome": "Movimentações de caixa",
+      "icone": "caixa",
+      "descricao": "Recebimentos e pagamentos, previstos ou já realizados.",
+      "rotulo": "descricao",
+      "campos": [
+        { "id": "descricao", "nome": "Descrição", "tipo": "texto", "obrigatorio": true },
+        { "id": "tipo", "nome": "Tipo", "tipo": "movimento", "obrigatorio": true },
+        { "id": "valor", "nome": "Valor", "tipo": "moeda", "obrigatorio": true },
+        { "id": "categoria", "nome": "Categoria", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Vendas", "Serviços", "Recebimentos diversos", "Fornecedores", "Folha de pagamento", "Impostos", "Aluguel", "Marketing", "Despesas administrativas", "Investimentos", "Outros"] },
+        { "id": "centro_custo", "nome": "Centro de custo", "tipo": "selecao",
+          "opcoes": ["Comercial", "Operações", "Administrativo", "Financeiro", "TI"] },
+        { "id": "conta", "nome": "Conta", "tipo": "selecao",
+          "opcoes": ["Caixa", "Banco principal", "Banco secundário", "Cartão corporativo"], "padrao": "Banco principal" },
+        { "id": "situacao", "nome": "Situação", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Previsto", "Realizado"], "padrao": "Realizado" },
+        { "id": "data", "nome": "Data", "tipo": "data", "obrigatorio": true, "padrao": "$hoje" },
+        { "id": "documento", "nome": "Documento (NF/boleto)", "tipo": "texto", "lista": false }
+      ],
+      "resumo": [
+        { "titulo": "Entradas realizadas", "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "entrada", "situacao": "Realizado" } },
+        { "titulo": "Saídas realizadas", "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "saida", "situacao": "Realizado" } },
+        { "titulo": "Saldo realizado", "agregacao": "saldo", "campo": "valor", "filtro": { "situacao": "Realizado" } },
+        { "titulo": "A pagar (previsto)", "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "saida", "situacao": "Previsto" } }
+      ],
+      "seed": [
+        { "descricao": "Venda lote #1021", "tipo": "entrada", "valor": 18500, "categoria": "Vendas", "centro_custo": "Comercial", "conta": "Banco principal", "situacao": "Realizado", "data": "$hoje-40" },
+        { "descricao": "Folha de pagamento", "tipo": "saida", "valor": 12400, "categoria": "Folha de pagamento", "centro_custo": "Administrativo", "conta": "Banco principal", "situacao": "Realizado", "data": "$hoje-36" },
+        { "descricao": "Matéria-prima", "tipo": "saida", "valor": 5300, "categoria": "Fornecedores", "centro_custo": "Operações", "conta": "Banco principal", "situacao": "Realizado", "data": "$hoje-33", "documento": "NF 4411" },
+        { "descricao": "Consultoria cliente X", "tipo": "entrada", "valor": 7200, "categoria": "Serviços", "centro_custo": "Comercial", "conta": "Banco secundário", "situacao": "Realizado", "data": "$hoje-28" },
+        { "descricao": "Aluguel do galpão", "tipo": "saida", "valor": 4200, "categoria": "Aluguel", "centro_custo": "Operações", "conta": "Banco principal", "situacao": "Realizado", "data": "$hoje-25" },
+        { "descricao": "Campanha de anúncios", "tipo": "saida", "valor": 1800, "categoria": "Marketing", "centro_custo": "Comercial", "conta": "Cartão corporativo", "situacao": "Realizado", "data": "$hoje-20" },
+        { "descricao": "Venda lote #1034", "tipo": "entrada", "valor": 21300, "categoria": "Vendas", "centro_custo": "Comercial", "conta": "Banco principal", "situacao": "Realizado", "data": "$hoje-8" },
+        { "descricao": "Folha de pagamento", "tipo": "saida", "valor": 12400, "categoria": "Folha de pagamento", "centro_custo": "Administrativo", "conta": "Banco principal", "situacao": "Realizado", "data": "$hoje-6" },
+        { "descricao": "Licenças de software", "tipo": "saida", "valor": 950, "categoria": "Despesas administrativas", "centro_custo": "TI", "conta": "Cartão corporativo", "situacao": "Realizado", "data": "$hoje-4" },
+        { "descricao": "DAS / impostos do mês", "tipo": "saida", "valor": 3100, "categoria": "Impostos", "centro_custo": "Financeiro", "conta": "Banco principal", "situacao": "Previsto", "data": "$hoje+10" },
+        { "descricao": "Recebimento parcela contrato Y", "tipo": "entrada", "valor": 9800, "categoria": "Serviços", "centro_custo": "Comercial", "conta": "Banco secundário", "situacao": "Previsto", "data": "$hoje+12" },
+        { "descricao": "Fornecedor de embalagens", "tipo": "saida", "valor": 2750, "categoria": "Fornecedores", "centro_custo": "Operações", "conta": "Banco principal", "situacao": "Previsto", "data": "$hoje+15", "documento": "Boleto 88213" }
+      ]
+    }
+  ],
+  "dashboards": [
+    {
+      "nome": "Fluxo de caixa",
+      "widgets": [
+        { "titulo": "Entradas realizadas", "tipo": "kpi", "modulo": "movimentacoes", "x": 0, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "entrada", "situacao": "Realizado" } } },
+        { "titulo": "Saídas realizadas", "tipo": "kpi", "modulo": "movimentacoes", "x": 3, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "soma", "campo": "valor", "filtro": { "tipo": "saida", "situacao": "Realizado" } } },
+        { "titulo": "Saldo realizado", "tipo": "kpi", "modulo": "movimentacoes", "x": 6, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "saldo", "campo": "valor", "filtro": { "situacao": "Realizado" } } },
+        { "titulo": "Saldo projetado (tudo)", "tipo": "kpi", "modulo": "movimentacoes", "x": 9, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "saldo", "campo": "valor" } },
+        { "titulo": "Entradas x saídas por mês", "tipo": "bar", "modulo": "movimentacoes", "x": 0, "y": 2, "w": 7, "h": 4,
+          "config": { "agregacao": "soma", "campo": "valor", "agrupar_por": "data", "serie_por": "tipo" } },
+        { "titulo": "Saídas por categoria", "tipo": "bar", "modulo": "movimentacoes", "x": 7, "y": 2, "w": 5, "h": 4,
+          "config": { "agregacao": "soma", "campo": "valor", "agrupar_por": "categoria", "filtro": { "tipo": "saida" } } },
+        { "titulo": "Saídas por centro de custo", "tipo": "table", "modulo": "movimentacoes", "x": 0, "y": 6, "w": 5, "h": 3,
+          "config": { "agregacao": "soma", "campo": "valor", "agrupar_por": "centro_custo", "filtro": { "tipo": "saida" } } },
+        { "titulo": "Saldo mensal", "tipo": "line", "modulo": "movimentacoes", "x": 5, "y": 6, "w": 7, "h": 3,
+          "config": { "agregacao": "saldo", "campo": "valor", "agrupar_por": "data" } }
+      ]
+    }
+  ]
+}

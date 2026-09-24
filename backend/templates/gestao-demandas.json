@@ -1,0 +1,69 @@
+{
+  "formato": "dashzon-template",
+  "versao": 1,
+  "id": "gestao-demandas",
+  "ordem": 3,
+  "nome": "Gestão de demandas",
+  "icone": "tarefas",
+  "descricao": "Acompanhe o fluxo das demandas por status, prioridade, setor e responsável.",
+  "modulos": [
+    {
+      "slug": "demandas",
+      "nome": "Demandas",
+      "icone": "tarefas",
+      "descricao": "Pedidos, tarefas e chamados da equipe.",
+      "rotulo": "titulo",
+      "campos": [
+        { "id": "titulo", "nome": "Título", "tipo": "texto", "obrigatorio": true },
+        { "id": "status", "nome": "Status", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Backlog", "Em andamento", "Em validação", "Concluída", "Cancelada"], "padrao": "Backlog" },
+        { "id": "prioridade", "nome": "Prioridade", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Baixa", "Média", "Alta", "Urgente"], "padrao": "Média" },
+        { "id": "setor", "nome": "Setor", "tipo": "selecao",
+          "opcoes": ["Comercial", "Financeiro", "Operações", "RH", "TI", "Jurídico"] },
+        { "id": "responsavel", "nome": "Responsável", "tipo": "texto" },
+        { "id": "prazo", "nome": "Prazo", "tipo": "data" },
+        { "id": "valor_estimado", "nome": "Valor estimado", "tipo": "moeda" },
+        { "id": "descricao", "nome": "Descrição", "tipo": "texto_longo", "lista": false }
+      ],
+      "resumo": [
+        { "titulo": "Total de demandas", "agregacao": "contagem" },
+        { "titulo": "Em andamento", "agregacao": "contagem", "filtro": { "status": "Em andamento" } },
+        { "titulo": "Urgentes", "agregacao": "contagem", "filtro": { "prioridade": "Urgente" } },
+        { "titulo": "Concluídas", "agregacao": "contagem", "filtro": { "status": "Concluída" } }
+      ],
+      "seed": [
+        { "titulo": "Renovar contrato com fornecedor de TI", "status": "Em andamento", "prioridade": "Alta", "setor": "TI", "responsavel": "Ana", "prazo": "$hoje+5", "valor_estimado": 14000 },
+        { "titulo": "Fechamento contábil do mês", "status": "Backlog", "prioridade": "Urgente", "setor": "Financeiro", "responsavel": "Bruno", "prazo": "$hoje+2" },
+        { "titulo": "Processo seletivo analista", "status": "Em validação", "prioridade": "Média", "setor": "RH", "responsavel": "Carla", "prazo": "$hoje+10" },
+        { "titulo": "Proposta para cliente Z", "status": "Concluída", "prioridade": "Alta", "setor": "Comercial", "responsavel": "Diego", "prazo": "$hoje-3", "valor_estimado": 32000 },
+        { "titulo": "Revisar política de acesso", "status": "Backlog", "prioridade": "Baixa", "setor": "TI", "responsavel": "Ana", "prazo": "$hoje+20" },
+        { "titulo": "Parecer sobre contrato de locação", "status": "Em andamento", "prioridade": "Média", "setor": "Jurídico", "responsavel": "Eduarda", "prazo": "$hoje+7" },
+        { "titulo": "Inventário do estoque", "status": "Concluída", "prioridade": "Média", "setor": "Operações", "responsavel": "Fábio", "prazo": "$hoje-10" },
+        { "titulo": "Migração do servidor de arquivos", "status": "Cancelada", "prioridade": "Baixa", "setor": "TI", "responsavel": "Ana", "prazo": "$hoje-15" }
+      ]
+    }
+  ],
+  "dashboards": [
+    {
+      "nome": "Demandas",
+      "widgets": [
+        { "titulo": "Total de demandas", "tipo": "kpi", "modulo": "demandas", "x": 0, "y": 0, "w": 3, "h": 2, "config": { "agregacao": "contagem" } },
+        { "titulo": "Em andamento", "tipo": "kpi", "modulo": "demandas", "x": 3, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "contagem", "filtro": { "status": "Em andamento" } } },
+        { "titulo": "Urgentes", "tipo": "kpi", "modulo": "demandas", "x": 6, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "contagem", "filtro": { "prioridade": "Urgente" } } },
+        { "titulo": "Valor estimado em aberto", "tipo": "kpi", "modulo": "demandas", "x": 9, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "soma", "campo": "valor_estimado", "filtro": { "status": "Em andamento" } } },
+        { "titulo": "Demandas por status", "tipo": "bar", "modulo": "demandas", "x": 0, "y": 2, "w": 6, "h": 4,
+          "config": { "agregacao": "contagem", "agrupar_por": "status" } },
+        { "titulo": "Demandas por setor", "tipo": "bar", "modulo": "demandas", "x": 6, "y": 2, "w": 6, "h": 4,
+          "config": { "agregacao": "contagem", "agrupar_por": "setor" } },
+        { "titulo": "Carga por responsável", "tipo": "table", "modulo": "demandas", "x": 0, "y": 6, "w": 6, "h": 3,
+          "config": { "agregacao": "contagem", "agrupar_por": "responsavel" } },
+        { "titulo": "Demandas por prioridade", "tipo": "bar", "modulo": "demandas", "x": 6, "y": 6, "w": 6, "h": 3,
+          "config": { "agregacao": "contagem", "agrupar_por": "prioridade" } }
+      ]
+    }
+  ]
+}

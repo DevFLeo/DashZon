@@ -1,0 +1,100 @@
+{
+  "formato": "dashzon-template",
+  "versao": 1,
+  "id": "mapeamento-setor",
+  "ordem": 4,
+  "nome": "Mapeamento de dados do setor",
+  "icone": "mapa",
+  "descricao": "Inventário dos dados de cada setor (origem, dono, classificação, LGPD, qualidade) e os indicadores que eles alimentam.",
+  "modulos": [
+    {
+      "slug": "inventario_dados",
+      "nome": "Inventário de dados",
+      "icone": "mapa",
+      "descricao": "Quais dados cada setor usa, de onde vêm, quem é o dono e quão sensíveis são.",
+      "rotulo": "nome",
+      "campos": [
+        { "id": "nome", "nome": "Dado / conjunto", "tipo": "texto", "obrigatorio": true },
+        { "id": "setor", "nome": "Setor", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Comercial", "Financeiro", "Operações", "RH", "TI", "Jurídico", "Marketing"] },
+        { "id": "tipo_fonte", "nome": "Tipo de fonte", "tipo": "selecao",
+          "opcoes": ["Sistema/ERP", "Planilha", "Banco de dados", "API externa", "Documento físico", "Manual"] },
+        { "id": "sistema_origem", "nome": "Sistema de origem", "tipo": "texto" },
+        { "id": "dono", "nome": "Dono do dado", "tipo": "texto" },
+        { "id": "classificacao", "nome": "Classificação", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Pública", "Interna", "Confidencial", "Restrita"], "padrao": "Interna" },
+        { "id": "dados_pessoais", "nome": "Contém dados pessoais (LGPD)", "tipo": "booleano", "padrao": false },
+        { "id": "frequencia", "nome": "Frequência de atualização", "tipo": "selecao",
+          "opcoes": ["Tempo real", "Diária", "Semanal", "Mensal", "Sob demanda"] },
+        { "id": "qualidade", "nome": "Qualidade", "tipo": "selecao", "opcoes": ["Boa", "Regular", "Ruim"], "padrao": "Regular" },
+        { "id": "observacoes", "nome": "Observações", "tipo": "texto_longo", "lista": false }
+      ],
+      "resumo": [
+        { "titulo": "Conjuntos mapeados", "agregacao": "contagem" },
+        { "titulo": "Com dados pessoais", "agregacao": "contagem", "filtro": { "dados_pessoais": "true" } },
+        { "titulo": "Restritos", "agregacao": "contagem", "filtro": { "classificacao": "Restrita" } },
+        { "titulo": "Qualidade ruim", "agregacao": "contagem", "filtro": { "qualidade": "Ruim" } }
+      ],
+      "seed": [
+        { "nome": "Cadastro de clientes", "setor": "Comercial", "tipo_fonte": "Sistema/ERP", "sistema_origem": "CRM", "dono": "Diego", "classificacao": "Confidencial", "dados_pessoais": true, "frequencia": "Tempo real", "qualidade": "Boa" },
+        { "nome": "Contas a pagar", "setor": "Financeiro", "tipo_fonte": "Sistema/ERP", "sistema_origem": "ERP", "dono": "Bruno", "classificacao": "Interna", "dados_pessoais": false, "frequencia": "Diária", "qualidade": "Boa" },
+        { "nome": "Folha de pagamento", "setor": "RH", "tipo_fonte": "Sistema/ERP", "sistema_origem": "Sistema de folha", "dono": "Carla", "classificacao": "Restrita", "dados_pessoais": true, "frequencia": "Mensal", "qualidade": "Boa" },
+        { "nome": "Controle de estoque", "setor": "Operações", "tipo_fonte": "Planilha", "sistema_origem": "Excel compartilhado", "dono": "Fábio", "classificacao": "Interna", "dados_pessoais": false, "frequencia": "Semanal", "qualidade": "Ruim" },
+        { "nome": "Leads de campanhas", "setor": "Marketing", "tipo_fonte": "API externa", "sistema_origem": "Plataforma de anúncios", "dono": "Gabi", "classificacao": "Confidencial", "dados_pessoais": true, "frequencia": "Diária", "qualidade": "Regular" },
+        { "nome": "Contratos assinados", "setor": "Jurídico", "tipo_fonte": "Documento físico", "sistema_origem": "Arquivo", "dono": "Eduarda", "classificacao": "Restrita", "dados_pessoais": true, "frequencia": "Sob demanda", "qualidade": "Regular" },
+        { "nome": "Inventário de equipamentos", "setor": "TI", "tipo_fonte": "Banco de dados", "sistema_origem": "CMDB", "dono": "Ana", "classificacao": "Interna", "dados_pessoais": false, "frequencia": "Semanal", "qualidade": "Boa" },
+        { "nome": "Tabela de preços", "setor": "Comercial", "tipo_fonte": "Planilha", "sistema_origem": "Drive", "dono": "Diego", "classificacao": "Pública", "dados_pessoais": false, "frequencia": "Mensal", "qualidade": "Regular" }
+      ]
+    },
+    {
+      "slug": "indicadores",
+      "nome": "Indicadores do setor",
+      "icone": "grafico",
+      "descricao": "Medições periódicas de cada setor, com meta e unidade.",
+      "rotulo": "indicador",
+      "campos": [
+        { "id": "indicador", "nome": "Indicador", "tipo": "texto", "obrigatorio": true },
+        { "id": "setor", "nome": "Setor", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Comercial", "Financeiro", "Operações", "RH", "TI", "Jurídico", "Marketing"] },
+        { "id": "valor", "nome": "Valor medido", "tipo": "numero", "obrigatorio": true },
+        { "id": "meta", "nome": "Meta", "tipo": "numero" },
+        { "id": "unidade", "nome": "Unidade", "tipo": "texto", "ajuda": "Ex.: %, dias, R$ mil, chamados" },
+        { "id": "periodo", "nome": "Período", "tipo": "data", "obrigatorio": true, "padrao": "$hoje" },
+        { "id": "atingiu_meta", "nome": "Atingiu a meta", "tipo": "booleano" }
+      ],
+      "resumo": [
+        { "titulo": "Medições registradas", "agregacao": "contagem" },
+        { "titulo": "Metas atingidas", "agregacao": "contagem", "filtro": { "atingiu_meta": "true" } }
+      ],
+      "seed": [
+        { "indicador": "Taxa de conversão", "setor": "Comercial", "valor": 18, "meta": 20, "unidade": "%", "periodo": "$hoje-30", "atingiu_meta": false },
+        { "indicador": "Taxa de conversão", "setor": "Comercial", "valor": 22, "meta": 20, "unidade": "%", "periodo": "$hoje", "atingiu_meta": true },
+        { "indicador": "Prazo médio de entrega", "setor": "Operações", "valor": 4.5, "meta": 5, "unidade": "dias", "periodo": "$hoje", "atingiu_meta": true },
+        { "indicador": "Turnover", "setor": "RH", "valor": 3.1, "meta": 2.5, "unidade": "%", "periodo": "$hoje", "atingiu_meta": false },
+        { "indicador": "Chamados resolvidos no SLA", "setor": "TI", "valor": 91, "meta": 95, "unidade": "%", "periodo": "$hoje", "atingiu_meta": false }
+      ]
+    }
+  ],
+  "dashboards": [
+    {
+      "nome": "Mapeamento de dados",
+      "widgets": [
+        { "titulo": "Conjuntos mapeados", "tipo": "kpi", "modulo": "inventario_dados", "x": 0, "y": 0, "w": 3, "h": 2, "config": { "agregacao": "contagem" } },
+        { "titulo": "Com dados pessoais (LGPD)", "tipo": "kpi", "modulo": "inventario_dados", "x": 3, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "contagem", "filtro": { "dados_pessoais": "true" } } },
+        { "titulo": "Restritos", "tipo": "kpi", "modulo": "inventario_dados", "x": 6, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "contagem", "filtro": { "classificacao": "Restrita" } } },
+        { "titulo": "Qualidade ruim", "tipo": "kpi", "modulo": "inventario_dados", "x": 9, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "contagem", "filtro": { "qualidade": "Ruim" } } },
+        { "titulo": "Dados por setor e classificação", "tipo": "bar", "modulo": "inventario_dados", "x": 0, "y": 2, "w": 7, "h": 4,
+          "config": { "agregacao": "contagem", "agrupar_por": "setor", "serie_por": "classificacao" } },
+        { "titulo": "Por tipo de fonte", "tipo": "bar", "modulo": "inventario_dados", "x": 7, "y": 2, "w": 5, "h": 4,
+          "config": { "agregacao": "contagem", "agrupar_por": "tipo_fonte" } },
+        { "titulo": "Dados pessoais por setor", "tipo": "table", "modulo": "inventario_dados", "x": 0, "y": 6, "w": 5, "h": 3,
+          "config": { "agregacao": "contagem", "agrupar_por": "setor", "filtro": { "dados_pessoais": "true" } } },
+        { "titulo": "Qualidade dos dados", "tipo": "bar", "modulo": "inventario_dados", "x": 5, "y": 6, "w": 7, "h": 3,
+          "config": { "agregacao": "contagem", "agrupar_por": "qualidade" } }
+      ]
+    }
+  ]
+}
