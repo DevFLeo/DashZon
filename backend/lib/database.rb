@@ -294,6 +294,13 @@ module Database
     m.merge("schema" => JSON.parse(m["schema"]))
   end
 
+  # Nomes de módulo são únicos sem diferenciar maiúsculas/espaços. A comparação
+  # é feita em Ruby porque o lower() do SQLite não trata acentos (Ç, Ã...).
+  def self.modulo_por_nome(nome, exceto_id: nil)
+    alvo = nome.to_s.strip.downcase
+    modulos.find { |m| m["nome"].to_s.strip.downcase == alvo && m["id"] != exceto_id }
+  end
+
   def self.slug_taken?(slug)
     !row("SELECT id FROM modulos WHERE slug = ?", [slug]).nil?
   end

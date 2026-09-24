@@ -68,6 +68,9 @@ module TemplateRegistry
     slugs = modulos.map { |m| m["slug"] }
     raise ModuleSchema::Error, "O template repete identificadores de módulo" if slugs.uniq.size != slugs.size
 
+    nomes = modulos.map { |m| m["nome"].strip.downcase }
+    raise ModuleSchema::Error, "O template tem dois módulos com o mesmo nome" if nomes.uniq.size != nomes.size
+
     por_slug = modulos.to_h { |m| [m["slug"], m] }
     dashboards = Array(t["dashboards"]).map do |d|
       nome = d["nome"].to_s.strip
@@ -90,18 +93,34 @@ module TemplateRegistry
     }
   end
 
-  # Recebe um template já passado por normalize!. Grava os módulos (renomeando
-  # o identificador se já existir), os dados de exemplo e os dashboards, tudo
-  # numa transação: ou instala inteiro ou nada. Devolve os slugs dos módulos e
-  # os ids dos dashboards criados.
+  # Recebe um template já passado por normalize!. Grava os módulos, os dados de
+  # exemplo e os dashboards, tudo numa transação: ou instala inteiro ou nada.
+  #
+  # Nomes de módulo são únicos: se já existe um módulo com o mesmo nome (sem
+  # diferenciar maiúsculas), ele é REAPROVEITADO. Não se cria outro, não se
+  # repetem os dados de exemplo, e os widgets do template passam a apontar
+  # para ele. Se só o identificador colidir (nome diferente), o módulo novo
+  # ganha `slug_2`, `slug_3`...
+  #
+  # Devolve os slugs dos módulos, os ids dos dashboards criados, os nomes dos
+  # módulos reaproveitados e quantos widgets foram pulados por não caberem no
+  # módulo reaproveitado (ex.: o usuário removeu um campo que o widget usa).
   def install!(tpl, com_exemplos: true)
     now = Database.now
 
     Database.transaction do
       mapa = {}
+      reaproveitados = {}
       ordem = Database.row("SELECT COALESCE(MAX(ordem), 0) AS m FROM modulos")["m"].to_i
 
       tpl["modulos"].each do |m|
+        existente = Database.modulo_por_nome(m["nome"])
+        if existente
+          mapa[m["slug"]] = existente["slug"]
+          reaproveitados[m["slug"]] = existente
+          next
+        end
+
         slug = slug_livre(m["slug"])
         mapa[m["slug"]] = slug
         ordem += 1
@@ -121,14 +140,44 @@ module TemplateRegistry
         end
       end
 
+      pulados = 0
       dash_ids = tpl["dashboards"].map do |d|
-        dash_id = Database.insert("INSERT INTO dashboards (nome, criado_em, atualizado_em) VALUES (?, ?, ?)", [d["nome"], now, now])
-        d["widgets"].each { |w| insert_widget(dash_id, w.merge("modulo" => mapa[w["modulo"]])) }
+        dash_id = Database.insert("INSERT INTO dashboards (nome, criado_em, atualizado_em) VALUES (?, ?, ?)",
+                                  [nome_dashboard_livre(d["nome"]), now, now])
+        d["widgets"].each do |w|
+          alvo = reaproveitados[w["modulo"]]
+          # Widget apontando para módulo reaproveitado: revalida contra o schema
+          # atual dele; se não servir mais, pula em vez de criar um card quebrado.
+          if alvo
+            begin
+              ModuleSchema.normalize_widget!(w, alvo["schema"])
+            rescue ModuleSchema::Error
+              pulados += 1
+              next
+            end
+          end
+          insert_widget(dash_id, w.merge("modulo" => mapa[w["modulo"]]))
+        end
         dash_id
       end
 
-      { modulos: mapa.values, dashboards: dash_ids }
+      {
+        modulos: mapa.values,
+        dashboards: dash_ids,
+        reaproveitados: reaproveitados.values.map { |m| m["nome"] },
+        widgets_pulados: pulados
+      }
     end
+  end
+
+  # "Demandas" já existe -> "Demandas (2)", "Demandas (3)"...
+  def nome_dashboard_livre(base)
+    nomes = Database.rows("SELECT nome FROM dashboards").map { |r| r["nome"].to_s.strip.downcase }
+    return base unless nomes.include?(base.strip.downcase)
+
+    n = 2
+    n += 1 while nomes.include?("#{base} (#{n})".downcase)
+    "#{base} (#{n})"
   end
 
   def insert_widget(dashboard_id, w)

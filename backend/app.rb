@@ -5,6 +5,7 @@ require_relative "lib/database"
 require_relative "lib/module_schema"
 require_relative "lib/template_registry"
 require_relative "lib/engine_client"
+require_relative "lib/dados_ficticios"
 
 set :public_folder, File.expand_path("../frontend", __dir__)
 set :bind, ENV.fetch("DASHZON_HOST", "127.0.0.1")
@@ -220,6 +221,7 @@ end
 post "/api/modulos" do
   m = ModuleSchema.normalize_modulo!(body_json)
   halt json({ error: "Já existe um módulo com o identificador '#{m['slug']}'" }, 422) if Database.slug_taken?(m["slug"])
+  halt json({ error: "Já existe um módulo chamado '#{m['nome']}'" }, 422) if Database.modulo_por_nome(m["nome"])
 
   TemplateRegistry.install!({ "id" => "personalizado", "modulos" => [m.merge("seed" => [])], "dashboards" => [] })
   json Database.modulo(m["slug"]), 201
@@ -228,6 +230,9 @@ end
 put "/api/modulos/:slug" do
   atual = modulo!(params[:slug])
   m = ModuleSchema.normalize_modulo!(body_json.merge("slug" => atual["slug"]))
+  if Database.modulo_por_nome(m["nome"], exceto_id: atual["id"])
+    halt json({ error: "Já existe outro módulo chamado '#{m['nome']}'" }, 422)
+  end
   Database.execute(
     "UPDATE modulos SET nome = ?, descricao = ?, icone = ?, schema = ? WHERE id = ?",
     [m["nome"], m["descricao"], m["icone"], JSON.generate(m.slice("campos", "rotulo", "resumo")), atual["id"]]
@@ -383,4 +388,15 @@ get "/api/widgets/:id/data" do
   cfg = ModuleSchema.normalize_widget!(widget_json(w), m["schema"])["config"]
   res = EngineClient.run({ cmd: "aggregate", records: Database.registros(m["id"]) }.merge(ModuleSchema.engine_query(m["schema"], cfg)))
   json res.merge("config" => cfg)
+end
+
+# Pré-visualização do criador de card: mesma validação e mesma consulta de
+# GET /api/widgets/:id/data, mas sobre registros fictícios (nada é gravado).
+post "/api/widgets/preview" do
+  d = body_json
+  m = modulo!(d["modulo"].to_s)
+  cfg = ModuleSchema.normalize_widget!(d.merge("titulo" => d["titulo"].to_s.strip.empty? ? "Prévia" : d["titulo"]), m["schema"])["config"]
+  registros = DadosFicticios.registros(m["schema"])
+  res = EngineClient.run({ cmd: "aggregate", records: registros }.merge(ModuleSchema.engine_query(m["schema"], cfg)))
+  json res.merge("config" => cfg, "ficticio" => true)
 end
