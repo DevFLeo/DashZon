@@ -33,7 +33,7 @@ module Usuarios
   PERFIS = %w[admin usuario].freeze
   CARGOS_SUGERIDOS = ["Sócio", "Líder de produção", "Funcionário"].freeze
   EXIGIR_DOCUMENTO = %w[nao cpf cnpj qualquer].freeze
-  TEMAS = %w[sistema claro escuro].freeze
+  TEMAS = %w[sistema claro suave escuro].freeze
   # "" (padrão), "#/d/<id>" (dashboard), "#/m/<slug>" (módulo) ou "#/admin".
   PAGINA_INICIAL_RE = %r{\A(|#/d/\d{1,9}|#/m/[a-z][a-z0-9_]{0,39}|#/admin)\z}
   PREFERENCIAS_PADRAO = { "tema" => "sistema", "pagina_inicial" => "", "privacidade" => false }.freeze

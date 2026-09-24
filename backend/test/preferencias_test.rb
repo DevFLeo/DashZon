@@ -14,6 +14,8 @@ class PreferenciasTest < Minitest::Test
     configurar!
     put_json "/api/eu/preferencias", { "tema" => "escuro", "pagina_inicial" => "#/m/lancamentos", "privacidade" => true }
     assert_equal 200, last_response.status, last_response.body
+    put_json "/api/eu/preferencias", { "tema" => "suave" }
+    assert_equal "suave", resposta["preferencias"]["tema"]
     put_json "/api/eu/preferencias", { "tema" => "claro" } # só o tema; o resto fica
     prefs = resposta["preferencias"]
     assert_equal "claro", prefs["tema"]
