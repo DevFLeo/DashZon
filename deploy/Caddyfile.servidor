@@ -1,0 +1,15 @@
+# Caddy do docker-compose (perfil "https"): servidor com domínio próprio e as
+# portas 80/443 abertas. O certificado sai sozinho (Let's Encrypt).
+{$DASHZON_DOMINIO} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
+	reverse_proxy dashzon:4567
+}

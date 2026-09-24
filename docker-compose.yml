@@ -1,0 +1,55 @@
+# DashZon com Docker (veja servidor.md).
+#
+#   Só nesta máquina:        docker compose up -d --build
+#   Servidor com domínio:    docker compose --profile https up -d --build
+#                            (preencha o .env antes: copie .env.example)
+
+# Nome fixo: o volume dos dados sempre se chama dashzon_dashzon-dados,
+# qualquer que seja o nome da pasta (o servidor.md usa esse nome no backup).
+name: dashzon
+
+services:
+  dashzon:
+    build: .
+    image: dashzon:latest
+    restart: unless-stopped
+    # Só na própria máquina. Quem vem de fora passa pelo Caddy (perfil https).
+    ports:
+      - "127.0.0.1:${DASHZON_PORTA:-4567}:4567"
+    volumes:
+      - dashzon-dados:/dados          # banco + segredo.key: NÃO apague este volume
+    environment:
+      DASHZON_HOSTS: ${DASHZON_DOMINIO:-}
+      DASHZON_COOKIE_SEGURO: ${DASHZON_COOKIE_SEGURO:-0}
+      DASHZON_URL_PUBLICA: ${DASHZON_URL_PUBLICA:-}
+      DASHZON_SMTP_HOST: ${DASHZON_SMTP_HOST:-}
+      DASHZON_SMTP_PORTA: ${DASHZON_SMTP_PORTA:-587}
+      DASHZON_SMTP_USUARIO: ${DASHZON_SMTP_USUARIO:-}
+      DASHZON_SMTP_SENHA: ${DASHZON_SMTP_SENHA:-}
+      DASHZON_SMTP_REMETENTE: ${DASHZON_SMTP_REMETENTE:-}
+
+  # HTTPS automático (Let's Encrypt) num servidor com domínio próprio e as
+  # portas 80 e 443 abertas. Para o DuckDNS em casa (só a porta 2444), use os
+  # scripts de deploy/ (docs/PUBLICAR-DUCKDNS.md).
+  caddy:
+    profiles: ["https"]
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - dashzon
+    ports:
+      - "80:80"
+      - "443:443"
+    # (Sem "${VAR:?}" aqui: o Compose avalia isso mesmo com o perfil desligado
+    #  e o "docker compose up" simples deixaria de funcionar sem domínio.)
+    environment:
+      DASHZON_DOMINIO: ${DASHZON_DOMINIO:-}
+    volumes:
+      - ./deploy/Caddyfile.servidor:/etc/caddy/Caddyfile:ro
+      - caddy-dados:/data
+      - caddy-config:/config
+
+volumes:
+  dashzon-dados:
+  caddy-dados:
+  caddy-config:

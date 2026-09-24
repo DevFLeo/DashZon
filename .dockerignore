@@ -1,0 +1,23 @@
+# Fora da imagem: dados do usuário, builds locais, segredos e coisas de dev.
+.git
+.vscode
+.claude
+data/
+*.db
+*.db-*
+*.bak
+*.log
+log/
+engine-cpp/build/
+engine-cpp/out/
+backend/vendor/
+backend/.bundle/
+deploy/
+docs/
+scripts/
+node_modules/
+.env
+.env.*
+desenvolvimento.md
+Dockerfile
+docker-compose.yml
