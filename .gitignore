@@ -68,3 +68,11 @@ log/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# --- Publicação (deploy/) ------------------------------------------------------
+# publico.env tem o token do DuckDNS; bin/ é o caddy.exe baixado; logs/ os logs.
+deploy/publico.env
+deploy/*.env
+!deploy/publico.env.example
+deploy/bin/
+deploy/logs/

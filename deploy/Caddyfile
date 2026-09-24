@@ -1,0 +1,38 @@
+# Caddy na frente do DashZon: HTTPS com certificado automático (Let's Encrypt).
+#
+# Só a porta pública (2444) fica aberta no roteador. Por isso o certificado é
+# validado pelo DNS do DuckDNS (desafio DNS-01, com o token), e não pelas
+# portas 80/443. O DashZon continua escutando só em 127.0.0.1:4567.
+#
+# As variáveis vêm de deploy/publico.env (lidas pelo iniciar-publico.ps1).
+{
+	# Sem redirecionamento HTTP->HTTPS: não abrimos a porta 80.
+	auto_https disable_redirects
+}
+
+{$DUCKDNS_DOMINIO}.duckdns.org:{$PORTA_PUBLICA} {
+	tls {
+		dns duckdns {$DUCKDNS_TOKEN}
+		# Resolvedores públicos para conferir o registro TXT do desafio.
+		resolvers 1.1.1.1 8.8.8.8
+	}
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:{$PORTA_INTERNA}
+
+	log {
+		output file logs/caddy-acessos.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
