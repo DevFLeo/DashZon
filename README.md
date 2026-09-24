@@ -8,10 +8,13 @@ Inspirado em projetos open source de finanças como [OpenMonetis](https://openmo
 
 - **Primeiro acesso guiado:** nome, moeda, usuário e senha, e galeria de templates (dá para escolher vários ou importar um JSON). O banco só é criado no final.
 - **Login (simulado):** tela de entrada com usuário e senha e botão **Sair**. Bancos criados antes do login entram com **admin / admin**.
-- **Novo dashboard a partir de um template:** em branco ou escolhendo outro template da galeria, que instala os módulos dele e abre o dashboard pronto.
+- **Novo dashboard a partir de um template:** em branco ou escolhendo outro template da galeria, que instala os módulos dele e abre o dashboard pronto. Módulos com o mesmo nome **não se duplicam**: o existente é reaproveitado.
 - **Módulos gerados pelo JSON:** resumo (KPIs), busca, filtros, tabela e formulário montados a partir dos campos, com validação.
 - **Estrutura editável:** edite campos, opções e resumos de um módulo em JSON direto na tela, ou adicione módulos pela galeria ou colando/importando um JSON.
-- **Dashboards de arrastar e soltar:** widgets de número, barras, linha e tabela, com medida (contagem, soma, média, saldo), agrupamento (inclusive por mês), séries e filtro.
+- **Dashboards de arrastar e soltar:** cards de número, barras, linha e tabela, com medida (contagem, soma, média, saldo), agrupamento (inclusive por mês), séries e filtro.
+- **Criador de card guiado:** atalhos prontos a partir dos campos do módulo, escolhas em linguagem simples, nome sugerido, uma frase explicando o card e **prévia ao vivo com dados fictícios**.
+- **Lançar pelo dashboard:** "+ Lançar" no topo (ou "+" em cada card) cadastra um registro sem sair do dashboard, e os cards se atualizam.
+- **Ajuda (?) com imagem:** no criador de card e na criação de módulos, passar o mouse mostra um print de exemplo; clicar abre um popup com explicação e imagens (`frontend/preview/`).
 - **Modo privacidade:** esconde os valores em moeda com um clique.
 - **Exportar/backup:** a configuração (e, se quiser, os dados) sai em JSON no mesmo formato de template.
 - **JSON do usuário no banco:** templates importados e cada exportação ficam guardados no SQLite (tabela `jsons`), e os importados voltam na galeria. No git ficam só os templates padrão; qualquer outro `.json` é ignorado.
@@ -87,6 +90,7 @@ backend/
   lib/module_schema.rb   validação de módulos, widgets e registros
   lib/template_registry.rb  listar/validar/instalar/exportar templates
   lib/engine_client.rb   ponte com o binário C++
+  lib/dados_ficticios.rb registros inventados para a prévia do criador de card
   templates/*.json       templates padrão (os únicos JSON versionados)
 engine-cpp/
   src/main.cpp           comandos aggregate, multi e search
@@ -97,11 +101,17 @@ frontend/
   js/setup.js            assistente de primeiro acesso
   js/login.js            tela de login e botão Sair
   js/modulos.js          tela genérica de módulo e editor JSON
-  js/dashboards.js       canvas de dashboards e widgets
+  js/dashboards.js       canvas de dashboards, criador de card e "Lançar"
+  js/ajuda.js            ícones (?) com prévia em imagem
+  preview/               prints de cada módulo e tipo de card (dados fictícios)
   js/util.js, js/api.js  formatação, cores e cliente HTTP
   vendor/                Chart.js e GridStack (offline)
 docs/DESENVOLVIMENTO.md  lógica, funções e tutorial
+scripts/gerar-previews.js  refaz os prints de frontend/preview/
+CLAUDE.md                regras do projeto
 ```
+
+> **Regra do projeto:** a lógica de funcionamento e a fórmula de organização dos dashboards e gráficos não mudam sem pedido explícito (detalhes em `CLAUDE.md`).
 
 ## Branches
 
