@@ -499,6 +499,12 @@ bundle exec ruby -e 'require_relative "lib/usuarios"; id = Usuarios.por_login_ou
 
 No próximo login, o sistema pede para você criar uma senha nova.
 
+Com Docker, o mesmo comando roda dentro do container (sem parar o servidor):
+
+```bash
+docker compose exec dashzon bundle exec ruby -e 'require_relative "lib/usuarios"; id = Usuarios.por_login_ou_email("SEU_LOGIN")["id"]; Usuarios.definir_senha!(id, "senha-temporaria-123", deve_trocar: true)'
+```
+
 ### Voltar ao "primeiro acesso"
 
 Pare o servidor e **renomeie** (não apague, se quiser guardar os dados) o arquivo `data/dashzon.db`. Na próxima abertura, o assistente de setup aparece de novo. Antes disso, dá para salvar tudo em `GET /api/export?dados=1`.
@@ -521,6 +527,17 @@ curl -s "$B/api/modulos/movimentacoes/registros?q=folha&f%5Bsituacao%5D=Realizad
 curl -s -X POST $B/api/modulos/movimentacoes/registros -H "Content-Type: application/json" \
   -d '{"descricao":"Venda balcão","tipo":"entrada","valor":"1.250,00","categoria":"Vendas","situacao":"Realizado"}'
 ```
+
+### Velocidade
+
+- **Cache de resultados** (`lib/desempenho.rb`, `CacheResultados`): cards, resumos, buscas e a prévia guardam a resposta do motor C++. A chave leva módulo, schema e consulta; a validade é `Database.versao_dados` (`PRAGMA data_version` + `total_changes` + geração da conexão), que muda a cada gravação, inclusive de outro processo. Mudou o banco, o cache inteiro some. Os testes em `test/desempenho_test.rb` cobrem incluir, editar, excluir, duas gravações no mesmo segundo e gravação por outro processo.
+- **gzip** (`Rack::Deflater`) em tudo e **cache de estáticos** (`CacheEstaticos`): `vendor/` e `preview/` por 1 dia; o resto com `no-cache` (o navegador revalida e recebe 304).
+- **Puma** fora do Windows (no Docker); no Windows fica o WEBrick.
+- Medido na instância de teste: transferência ao abrir de 375 KB para 116 KB; 8 cards em paralelo de ~90–150 ms para ~50 ms no Windows e ~30 ms no Docker.
+
+### Docker
+
+`Dockerfile` em três etapas: `build` (compila o motor com CMake e instala as gems sem as de teste em `/usr/local/bundle`), `teste` (roda `rake test`: `docker build --target teste .`) e `final` (imagem enxuta, usuário sem root `dashzon`, volume `/dados` com banco e `segredo.key`, healthcheck em `/api/status`). O `docker-compose.yml` tem `name: dashzon` (volume `dashzon_dashzon-dados`), porta só em `127.0.0.1` e o perfil `https` com o Caddy (`deploy/Caddyfile.servidor`). O Compose passa variáveis opcionais vazias, por isso todo acesso a variável de ambiente é por `Ambiente["NOME", padrão]` (`lib/ambiente.rb`).
 
 ### Publicar no domínio (DuckDNS + Caddy)
 
