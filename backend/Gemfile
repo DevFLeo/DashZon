@@ -4,3 +4,11 @@ gem "sinatra", "~> 4.1"
 gem "rackup", "~> 2.1"
 gem "webrick", "~> 1.8"
 gem "sqlite3", "~> 2.1"
+# Leitura de CSV (importação de extratos). No Ruby 3.4 deixou de ser padrão.
+gem "csv", "~> 3.3"
+
+group :test do
+  gem "minitest", "~> 5.25"
+  gem "rack-test", "~> 2.2"
+  gem "rake", "~> 13.2"
+end
