@@ -1,5 +1,18 @@
 # Regras do projeto DashZon
 
+## "Rode o projeto" (e "pare o projeto" / "reinicie o projeto")
+
+Quando pedirem para rodar, parar ou reiniciar o projeto, **gaste o mínimo**: um comando, uma linha de resposta.
+
+- **Windows, sem Docker (padrão desta máquina):**
+  `powershell -ExecutionPolicy Bypass -File scripts/rodar.ps1` (rodar) · `... -Reiniciar` · `... -Parar`
+  O script já instala só o que falta (gems, motor C++), não reinicia se já estiver no ar e imprime **uma linha**.
+- **Docker** (se pedirem Docker, ou num servidor Linux): `docker compose up -d --build` e depois `docker compose ps` (deve estar `healthy`). Parar: `docker compose stop`. Com domínio: `--profile https` (ver `servidor.md`).
+- **Não** leia arquivos, não explore o repositório, não rode `bundle install`/`cmake`/testes à mão e não abra o navegador para conferir. Responda só com o endereço (ex.: "No ar: http://127.0.0.1:4567").
+- Se falhar, a saída do script já traz o fim do log. Só então leia, se precisar, as últimas linhas de `log/dashzon.log` (ou `docker compose logs --tail 30 dashzon`) e diga o que falta (ex.: instalar Ruby/CMake, ver `servidor.md`).
+- Nunca apague nem mova `data/` (banco + `segredo.key`) nem rode `docker compose down -v`.
+- O passo a passo completo para pessoas está em `servidor.md`.
+
 ## Regra fixa: não alterar a lógica dos dashboards e gráficos
 
 **Não altere a lógica de funcionamento nem a fórmula de organização dos dashboards e gráficos**, a menos que o pedido seja explicitamente sobre isso. Isso vale para:
@@ -69,6 +82,14 @@ O sistema tem uso real (várias pessoas, possivelmente na internet). Toda modifi
 - `localStorage` só para preferências do navegador (privacidade, aba lembrada). Dados de verdade ficam no backend.
 - Acessibilidade: botões de verdade (`<button>`), `aria-label` em ícones, foco visível, Esc fecha modais, e tudo usável pelo teclado.
 - Valores em moeda recebem a classe `sensivel` (modo privacidade).
+
+### Velocidade
+
+- Toda chamada nova ao motor C++ passa por `CacheResultados.buscar(...)` (`lib/desempenho.rb`), com a chave incluindo tudo o que muda o resultado (módulo, schema, config/consulta). A validade vem de `Database.versao_dados`: não crie outro mecanismo de invalidação, e não grave no banco por fora da conexão do `Database` sem pensar no cache (outro processo é detectado pelo `PRAGMA data_version`).
+- Respostas saem com gzip (`Rack::Deflater`) e os estáticos com cabeçalho de cache (`CacheEstaticos`): `vendor/` e `preview/` guardam por 1 dia, então **mude o nome do arquivo** ao atualizar uma biblioteca em `vendor/`.
+- Puma só fora do Windows (`platforms: :ruby` no Gemfile; no Windows exigiria MSYS2); o Sinatra escolhe sozinho entre Puma e WEBrick.
+- Não ligue o modo WAL do SQLite: o backup copia só o `dashzon.db`, e com WAL parte dos dados ficaria no `-wal`.
+- Variáveis de ambiente se leem com `Ambiente["NOME", padrao]` (`lib/ambiente.rb`): o docker compose passa as opcionais vazias.
 
 ### Segurança
 
