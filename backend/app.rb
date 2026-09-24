@@ -22,9 +22,19 @@ set :raise_errors, false
 # arquivo segredo.key ao lado do banco (ver lib/segredo.rb), então reiniciar o
 # servidor não derruba ninguém.
 set :session_secret, Segredo.chave
-# DASHZON_COOKIE_SEGURO=1 quando o acesso é por HTTPS (atrás do Caddy): o
-# navegador só manda o cookie de sessão por conexão criptografada.
-set :sessions, same_site: :strict, httponly: true, secure: ENV["DASHZON_COOKIE_SEGURO"] == "1"
+set :sessions, same_site: :strict, httponly: true
+
+# DASHZON_COOKIE_SEGURO=1 (uso público, atrás do Caddy): o cookie de sessão sai
+# marcado como Secure em toda requisição que chega por HTTPS, então pela
+# internet ele só trafega criptografado. Não dá para ligar Secure em tudo: o
+# Rack não grava cookie Secure numa requisição HTTP simples, e o acesso local
+# (http://127.0.0.1:4567, que não sai da máquina) pararia de funcionar.
+# O DashZon escuta só em 127.0.0.1, então quem chega por HTTP é a própria máquina.
+COOKIE_SEGURO = ENV["DASHZON_COOKIE_SEGURO"] == "1"
+
+before do
+  request.session_options[:secure] = request.ssl? if COOKIE_SEGURO
+end
 
 # O Sinatra, em modo desenvolvimento, só aceita o Host localhost ou um IP. Para
 # acessar por um domínio (ex.: meupainel.duckdns.org via Caddy), liste-o em
