@@ -1,12 +1,13 @@
 require "json"
 require "open3"
+require_relative "ambiente"
 
 # Ponte com o binário C++ (engine-cpp): envia um payload JSON pelo stdin e
 # lê o resultado JSON do stdout. Em servidor, aponte DASHZON_ENGINE para o
 # binário compilado na máquina de destino.
 module EngineClient
   CANDIDATES = [
-    ENV["DASHZON_ENGINE"],
+    Ambiente["DASHZON_ENGINE"],
     File.expand_path("../../engine-cpp/build/Release/dashzon_engine.exe", __dir__),
     File.expand_path("../../engine-cpp/build/Debug/dashzon_engine.exe", __dir__),
     File.expand_path("../../engine-cpp/build/dashzon_engine.exe", __dir__),

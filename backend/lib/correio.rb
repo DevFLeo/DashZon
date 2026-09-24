@@ -1,4 +1,5 @@
 require "net/smtp"
+require_relative "ambiente"
 require "time"
 require "securerandom"
 
@@ -26,7 +27,7 @@ module Correio
   def enviar(para, assunto, texto)
     raise Falha, "Envio de e-mail não configurado" unless configurado?
 
-    remetente = ENV.fetch("DASHZON_SMTP_REMETENTE") { ENV.fetch("DASHZON_SMTP_USUARIO", "") }
+    remetente = Ambiente["DASHZON_SMTP_REMETENTE"] || Ambiente["DASHZON_SMTP_USUARIO", ""]
     msg = <<~MSG
       From: DashZon <#{remetente}>
       To: #{para}
@@ -40,7 +41,7 @@ module Correio
       #{texto}
     MSG
 
-    smtp = Net::SMTP.new(ENV["DASHZON_SMTP_HOST"], ENV.fetch("DASHZON_SMTP_PORTA", "587").to_i)
+    smtp = Net::SMTP.new(ENV["DASHZON_SMTP_HOST"], Ambiente["DASHZON_SMTP_PORTA", "587"].to_i)
     smtp.enable_starttls_auto
     smtp.open_timeout = 10
     smtp.read_timeout = 15

@@ -10,13 +10,19 @@ require_relative "lib/dados_ficticios"
 require_relative "lib/segredo"
 require_relative "lib/correio"
 require_relative "lib/usuarios"
+require_relative "lib/desempenho"
 
 set :public_folder, File.expand_path("../frontend", __dir__)
-set :bind, ENV.fetch("DASHZON_HOST", "127.0.0.1")
-set :port, ENV.fetch("PORT", "4567").to_i
+set :bind, Ambiente["DASHZON_HOST", "127.0.0.1"]
+set :port, Ambiente["PORT", "4567"].to_i
 set :server, %w[puma webrick]
 set :show_exceptions, false
 set :raise_errors, false
+
+# Velocidade (lib/desempenho.rb): gzip nas respostas (os ~375 KB de JS/CSS/JSON
+# caem para ~1/4, o que pesa muito pela internet) e cache de arquivos estáticos.
+use Rack::Deflater
+use CacheEstaticos
 
 # Sessão por cookie assinado. A chave vem de DASHZON_SESSION_SECRET ou do
 # arquivo segredo.key ao lado do banco (ver lib/segredo.rb), então reiniciar o
@@ -41,7 +47,7 @@ end
 # DASHZON_HOSTS, separado por vírgula.
 set :host_authorization, {
   permitted_hosts: ["localhost", ".localhost", IPAddr.new("0.0.0.0/0"), IPAddr.new("::/0")] +
-                   ENV.fetch("DASHZON_HOSTS", "").split(",").map(&:strip).reject(&:empty?)
+                   Ambiente["DASHZON_HOSTS", ""].split(",").map(&:strip).reject(&:empty?)
 }
 
 helpers do
@@ -309,11 +315,13 @@ get "/api/modulos/:slug/resumo" do
   itens = schema["resumo"]
   halt json([]) if itens.empty?
 
-  out = EngineClient.run(
-    cmd: "multi",
-    records: Database.registros(m["id"]),
-    queries: itens.map { |r| ModuleSchema.engine_query(schema, r) }
-  )
+  out = CacheResultados.buscar("resumo", m["id"], schema) do
+    EngineClient.run(
+      cmd: "multi",
+      records: Database.registros(m["id"]),
+      queries: itens.map { |r| ModuleSchema.engine_query(schema, r) }
+    )
+  end
   json(itens.zip(out["results"]).map do |r, res|
     valor = { "contagem" => res["total_count"], "media" => res["total_avg"] }.fetch(r["agregacao"], res["total_sum"])
     formato = schema["campos"].find { |c| c["id"] == r["campo"] }&.dig("tipo") || "numero"
@@ -325,13 +333,15 @@ end
 get "/api/modulos/:slug/registros" do
   m = modulo!(params[:slug])
   filtros = params["f"].is_a?(Hash) ? params["f"].reject { |_, v| v.to_s.empty? } : {}
-  res = EngineClient.run(
-    cmd: "search",
-    records: Database.registros(m["id"]),
-    q: params[:q].to_s,
-    text_fields: texto_campos(m["schema"]),
-    filters: filtros
-  )
+  res = CacheResultados.buscar("busca", m["id"], m["schema"], params[:q].to_s, filtros) do
+    EngineClient.run(
+      cmd: "search",
+      records: Database.registros(m["id"]),
+      q: params[:q].to_s,
+      text_fields: texto_campos(m["schema"]),
+      filters: filtros
+    )
+  end
   json res
 end
 
@@ -439,7 +449,9 @@ get "/api/widgets/:id/data" do
   m = modulo!(w["modulo_slug"])
   # Revalida contra o schema atual: o módulo pode ter sido editado depois.
   cfg = ModuleSchema.normalize_widget!(widget_json(w), m["schema"])["config"]
-  res = EngineClient.run({ cmd: "aggregate", records: Database.registros(m["id"]) }.merge(ModuleSchema.engine_query(m["schema"], cfg)))
+  res = CacheResultados.buscar("card", m["id"], m["schema"], cfg) do
+    EngineClient.run({ cmd: "aggregate", records: Database.registros(m["id"]) }.merge(ModuleSchema.engine_query(m["schema"], cfg)))
+  end
   json res.merge("config" => cfg)
 end
 
@@ -449,7 +461,8 @@ post "/api/widgets/preview" do
   d = body_json
   m = modulo!(d["modulo"].to_s)
   cfg = ModuleSchema.normalize_widget!(d.merge("titulo" => d["titulo"].to_s.strip.empty? ? "Prévia" : d["titulo"]), m["schema"])["config"]
-  registros = DadosFicticios.registros(m["schema"])
-  res = EngineClient.run({ cmd: "aggregate", records: registros }.merge(ModuleSchema.engine_query(m["schema"], cfg)))
+  res = CacheResultados.buscar("previa", m["schema"], cfg) do
+    EngineClient.run({ cmd: "aggregate", records: DadosFicticios.registros(m["schema"]) }.merge(ModuleSchema.engine_query(m["schema"], cfg)))
+  end
   json res.merge("config" => cfg, "ficticio" => true)
 end

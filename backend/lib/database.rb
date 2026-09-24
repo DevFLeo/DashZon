@@ -2,6 +2,7 @@ require "sqlite3"
 require "fileutils"
 require "json"
 require "monitor"
+require_relative "ambiente"
 require "openssl"
 require "securerandom"
 
@@ -17,7 +18,7 @@ require "securerandom"
 module Database
   SCHEMA_VERSION = 2
 
-  DB_PATH = ENV.fetch("DASHZON_DB_PATH", File.expand_path("../../data/dashzon.db", __dir__))
+  DB_PATH = Ambiente["DASHZON_DB_PATH", File.expand_path("../../data/dashzon.db", __dir__)]
 
   SCHEMA = <<~SQL
     CREATE TABLE IF NOT EXISTS config (
@@ -136,6 +137,16 @@ module Database
       @db&.close
       @db = nil
       @extras_ok = false
+      @geracao = (@geracao || 0) + 1
+    end
+  end
+
+  # Muda sempre que o banco muda: gravações desta conexão (total_changes),
+  # de qualquer outra conexão/processo (PRAGMA data_version) ou troca da
+  # própria conexão (geração). Usada pelo CacheResultados (lib/desempenho.rb).
+  def self.versao_dados
+    LOCK.synchronize do
+      "#{@geracao || 0}:#{connection.get_first_value('PRAGMA data_version')}:#{connection.total_changes}"
     end
   end
 

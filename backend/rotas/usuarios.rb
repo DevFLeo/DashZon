@@ -40,7 +40,7 @@ helpers do
   # Endereço usado nos links enviados. Atrás do Caddy, o Rack já considera
   # os cabeçalhos X-Forwarded-*; DASHZON_URL_PUBLICA força um endereço fixo.
   def url_publica
-    ENV.fetch("DASHZON_URL_PUBLICA") { request.base_url }.chomp("/")
+    (Ambiente["DASHZON_URL_PUBLICA"] || request.base_url).chomp("/")
   end
 
   def link_redefinicao(u)
