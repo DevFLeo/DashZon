@@ -60,21 +60,49 @@ POST /api/setup              -> {org_name, moeda, usuario, senha, templates: [..
 
 O filtro `before "/api/*"` do `app.rb` protege a API:
 
-- `/api/status`, `/api/login` e `/api/logout` são sempre abertas.
+- Sempre abertas (`ROTAS_ABERTAS`): `/api/status`, `/api/login`, `/api/logout`, `/api/usuarios/primeiro` e as dos links (`/api/senha/esqueci`, `/api/senha/redefinir`, `/api/email/verificar`).
 - **Antes do setup**, só o setup e a galeria respondem; o resto dá **409 "O sistema ainda não foi configurado"**.
-- **Depois do setup**, tudo (inclusive a galeria, que passa a ter templates do usuário) exige login: sem sessão, **401**.
+- **Depois do setup**, tudo (inclusive a galeria, que passa a ter templates do usuário) exige login: sem sessão válida, **401**.
+- Com **senha temporária**, só dá para trocar a senha, ver o status e sair: o resto responde **403** com `trocar_senha: true`.
+- `/api/admin/*` é só para administradores: os demais recebem **403**.
 
-### Login (simulado)
+### Contas de usuário
+
+Quem faz o setup é o primeiro **administrador**. Depois disso, o administrador cria as outras contas no **Painel do adm**. Cada conta tem nome, login, e-mail, CPF/CNPJ, cargo (Sócio, Líder de produção, Funcionário... texto livre) e perfil:
+
+| Perfil | Pode |
+|---|---|
+| `usuario` | Usar o sistema (módulos, dashboards) e editar a própria conta (nome, e-mail, documento, senha) |
+| `admin` | Tudo isso e o Painel do adm: contas, regras de cadastro, nome e moeda da organização |
 
 ```
-GET  /api/status   -> {configured: true, org_name, usuario: null, demo: true}
-POST /api/login    -> {usuario, senha}   (401 "Usuário ou senha inválidos")
-POST /api/logout   -> limpa a sessão
+POST /api/login              -> {usuario (login ou e-mail), senha}
+POST /api/logout
+POST /api/usuarios/primeiro  -> só num banco sem nenhum usuário; o criado vira admin
+GET  /api/eu | PUT /api/eu   -> minha conta (nome, email, documento)
+PUT  /api/eu/senha           -> {senha_atual, senha_nova}
+POST /api/senha/esqueci      -> manda link por e-mail (se houver SMTP)
+POST /api/senha/redefinir    -> {token, senha}
+POST /api/email/verificar    -> {token}
 ```
 
-A senha é guardada com PBKDF2 (sal por usuário) na tabela `usuarios`, e a sessão é um cookie assinado do Sinatra. Não há perfis nem permissões: o objetivo é simular a entrada antes de levar o sistema a um servidor. Um banco criado antes do login ganha o usuário de demonstração **admin / admin**, e a tela de login mostra essa dica enquanto essa senha valer.
+**Sessão:** cookie assinado com `session[:uid]` e `session[:sv]` (a `sessao_versao` do usuário). A cada requisição, `usuario_atual` confere se a conta existe, está ativa e se a versão bate. Trocar ou redefinir a senha e desativar a conta sobem a versão, e as outras sessões caem na hora.
 
-A chave da sessão vem de `DASHZON_SESSION_SECRET`. Sem ela, a chave é sorteada a cada boot e todo mundo precisa entrar de novo depois de reiniciar o servidor (o frontend recebe 401 e volta para a tela de login).
+**Chave do servidor** (`lib/segredo.rb`): `DASHZON_SESSION_SECRET` ou o arquivo `segredo.key` ao lado do banco, criado na primeira vez. Ela assina o cookie (reiniciar o servidor não derruba mais ninguém) e é a chave do HMAC do CPF/CNPJ. **Não apague esse arquivo:** as sessões caem e os documentos já gravados deixam de ser reconhecidos como duplicados.
+
+**Hash de tudo o que é sensível:**
+
+| Dado | Como é guardado |
+|---|---|
+| Senha | PBKDF2-HMAC-SHA256, 100 mil iterações, sal por usuário |
+| CPF/CNPJ | HMAC-SHA256 com a chave do servidor (para achar duplicados) + versão mascarada para exibir (`***.982.247-**`). O número completo não é gravado |
+| Token de link | SHA-256. O token em si só existe no link |
+
+**Proteções:** 8 falhas por IP em 15 minutos bloqueiam login e links (429); uma senha errada ainda espera meio segundo; login inexistente leva o mesmo tempo que senha errada; "esqueci a senha" não diz se a conta existe. Nunca sobra zero administrador ativo, e ninguém se exclui, se desativa ou tira o próprio perfil de administrador.
+
+**E-mail:** com `DASHZON_SMTP_HOST` (e usuário/senha), os links de confirmação de e-mail e de redefinição vão por e-mail (`lib/correio.rb`). Sem isso, o administrador gera o link de redefinição e manda por outro canal (WhatsApp, por exemplo), e marca os e-mails como confirmados à mão.
+
+**Regras de cadastro** (tabela `ajustes`, editadas no painel): CPF/CNPJ opcional, CPF obrigatório, CNPJ obrigatório ou qualquer um dos dois; e-mail obrigatório; e "só entra quem confirmou o e-mail" (administradores sempre entram, para ninguém ficar trancado fora).
 
 ## 3. Modelo de dados
 
@@ -85,10 +113,12 @@ A chave da sessão vem de `DASHZON_SESSION_SECRET`. Sem ela, a chave é sorteada
 | `registros` | Os dados de **todos** os módulos: `modulo_id` + **`dados`** (JSON com os valores dos campos) |
 | `dashboards` | Nome de cada dashboard |
 | `widgets` | Cada cartão do dashboard: título, tipo (kpi/bar/line/table), `modulo_slug`, **`config`** (JSON: o que medir e como agrupar) e posição x/y/w/h |
-| `usuarios` | Login simulado: `login`, `senha_hash` (PBKDF2) e `sal` |
+| `usuarios` | Contas: `login`, `senha_hash` + `sal`, nome, e-mail (+ `email_verificado_em`), `documento_tipo` / `documento_hash` / `documento_mascara`, cargo, `perfil` (`admin`/`usuario`), `ativo`, `deve_trocar_senha`, `sessao_versao`, último login |
+| `tokens` | Links de uso único (`redefinir_senha` 24 h, `verificar_email` 7 dias): só o `token_hash`, com validade e data de uso |
+| `ajustes` | Regras do painel do adm (chave/valor): `exigir_documento`, `exigir_email`, `exigir_email_verificado` |
 | `jsons` | JSON do usuário: `tipo` `template` (importados, aparecem na galeria) ou `exportacao` (cada backup baixado), com `nome` e `conteudo` |
 
-`usuarios` e `jsons` ficam fora do `SCHEMA` principal (`EXTRAS_SQL`) e são criadas sob demanda por `garantir_tabelas!`, então um banco existente as ganha sem migração e sem mudar o `user_version`.
+`usuarios`, `tokens`, `ajustes` e `jsons` ficam fora do `SCHEMA` principal (`EXTRAS_SQL`) e são criadas sob demanda por `garantir_tabelas!`, então um banco existente as ganha sem mudar o `user_version`. As colunas novas de `usuarios` entram por `migrar_usuarios!` (compara com `PRAGMA table_info` e faz `ALTER TABLE`); num banco que já tinha usuários mas nenhum administrador, o primeiro vira administrador.
 
 **Onde fica cada JSON:** os templates padrão são arquivos em `backend/templates/` e vão para o git. Tudo o que o usuário traz ou gera (templates importados, exportações) vai para a tabela `jsons` do banco, que já fica fora do git. O `.gitignore` também ignora qualquer outro `.json` solto no projeto; um template colocado em `backend/templates/` continua aparecendo na galeria localmente, mas não é versionado.
 
@@ -192,9 +222,8 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 | `configured?` | O arquivo existe, o `user_version` está atual e há linha em `config` |
 | `arquivar_versao_antiga!` | Renomeia um banco de schema antigo para `.bak` (nunca apaga) |
 | `create_schema!` | Cria as tabelas e grava a `config` |
-| `garantir_tabelas!` | Cria `usuarios` e `jsons` se ainda não existirem (uma vez por conexão) |
-| `criar_usuario!` / `autenticar` | Grava um usuário com senha em hash / confere login e senha |
-| `garantir_usuario!` / `usuario_demo?` | Cria o admin/admin num banco sem usuários / diz se essa senha ainda vale |
+| `garantir_tabelas!` | Cria `usuarios`, `tokens`, `ajustes` e `jsons` se ainda não existirem e roda `migrar_usuarios!` (uma vez por conexão) |
+| `atualizar_config!` | Nome da organização (opcional) e moeda |
 | `salvar_json!(tipo, nome, obj)` | Guarda um JSON; um template idêntico a um já salvo não é duplicado |
 | `jsons(tipo)` / `json_salvo(id)` / `excluir_json!` | Lista (sem o conteúdo), lê e remove JSON guardados |
 | `modulos` / `modulo(slug)` | Lista ou busca módulos, já com o `schema` convertido de JSON |
@@ -233,6 +262,24 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 
 `run(payload)` procura o binário (`DASHZON_ENGINE` ou `engine-cpp/build/...`), manda o JSON pelo stdin e lê a resposta. Se o binário não existe ou devolve `error`, levanta `EngineError`, que vira resposta **500**.
 
+### `backend/lib/usuarios.rb` (módulo `Usuarios`)
+
+Toda regra de conta. Erros levantam `Usuarios::Erro` com o status HTTP (422, 403, 404), que o `app.rb` devolve com a mensagem.
+
+| Função | O que faz |
+|---|---|
+| `validar_dados!(d, atual:)` | Login (3–40, letras/números/`._-`, único sem diferenciar maiúsculas), nome, e-mail (formato, único, obrigatório conforme regra), CPF/CNPJ (dígitos verificadores, tipo exigido, único pelo HMAC), cargo e perfil. Campo ausente mantém o valor atual |
+| `criar!` / `atualizar!(id, d, por_admin:)` | Grava a conta. Sem `por_admin`, login, cargo e perfil são ignorados. E-mail trocado perde a confirmação |
+| `definir_senha!(id, nova, deve_trocar:)` | Troca a senha, sobe `sessao_versao` e invalida links de redefinição pendentes |
+| `definir_ativo!` / `excluir!` / `garantir_outro_admin!` | Ativar/desativar e excluir, sem nunca zerar os administradores ativos |
+| `autenticar` / `pode_entrar!` | Confere a senha (tempo igual para login inexistente) e as regras de entrada (conta ativa, e-mail confirmado se exigido) |
+| `senha_temporaria` | 12 caracteres sem os que se confundem (0/O, 1/l/I) |
+| `criar_token!` / `consumir_token!` | Links de uso único. O de confirmação vale só para o e-mail para o qual foi gerado |
+| `ajustes` / `salvar_ajustes!` | Regras de cadastro. Exigir e-mail confirmado liga "e-mail obrigatório" junto |
+| `publico(u)` | O que pode sair na API (nunca hash de senha, sal ou hash de documento) |
+
+`lib/documento.rb` valida e mascara CPF/CNPJ; `lib/segredo.rb` cuida da chave do servidor, do HMAC e dos tokens; `lib/correio.rb` envia e-mail por SMTP quando configurado. As rotas ficam em `backend/rotas/usuarios.rb`.
+
 ### `backend/lib/dados_ficticios.rb` (módulo `DadosFicticios`)
 
 `registros(schema)` inventa 72 registros a partir dos campos do módulo, só para a prévia do criador de card: valores em moeda entre 40 e 2.400, datas espalhadas pelos últimos 6 meses, mais saídas que entradas, e as primeiras opções de cada seleção aparecendo mais (para as barras variarem). A semente é fixa por módulo, então a prévia não "pula" a cada ajuste.
@@ -241,8 +288,11 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 
 | Método e rota | Para quê |
 |---|---|
-| `GET /api/status` | Se já foi configurado, com nome, usuário conectado e moeda (ou a dica do login demo) |
-| `POST /api/login`, `POST /api/logout` | Entrar e sair (sessão por cookie) |
+| `GET /api/status` | Se já foi configurado, com nome, usuário conectado (dados públicos) e moeda; antes do login, se falta criar o primeiro usuário |
+| `POST /api/login`, `POST /api/logout`, `/api/eu*`, `/api/senha/*`, `/api/email/verificar` | Sessão, minha conta e links (ver "Contas de usuário") |
+| `GET/PUT /api/admin/ajustes`, `PUT /api/admin/config` | Regras de cadastro; nome e moeda da organização |
+| `GET/POST /api/admin/usuarios`, `PUT/DELETE /api/admin/usuarios/:id` | Listar, criar (sem senha: gera temporária), editar, excluir |
+| `POST /api/admin/usuarios/:id/{ativo,senha-temporaria,link-redefinicao,email-verificado,enviar-verificacao}` | Ações do painel sobre uma conta |
 | `GET /api/templates`, `GET /api/templates/:id` | Galeria (padrão + importados) e JSON completo de um template |
 | `DELETE /api/templates/salvo-<n>` | Remove um template importado da galeria (os padrão não podem ser removidos) |
 | `POST /api/templates/validar` | Pré-visualiza um JSON importado sem gravar |
@@ -307,7 +357,7 @@ Todas as opções são opcionais. Resposta:
 
 ## 7. Frontend
 
-`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `ajuda` → `api` → `setup` → `login` → `modulos` → `dashboards` → `app`.
+`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `ajuda` → `api` → `setup` → `login` → `conta` → `admin` → `modulos` → `dashboards` → `app`.
 
 ### Navegação
 
@@ -336,7 +386,15 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 
 ### `js/login.js` (`Login`)
 
-`iniciar(status, onConcluido)` mostra a tela de login (com a dica admin/admin quando `status.demo`) e chama `POST /api/login`. `sair()` chama `POST /api/logout` e recarrega a página. O `api.js` também volta para a tela de login sempre que uma chamada recebe **401** (sessão expirada).
+`iniciar(status, onConcluido)` mostra a tela de login (usuário ou e-mail) e chama `POST /api/login`; num banco sem usuários, vira "crie seu usuário" (`/api/usuarios/primeiro`). Tem o "Esqueci minha senha". `sair()` chama `POST /api/logout` e recarrega a página. O `api.js` volta para a tela de login sempre que uma chamada recebe **401** (sessão expirada ou derrubada).
+
+### `js/conta.js` (`Conta`)
+
+"Minha conta" (nome, e-mail com situação de confirmação, CPF/CNPJ e troca de senha), `trocaObrigatoria(usuario)` (modal que não fecha até a pessoa criar a senha própria, depois de uma senha temporária) e `paginaLink()`, que trata `#/redefinir/<token>` e `#/verificar-email/<token>` e depois tira o token da barra de endereço.
+
+### `js/admin.js` (`Admin`)
+
+O Painel do adm (`#/admin`, link no canto inferior esquerdo, só para administradores): regras de cadastro, organização, lista de usuários com "Editar" e o menu "Mais…" (senha temporária, link de redefinição, confirmar e-mail, enviar confirmação, desativar/reativar, excluir). Senha temporária e link aparecem **uma única vez** no `#modal-segredo`, com botão de copiar.
 
 ### `js/modulos.js` (`Modulos`)
 
@@ -412,6 +470,26 @@ bundle exec ruby app.rb      # http://127.0.0.1:4567
 
 Se o terminal não achar o `ruby`, abra um terminal novo (o PATH é atualizado depois do `winget`) ou use `C:\Ruby34-x64\bin\ruby.exe`.
 
+### Rodar os testes (e a validação dupla)
+
+```powershell
+cd backend
+bundle exec rake test     # Minitest + Rack::Test, banco temporário; nunca toca data/dashzon.db
+```
+
+Os testes ficam em `backend/test/` (`usuarios_test.rb`, `documento_test.rb`, `modulos_test.rb`); `test_helper.rb` aponta `DASHZON_DB_PATH` para uma pasta temporária **antes** de carregar o app e zera o banco a cada teste. Pela regra do `CLAUDE.md`, toda mudança passa duas vezes pela validação (testes + teste de ponta a ponta no navegador numa instância separada, em outra porta e com outro banco) antes do commit.
+
+### Esqueci a senha do administrador
+
+Se existe outro administrador, ele gera uma senha temporária para você no painel. Se você é o único: pare o servidor e crie um usuário novo direto no banco pelo Ruby do projeto:
+
+```powershell
+cd backend
+bundle exec ruby -e 'require_relative "lib/usuarios"; id = Usuarios.por_login_ou_email("SEU_LOGIN")["id"]; Usuarios.definir_senha!(id, "senha-temporaria-123", deve_trocar: true)'
+```
+
+No próximo login, o sistema pede para você criar uma senha nova.
+
 ### Voltar ao "primeiro acesso"
 
 Pare o servidor e **renomeie** (não apague, se quiser guardar os dados) o arquivo `data/dashzon.db`. Na próxima abertura, o assistente de setup aparece de novo. Antes disso, dá para salvar tudo em `GET /api/export?dados=1`.
@@ -424,9 +502,9 @@ Depois do setup a API exige login, então o `curl` precisa guardar o cookie da s
 B=http://127.0.0.1:4567
 curl -s $B/api/status
 curl -s -c cj -X POST $B/api/setup -H "Content-Type: application/json" \
-  -d '{"org_name":"Minha empresa","moeda":"BRL","usuario":"admin","senha":"admin","templates":["fluxo-caixa"],"com_exemplos":true}'
+  -d '{"org_name":"Minha empresa","moeda":"BRL","usuario":"dono","senha":"uma-senha-forte","templates":["fluxo-caixa"],"com_exemplos":true}'
 # (num banco já configurado:)
-curl -s -c cj -X POST $B/api/login -H "Content-Type: application/json" -d '{"usuario":"admin","senha":"admin"}'
+curl -s -c cj -X POST $B/api/login -H "Content-Type: application/json" -d '{"usuario":"dono","senha":"uma-senha-forte"}'
 alias curl='curl -b cj'
 curl -s $B/api/modulos
 curl -s $B/api/modulos/movimentacoes/resumo
@@ -490,7 +568,7 @@ Antes de começar: renomeie o `data/dashzon.db` (se existir) para abrir no assis
 5. **Versatilidade (1 min).** Em **Novo dashboard → A partir de um template**, escolha **Mapeamento de dados do setor** (LGPD): outro assunto, no mesmo sistema, sem código novo, e o dashboard dele já abre pronto.
 6. **Dashboard (1 min).** Em **+ Card**, passe o mouse no (?) de "Linha" para mostrar a prévia em imagem, escolha um atalho e mostre a prévia com dados fictícios mudando a cada ajuste. Adicione, arraste e redimensione. Use **+ Lançar** para cadastrar um gasto sem sair do dashboard e veja os cards atualizarem. Ligue **Ocultar valores** para mostrar o modo privacidade.
 7. **Arquitetura (1 min).** Mostre um template em `backend/templates/`. Ruby cuida das regras e do banco, e o C++ faz as contas. Rode o motor sozinho: `echo '{...}' | dashzon_engine.exe`.
-8. **Próximos passos (30 s).** Servidor (já configurável por variáveis de ambiente), executável, orçamento × realizado, importação de CSV e usuários com permissões (o login de hoje é simulado).
+8. **Próximos passos (30 s).** Servidor (já configurável por variáveis de ambiente), executável, orçamento × realizado, importação de CSV e publicação com HTTPS (DuckDNS + Caddy).
 
 Perguntas que costumam aparecer:
 
