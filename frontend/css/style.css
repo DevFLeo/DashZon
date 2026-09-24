@@ -38,7 +38,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme]) { /* só quando segue o sistema */
     color-scheme: dark;
     --surface-1: #1a1a19;
     --page-plane: #0d0d0d;
@@ -87,6 +87,41 @@
   --accent: #3987e5;
   --success-text: #0ca30c;
   --critical-text: #e66767;
+}
+
+/* Tema suave (pôr do sol): meio-termo entre claro e escuro, para cansar menos
+   a vista. Fundo creme quente (menos luz azul), texto marrom-escuro em vez de
+   preto puro e contraste mais baixo que o claro, mas ainda acima de 4,5:1 no
+   texto. As séries seguem a mesma ordem e identidade das outras paletas, só
+   menos saturadas. */
+:root[data-theme="soft"] {
+  color-scheme: light;
+  --surface-1: #f7f0e4;
+  --page-plane: #eee5d5;
+  --text-primary: #3a332b;
+  --text-secondary: #5a5045;
+  --text-muted: #6e6352;
+  --gridline: #e0d5c2;
+  --baseline: #c9bca5;
+  --border: rgba(58, 51, 43, 0.12);
+  --border-strong: rgba(58, 51, 43, 0.22);
+  --hover: rgba(58, 51, 43, 0.06);
+  --series-1: #3d72ad;
+  --series-2: #c96a37;
+  --series-3: #2e8f6c;
+  --series-4: #a0760f;
+  --series-5: #bf6488;
+  --series-6: #4a852d;
+  --series-7: #6656a0;
+  --series-8: #bf4f49;
+  --accent: #3a6ca3;
+  --accent-ink: #fffaf2;
+  --status-good: #4a8f3a;
+  --status-warning: #d9a326;
+  --status-serious: #d68254;
+  --status-critical: #b8473f;
+  --success-text: #3b6a29;
+  --critical-text: #a13b33;
 }
 
 * { box-sizing: border-box; }
@@ -415,7 +450,7 @@ textarea.code {
 .segredo-caixa code { flex: 1; font-family: var(--font-mono); font-size: 14px; word-break: break-all; user-select: all; }
 .nowrap { white-space: nowrap; }
 
-/* ---------- Tema: sol (claro) <-> lua (escuro) ---------- */
+/* ---------- Tema: sol (claro) -> pôr do sol (suave) -> lua (escuro) ---------- */
 .brand { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .tema-btn {
   position: relative; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
@@ -430,11 +465,19 @@ textarea.code {
 }
 .tema-sol { fill: #f5b301; stroke: #f5b301; stroke-width: 1.8; stroke-linecap: round; }
 .tema-lua { fill: #9db8ff; }
-/* Claro: sol visível; a lua espera girada e encolhida. */
+/* Pôr do sol (tema suave): sol sobre fundo alaranjado e uma lua de luz bem clarinha. */
+.tema-btn svg.tema-suave { width: 26px; height: 26px; }
+.suave-fundo { fill: url(#suave-gradiente); }
+.suave-sol { fill: #ffe6a8; }
+.suave-lua { fill: #fffbea; filter: drop-shadow(0 0 1.5px #fffbea) drop-shadow(0 0 3px rgba(255, 251, 234, .8)); }
+
+/* Ciclo: sol (claro) -> pôr do sol (suave) -> lua (escuro) -> sol.
+   Quem sai gira para a frente e some; quem entra vem girando de trás. */
 .tema-btn .tema-sol { transform: rotate(0) scale(1); opacity: 1; }
-.tema-btn .tema-lua { transform: rotate(-120deg) scale(.3); opacity: 0; }
-/* Escuro: o sol gira e some enquanto a lua gira e aparece. */
-.tema-btn.escuro .tema-sol { transform: rotate(180deg) scale(.3); opacity: 0; }
+.tema-btn .tema-suave, .tema-btn .tema-lua { transform: rotate(-120deg) scale(.3); opacity: 0; }
+.tema-btn.suave .tema-sol { transform: rotate(180deg) scale(.3); opacity: 0; }
+.tema-btn.suave .tema-suave { transform: rotate(0) scale(1); opacity: 1; }
+.tema-btn.escuro .tema-sol, .tema-btn.escuro .tema-suave { transform: rotate(180deg) scale(.3); opacity: 0; }
 .tema-btn.escuro .tema-lua { transform: rotate(0) scale(1); opacity: 1; }
 /* Giro do botão inteiro a cada troca. */
 .tema-btn.girando { animation: tema-giro .6s ease; }
