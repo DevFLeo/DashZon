@@ -188,6 +188,17 @@ put "/api/eu/senha" do
   json ok: true
 end
 
+put "/api/eu/preferencias" do
+  json Usuarios.publico(Usuarios.salvar_preferencias!(usuario_atual["id"], body_json))
+end
+
+# Derruba as sessões abertas em outros navegadores; esta continua.
+post "/api/eu/sair-outros" do
+  u = Usuarios.encerrar_outras_sessoes!(usuario_atual["id"])
+  session[:sv] = u["sessao_versao"].to_i
+  json ok: true, mensagem: "Pronto: os outros dispositivos foram desconectados."
+end
+
 post "/api/eu/verificar-email" do
   u = usuario_atual
   halt json({ error: "O envio de e-mail não está configurado. Peça ao administrador para confirmar seu e-mail." }, 422) unless Correio.configurado?

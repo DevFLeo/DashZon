@@ -164,7 +164,8 @@ module Database
     "deve_trocar_senha" => "INTEGER NOT NULL DEFAULT 0",
     "sessao_versao" => "INTEGER NOT NULL DEFAULT 1",
     "ultimo_login_em" => "TEXT",
-    "atualizado_em" => "TEXT"
+    "atualizado_em" => "TEXT",
+    "preferencias" => "TEXT" # JSON: tema, página inicial, privacidade (ver Usuarios::PREFERENCIAS_PADRAO)
   }.freeze
 
   def self.migrar_usuarios!

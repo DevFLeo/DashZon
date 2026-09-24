@@ -1,3 +1,4 @@
+require "json"
 require "openssl"
 require "securerandom"
 require "time"
@@ -32,6 +33,10 @@ module Usuarios
   PERFIS = %w[admin usuario].freeze
   CARGOS_SUGERIDOS = ["Sócio", "Líder de produção", "Funcionário"].freeze
   EXIGIR_DOCUMENTO = %w[nao cpf cnpj qualquer].freeze
+  TEMAS = %w[sistema claro escuro].freeze
+  # "" (padrão), "#/d/<id>" (dashboard), "#/m/<slug>" (módulo) ou "#/admin".
+  PAGINA_INICIAL_RE = %r{\A(|#/d/\d{1,9}|#/m/[a-z][a-z0-9_]{0,39}|#/admin)\z}
+  PREFERENCIAS_PADRAO = { "tema" => "sistema", "pagina_inicial" => "", "privacidade" => false }.freeze
   AJUSTES_PADRAO = {
     "exigir_documento" => "nao",      # nao | cpf | cnpj | qualquer
     "exigir_email" => "0",            # e-mail obrigatório no cadastro
@@ -90,8 +95,46 @@ module Usuarios
       "ativo" => u["ativo"].to_i == 1,
       "deve_trocar_senha" => u["deve_trocar_senha"].to_i == 1,
       "ultimo_login_em" => u["ultimo_login_em"],
-      "criado_em" => u["criado_em"]
+      "criado_em" => u["criado_em"],
+      "preferencias" => preferencias(u)
     }
+  end
+
+  # --- preferências pessoais (Minha conta) ------------------------------------------
+
+  def preferencias(u)
+    salvas = JSON.parse(u["preferencias"].to_s)
+    PREFERENCIAS_PADRAO.merge(salvas.is_a?(Hash) ? salvas.slice(*PREFERENCIAS_PADRAO.keys) : {})
+  rescue JSON::ParserError
+    PREFERENCIAS_PADRAO.dup
+  end
+
+  # Só valida formato; a página inicial é conferida no navegador (se o
+  # dashboard ou módulo não existir mais, cai na página padrão).
+  def salvar_preferencias!(id, d)
+    u = por_id(id) || raise(Erro.new("Usuário não encontrado", 404))
+    prefs = preferencias(u)
+    if d.key?("tema")
+      raise Erro, "Tema inválido" unless TEMAS.include?(d["tema"])
+
+      prefs["tema"] = d["tema"]
+    end
+    if d.key?("pagina_inicial")
+      pagina = d["pagina_inicial"].to_s
+      raise Erro, "Página inicial inválida" unless pagina.match?(PAGINA_INICIAL_RE)
+
+      prefs["pagina_inicial"] = pagina
+    end
+    prefs["privacidade"] = d["privacidade"] == true if d.key?("privacidade")
+    Database.execute("UPDATE usuarios SET preferencias = ?, atualizado_em = ? WHERE id = ?", [JSON.generate(prefs), Database.now, u["id"]])
+    por_id(u["id"])
+  end
+
+  # "Sair dos outros dispositivos": sobe a versão da sessão. Quem chamou
+  # recebe a versão nova para continuar conectado.
+  def encerrar_outras_sessoes!(id)
+    Database.execute("UPDATE usuarios SET sessao_versao = sessao_versao + 1 WHERE id = ?", [id.to_i])
+    por_id(id)
   end
 
   def admins_ativos
