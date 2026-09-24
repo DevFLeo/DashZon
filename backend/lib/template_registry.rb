@@ -12,9 +12,28 @@ module TemplateRegistry
 
   module_function
 
+  PREFIXO_SALVO = "salvo-".freeze
+
+  # Galeria = templates padrão (arquivos, versionados no git) + templates que o
+  # usuário importou (tabela `jsons` do banco, fora do git). Antes do setup o
+  # banco não existe, então só os arquivos aparecem.
   def all
-    Dir[File.join(DIR, "*.json")].map { |f| JSON.parse(File.read(f, encoding: "UTF-8")) }
-                                 .sort_by { |t| [t["ordem"] || 99, t["nome"].to_s] }
+    padrao = Dir[File.join(DIR, "*.json")].map { |f| JSON.parse(File.read(f, encoding: "UTF-8")).merge("origem" => "padrao") }
+                                          .sort_by { |t| [t["ordem"] || 99, t["nome"].to_s] }
+    padrao + salvos
+  end
+
+  def salvos
+    return [] unless Database.configured?
+
+    Database.jsons("template").map do |r|
+      Database.json_salvo(r["id"])["conteudo"].merge("id" => "#{PREFIXO_SALVO}#{r['id']}", "origem" => "importado")
+    end
+  end
+
+  # Guarda no banco um template importado pelo usuário (sem duplicar).
+  def salvar_importado!(bruto)
+    Database.salvar_json!("template", bruto["nome"].to_s.strip.empty? ? "Template importado" : bruto["nome"], bruto)
   end
 
   def find(id)
@@ -27,6 +46,7 @@ module TemplateRegistry
       "nome" => t["nome"],
       "descricao" => t["descricao"],
       "icone" => t["icone"],
+      "origem" => t["origem"],
       "modulos" => Array(t["modulos"]).map do |m|
         { "nome" => m["nome"], "descricao" => m["descricao"], "campos" => Array(m["campos"]).map { |c| c["nome"] } }
       end,
@@ -72,7 +92,8 @@ module TemplateRegistry
 
   # Recebe um template já passado por normalize!. Grava os módulos (renomeando
   # o identificador se já existir), os dados de exemplo e os dashboards, tudo
-  # numa transação: ou instala inteiro ou nada.
+  # numa transação: ou instala inteiro ou nada. Devolve os slugs dos módulos e
+  # os ids dos dashboards criados.
   def install!(tpl, com_exemplos: true)
     now = Database.now
 
@@ -100,12 +121,13 @@ module TemplateRegistry
         end
       end
 
-      tpl["dashboards"].each do |d|
+      dash_ids = tpl["dashboards"].map do |d|
         dash_id = Database.insert("INSERT INTO dashboards (nome, criado_em, atualizado_em) VALUES (?, ?, ?)", [d["nome"], now, now])
         d["widgets"].each { |w| insert_widget(dash_id, w.merge("modulo" => mapa[w["modulo"]])) }
+        dash_id
       end
 
-      mapa
+      { modulos: mapa.values, dashboards: dash_ids }
     end
   end
 

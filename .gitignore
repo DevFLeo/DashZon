@@ -8,6 +8,17 @@ data/
 # Backups gerados ao arquivar um banco de schema antigo (dashzon.db.<data>.bak)
 *.bak
 
+# --- JSON do usuário ----------------------------------------------------------
+# Templates importados e exportações/backups ficam no banco (tabela `jsons`).
+# Só os templates padrão e as configs do VS Code são versionados; qualquer
+# outro .json (ex.: um template solto em backend/templates/) fica fora do git.
+*.json
+!/backend/templates/financas-pessoais.json
+!/backend/templates/fluxo-caixa.json
+!/backend/templates/gestao-demandas.json
+!/backend/templates/mapeamento-setor.json
+!/.vscode/*.json
+
 # --- Configuração de ambiente / servidor -----------------------------------
 .env
 .env.*

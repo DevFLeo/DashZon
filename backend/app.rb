@@ -1,5 +1,6 @@
 require "sinatra"
 require "json"
+require "securerandom"
 require_relative "lib/database"
 require_relative "lib/module_schema"
 require_relative "lib/template_registry"
@@ -11,6 +12,11 @@ set :port, ENV.fetch("PORT", "4567").to_i
 set :server, %w[puma webrick]
 set :show_exceptions, false
 set :raise_errors, false
+
+# Sessão por cookie para o login simulado. Sem DASHZON_SESSION_SECRET a chave
+# muda a cada boot (é preciso entrar de novo depois de reiniciar o servidor).
+set :session_secret, ENV.fetch("DASHZON_SESSION_SECRET") { SecureRandom.hex(64) }
+set :sessions, same_site: :strict, httponly: true
 
 helpers do
   def json(obj, status_code = nil)
@@ -47,18 +53,25 @@ error do
   json({ error: "Erro interno: #{env['sinatra.error'].message}" }, 500)
 end
 
-# Rotas que funcionam antes do setup (nenhuma delas toca o banco).
-def rota_livre?(req)
+# Rotas abertas: status/login/logout sempre; setup e galeria só antes do
+# setup (depois disso a galeria inclui templates do usuário e exige login).
+ROTAS_ABERTAS = %w[/api/status /api/login /api/logout].freeze
+
+def rota_do_setup?(req)
   path = req.path_info
-  return true if %w[/api/status /api/setup /api/templates/validar].include?(path)
+  return true if %w[/api/setup /api/templates/validar].include?(path)
 
   req.get? && path.start_with?("/api/templates")
 end
 
 before "/api/*" do
-  next if rota_livre?(request)
+  next if ROTAS_ABERTAS.include?(request.path_info)
 
-  halt json({ error: "O sistema ainda não foi configurado" }, 409) unless Database.configured?
+  if Database.configured?
+    halt json({ error: "Faça login para continuar" }, 401) unless session[:usuario]
+  else
+    halt json({ error: "O sistema ainda não foi configurado" }, 409) unless rota_do_setup?(request)
+  end
 end
 
 get "/" do
@@ -69,7 +82,9 @@ end
 get "/api/status" do
   if Database.configured?
     cfg = Database.config
-    json configured: true, org_name: cfg["org_name"], moeda: cfg["moeda"]
+    base = { configured: true, org_name: cfg["org_name"], usuario: session[:usuario] }
+    # A moeda só interessa depois do login; a dica do login demo, só antes.
+    json(session[:usuario] ? base.merge(moeda: cfg["moeda"]) : base.merge(demo: Database.usuario_demo?))
   else
     json configured: false
   end
@@ -84,6 +99,11 @@ post "/api/setup" do
   org = d["org_name"].to_s.strip
   halt json({ error: "Informe o nome da empresa/área" }, 422) if org.empty?
 
+  login = d["usuario"].to_s.strip
+  senha = d["senha"].to_s
+  halt json({ error: "Informe um usuário para o login" }, 422) if login.empty?
+  halt json({ error: "A senha precisa ter ao menos 4 caracteres" }, 422) if senha.length < 4
+
   escolhidos = Array(d["templates"]).map do |id|
     TemplateRegistry.find(id) || halt(json({ error: "Template '#{id}' não existe" }, 422))
   end
@@ -91,12 +111,35 @@ post "/api/setup" do
 
   Database.arquivar_versao_antiga!
   Database.create_schema!(org_name: org, moeda: (d["moeda"] || "BRL").to_s)
+  Database.criar_usuario!(login, senha)
   pacotes.each { |t| TemplateRegistry.install!(t, com_exemplos: d["com_exemplos"] != false) }
+  Array(d["importados"]).each { |t| TemplateRegistry.salvar_importado!(t) }
 
   if Database.rows("SELECT id FROM dashboards").empty?
     Database.execute("INSERT INTO dashboards (nome, criado_em, atualizado_em) VALUES (?, ?, ?)",
                      ["Visão geral", Database.now, Database.now])
   end
+  session[:usuario] = login
+  json ok: true
+end
+
+# ----------------------------------------------------------------- login ---
+# Login simulado: usuários locais com senha em hash (PBKDF2) e sessão por
+# cookie. Não há perfis nem permissões; serve para exigir uma entrada.
+post "/api/login" do
+  halt json({ error: "O sistema ainda não foi configurado" }, 409) unless Database.configured?
+
+  d = body_json
+  login = Database.autenticar(d["usuario"], d["senha"])
+  halt json({ error: "Usuário ou senha inválidos" }, 401) unless login
+
+  session.clear
+  session[:usuario] = login
+  json ok: true, usuario: login
+end
+
+post "/api/logout" do
+  session.clear
   json ok: true
 end
 
@@ -122,14 +165,46 @@ post "/api/templates/instalar" do
   bruto = d["template_id"] ? TemplateRegistry.find(d["template_id"]) : d["template"]
   halt json({ error: "Template não encontrado" }, 404) unless bruto
 
-  mapa = TemplateRegistry.install!(TemplateRegistry.normalize!(bruto), com_exemplos: d["com_exemplos"] != false)
-  json ok: true, modulos: mapa.values
+  res = TemplateRegistry.install!(TemplateRegistry.normalize!(bruto), com_exemplos: d["com_exemplos"] != false)
+  # Um JSON colado/importado fica guardado no banco e volta na galeria.
+  TemplateRegistry.salvar_importado!(bruto) unless d["template_id"]
+  json res.merge(ok: true)
 end
 
+# Só templates importados (salvos no banco) podem ser removidos da galeria.
+delete "/api/templates/:id" do
+  id = params[:id].to_s
+  halt json({ error: "Templates padrão não podem ser removidos" }, 422) unless id.start_with?(TemplateRegistry::PREFIXO_SALVO)
+
+  Database.excluir_json!(id.delete_prefix(TemplateRegistry::PREFIXO_SALVO))
+  json ok: true
+end
+
+# Cada exportação também fica guardada no banco (histórico de backups).
 get "/api/export" do
-  dados = TemplateRegistry.export(com_dados: params[:dados] == "1")
-  attachment "dashzon-#{Time.now.strftime('%Y%m%d-%H%M')}.json"
+  com_dados = params[:dados] == "1"
+  dados = TemplateRegistry.export(com_dados: com_dados)
+  nome = "dashzon-#{Time.now.strftime('%Y%m%d-%H%M')}#{com_dados ? '-dados' : ''}.json"
+  Database.salvar_json!("exportacao", nome, dados)
+  attachment nome
   json dados
+end
+
+get "/api/exportacoes" do
+  json Database.jsons("exportacao")
+end
+
+get "/api/exportacoes/:id" do
+  r = Database.json_salvo(params[:id], "exportacao") || halt(json({ error: "Exportação não encontrada" }, 404))
+  attachment r["nome"]
+  json r["conteudo"]
+end
+
+delete "/api/exportacoes/:id" do
+  halt json({ error: "Exportação não encontrada" }, 404) unless Database.json_salvo(params[:id], "exportacao")
+
+  Database.excluir_json!(params[:id])
+  json ok: true
 end
 
 # --------------------------------------------------------------- módulos ---

@@ -2,6 +2,8 @@ require "sqlite3"
 require "fileutils"
 require "json"
 require "monitor"
+require "openssl"
+require "securerandom"
 
 # Camada de acesso ao SQLite. O arquivo do banco só é criado (com o schema
 # genérico de módulos/registros) quando o usuário conclui o assistente de
@@ -67,6 +69,34 @@ module Database
     );
   SQL
 
+  # Tabelas fora do SCHEMA principal: são criadas sob demanda, então bancos
+  # já existentes as ganham sem precisar de migração/versão nova.
+  #  - usuarios: login simulado.
+  #  - jsons: JSON do usuário (templates importados e exportações/backups).
+  #    Os templates padrão continuam em backend/templates/*.json, no git.
+  EXTRAS_SQL = <<~SQL
+    CREATE TABLE IF NOT EXISTS usuarios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      login TEXT NOT NULL UNIQUE,
+      senha_hash TEXT NOT NULL,
+      sal TEXT NOT NULL,
+      criado_em TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS jsons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tipo TEXT NOT NULL CHECK (tipo IN ('template', 'exportacao')),
+      nome TEXT NOT NULL,
+      conteudo TEXT NOT NULL,
+      criado_em TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_jsons_tipo ON jsons(tipo);
+  SQL
+
+  # Login de demonstração criado quando o banco ainda não tem nenhum usuário
+  # (bancos criados antes do login existir).
+  USUARIO_DEMO = { login: "admin", senha: "admin" }.freeze
+
   # Uma única conexão para o processo, serializada por um Monitor (reentrante,
   # para que execute/insert funcionem dentro de transaction). O WEBrick atende
   # cada requisição numa thread nova; conexões por thread ficariam abertas e
@@ -90,6 +120,16 @@ module Database
     LOCK.synchronize do
       @db&.close
       @db = nil
+      @extras_ok = false
+    end
+  end
+
+  def self.garantir_tabelas!
+    LOCK.synchronize do
+      next if @extras_ok
+
+      connection.execute_batch(EXTRAS_SQL)
+      @extras_ok = true
     end
   end
 
@@ -163,6 +203,80 @@ module Database
         [org_name, moeda, now]
       )
     end
+  end
+
+  # --- usuários (login simulado) ---------------------------------------------
+
+  def self.hash_senha(senha, sal)
+    OpenSSL::KDF.pbkdf2_hmac(senha.to_s, salt: sal, iterations: 100_000, length: 32, hash: "SHA256").unpack1("H*")
+  end
+
+  def self.criar_usuario!(login, senha)
+    garantir_tabelas!
+    sal = SecureRandom.hex(16)
+    execute("INSERT INTO usuarios (login, senha_hash, sal, criado_em) VALUES (?, ?, ?, ?)",
+            [login, hash_senha(senha, sal), sal, now])
+  end
+
+  # Garante que existe ao menos um usuário; num banco antigo cria o demo.
+  def self.garantir_usuario!
+    garantir_tabelas!
+    return if row("SELECT id FROM usuarios LIMIT 1")
+
+    criar_usuario!(USUARIO_DEMO[:login], USUARIO_DEMO[:senha])
+  end
+
+  def self.usuario(login)
+    garantir_usuario!
+    row("SELECT * FROM usuarios WHERE login = ?", [login.to_s.strip])
+  end
+
+  def self.senha_confere?(u, senha)
+    OpenSSL.fixed_length_secure_compare(hash_senha(senha, u["sal"]), u["senha_hash"])
+  end
+
+  # true enquanto o login demo (admin/admin) funciona, para a tela mostrar a dica.
+  def self.usuario_demo?
+    u = usuario(USUARIO_DEMO[:login])
+    !u.nil? && senha_confere?(u, USUARIO_DEMO[:senha])
+  end
+
+  def self.autenticar(login, senha)
+    u = usuario(login)
+    u && senha_confere?(u, senha) ? u["login"] : nil
+  end
+
+  # --- JSON do usuário ----------------------------------------------------------
+
+  # Grava um JSON (template importado ou exportação). Um template idêntico a um
+  # já salvo não é duplicado: devolve o id existente.
+  def self.salvar_json!(tipo, nome, obj)
+    garantir_tabelas!
+    conteudo = JSON.generate(obj)
+    if tipo == "template"
+      existente = row("SELECT id FROM jsons WHERE tipo = ? AND conteudo = ?", [tipo, conteudo])
+      return existente["id"] if existente
+    end
+    insert("INSERT INTO jsons (tipo, nome, conteudo, criado_em) VALUES (?, ?, ?, ?)", [tipo, nome.to_s, conteudo, now])
+  end
+
+  # Lista sem o conteúdo (que pode ser grande); use json_salvo para lê-lo.
+  def self.jsons(tipo)
+    garantir_tabelas!
+    rows("SELECT id, tipo, nome, criado_em, LENGTH(conteudo) AS bytes FROM jsons WHERE tipo = ? ORDER BY id DESC", [tipo])
+  end
+
+  def self.json_salvo(id, tipo = nil)
+    garantir_tabelas!
+    r = row("SELECT * FROM jsons WHERE id = ?", [id.to_i])
+    return nil unless r && (tipo.nil? || r["tipo"] == tipo)
+
+    r.merge("conteudo" => JSON.parse(r["conteudo"]))
+  end
+
+  def self.excluir_json!(id)
+    garantir_tabelas!
+    execute("DELETE FROM jsons WHERE id = ?", [id.to_i])
   end
 
   # --- módulos ---------------------------------------------------------------
