@@ -184,6 +184,17 @@ delete "/api/widgets/:id" do
   json ok: true
 end
 
+# Atualização leve de posição/tamanho (chamada a cada drag/resize no canvas),
+# separada do PUT completo para nunca sobrescrever titulo/tabela/campo/etc.
+put "/api/widgets/:id/layout" do
+  d = body_json
+  Database.connection.execute(
+    "UPDATE widgets SET x=?, y=?, w=?, h=? WHERE id=?",
+    [(d["x"] || 0).to_i, (d["y"] || 0).to_i, (d["w"] || 4).to_i, (d["h"] || 3).to_i, params[:id].to_i]
+  )
+  json ok: true
+end
+
 TABLE_WHITELIST = %w[demandas fluxo_caixa].freeze
 
 get "/api/widgets/:id/data" do
