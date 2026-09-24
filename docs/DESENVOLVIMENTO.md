@@ -263,9 +263,65 @@ Todas as opções são opcionais. Resposta:
 
 ## 7. Frontend
 
-`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline.
+`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `api` → `setup` → `modulos` → `dashboards` → `app`.
 
-**Atenção:** os arquivos `js/demandas.js`, `js/fluxo.js`, `js/dashboards.js` e `js/app.js` ainda são da **primeira versão** (telas fixas) e chamam rotas que não existem mais. Eles serão substituídos pela interface genérica: assistente com galeria de templates, tela de módulo gerada a partir do schema, editor JSON e construtor de dashboards por módulo. Os tokens de cor em `css/style.css` (claro/escuro, séries e status) continuam valendo.
+### Navegação
+
+A URL guarda onde você está, então dá para recarregar a página ou mandar o link:
+
+| Hash | Tela |
+|---|---|
+| `#/d/3` | Dashboard de id 3 |
+| `#/m/lancamentos` | Módulo de slug `lancamentos` |
+| `#/inicio` | Nenhum módulo instalado (convite para adicionar) |
+
+### `js/app.js` (`App`)
+
+| Função | O que faz |
+|---|---|
+| `boot` | Liga os comportamentos globais e decide entre o assistente (`Setup.iniciar`) e a aplicação |
+| `iniciarApp` | Aplica a moeda, inicia as telas e carrega a barra lateral |
+| `recarregarNav` | Busca módulos e dashboards de novo (chame depois de criar ou excluir algo) |
+| `rotear` | Lê o hash e abre o dashboard ou o módulo. Rota inválida vai para a rota padrão |
+| `modulo(slug)` / `modulos()` | Módulos em memória, com o schema, usados pelos widgets e formulários |
+| `aplicarPrivacidade` | Liga/desliga a classe `privado` no `<body>` (salva no navegador) |
+
+### `js/setup.js` (`Setup`)
+
+`iniciar(onConcluido)` mostra a galeria (o primeiro template já vem marcado), deixa importar um JSON e, no envio, chama `POST /api/setup`. `cardHtml(...)` desenha o cartão de template e é reaproveitado no modal de "Adicionar módulo".
+
+### `js/modulos.js` (`Modulos`)
+
+| Função | O que faz |
+|---|---|
+| `abrir(slug)` | Carrega o módulo e desenha resumo, filtros e tabela |
+| `renderFiltros` | Um `<select>` para até 4 campos de movimento, sim/não ou seleção |
+| `renderTabela` / `celula` | Colunas = campos com `lista` diferente de `false` (até 7), formatadas pelo tipo |
+| `inputHtml` | **Onde cada tipo de campo vira um input** (checkbox, date, number, select...) |
+| `coletar` | Lê o formulário e converte números e booleanos antes de enviar |
+| `abrirEstrutura` / `salvarEstrutura` | Editor JSON do módulo (`PUT /api/modulos/:slug`) |
+| `abrirAdicionar` / `comoTemplate` / `instalar` | Galeria e importação. Um módulo solto é embrulhado num template antes de validar e instalar |
+
+### `js/dashboards.js` (`Dashboards`)
+
+| Função | O que faz |
+|---|---|
+| `init` | Cria o GridStack (12 colunas, arrasta pelo título) e liga o formulário de widget |
+| `abrir(id)` | Limpa o canvas e recria os widgets do dashboard |
+| `adicionarNoGrid` | Monta o HTML do cartão e registra no GridStack (`makeWidget`) |
+| `salvarLayout` | Em cada arrastar/redimensionar, chama só `PUT /api/widgets/:id/layout` |
+| `carregarDados` | Busca `/api/widgets/:id/data` e escolhe `renderKpi`, `renderTabela` ou `renderGrafico` |
+| `ordenar` | Meses em ordem, seleções na ordem das opções do schema, o resto do maior para o menor |
+| `renderGrafico` | Chart.js: até 2 séries lado a lado, mais que isso empilhadas; cor da série pela opção (`Util.corSerie`) |
+| `preencherOpcoes` | Monta o formulário de widget a partir dos campos do módulo escolhido. Filtros extras são mantidos |
+
+### `js/util.js` (`Util`)
+
+Formatação (`fmtMoeda`, `fmtNumero`, `fmtData`, `fmtMes`, `fmtCompacto`, `fmtValor(campo, v)`, `rotuloChave`), opções de um campo (`opcoesDe`), datas relativas (`resolverToken`), cores lidas dos tokens CSS (`cssVar`, `corSerie`) e utilidades de modal e aviso. `fmtData` não passa por `new Date()` de propósito: `new Date("2026-09-23")` é meia-noite UTC e, no Brasil, apareceria como dia 22.
+
+### Cores
+
+As cores dos gráficos vêm dos tokens `--series-1` a `--series-8` em `css/style.css`, com um valor para o tema claro e outro para o escuro. A cor de uma série segue a **posição da opção no schema**, nunca o ranking. Assim, "Restrita" é sempre a mesma cor, mesmo quando um filtro esconde outras categorias. Entrada/saída usam o par azul/vermelho. Da 9ª opção em diante vem o cinza, em vez de inventar uma cor nova.
 
 ## 8. Mini tutorial de manutenção
 
@@ -309,7 +365,7 @@ curl -s -X POST $B/api/modulos/movimentacoes/registros -H "Content-Type: applica
 
 1. `module_schema.rb`: inclua em `TIPOS` e, se puder ser somado, em `NUMERICOS` (ou em `DIMENSOES`/`SERIES`, se for categoria).
 2. `module_schema.rb`, `coerce_valor`: diga como converter e validar o valor.
-3. Frontend: como mostrar e qual `<input>` usar no formulário.
+3. Frontend: em `js/util.js`, como mostrar o valor (`fmtValor`); em `js/modulos.js`, qual `<input>` usar (`inputHtml`) e como ler o valor (`coletar`).
 4. O motor C++ normalmente não muda: ele só vê números e textos.
 
 ### Adicionar um comando novo no motor C++
@@ -341,13 +397,16 @@ curl -s -X POST $B/api/modulos/movimentacoes/registros -H "Content-Type: applica
 
 Cerca de 5 a 7 minutos:
 
+Antes de começar: renomeie o `data/dashzon.db` (se existir) para abrir no assistente e deixe o terminal do servidor visível.
+
 1. **O problema (30 s).** "Cada área controla suas coisas numa planilha diferente. O DashZon é um único painel que se adapta ao que você quer controlar."
-2. **A ideia (1 min).** Mostre um template JSON em `backend/templates/` e explique: "isto aqui é o cadastro inteiro; o sistema lê o JSON e monta tudo".
-3. **Primeiro acesso (1 min).** Mostre que antes do setup não existe o arquivo `data/dashzon.db`. Faça o setup escolhendo dois templates e mostre o arquivo `dashzon.db` aparecendo.
-4. **Uso (2 min).** Cadastre um lançamento, mostre o resumo mudando e depois os dashboards: receitas x despesas por mês, gastos por categoria e saldo.
-5. **Versatilidade (1 min).** Instale o template de mapeamento de dados (LGPD) no mesmo sistema: outro assunto, zero código novo.
-6. **Arquitetura (1 min).** Ruby cuida das regras e do banco, e o C++ faz as contas. Mostre o motor sozinho: `echo '{...}' | dashzon_engine.exe`.
-7. **Próximos passos (30 s).** Servidor (já configurável por variáveis de ambiente), frontend genérico, modo privacidade e executável.
+2. **Primeiro acesso (1 min).** Mostre a pasta `data/` sem o banco. No assistente, dê um nome, marque **Finanças pessoais** e **Fluxo de caixa** e crie. Mostre o `dashzon.db` aparecendo só agora.
+3. **Uso (1 min 30 s).** No dashboard de finanças, aponte receitas, despesas e saldo. Vá em **Lançamentos**, cadastre um gasto e volte: os números mudaram. Use a busca e o filtro "Pago: Não".
+4. **Modularidade (1 min 30 s).** Clique em **Estrutura (JSON)**, acrescente uma categoria (por exemplo, "Pets") e salve: ela já aparece no formulário. Depois, em **+ Módulos → Importar ou criar em JSON → Começar do zero**, instale um módulo novo ao vivo.
+5. **Versatilidade (1 min).** Pela galeria, instale **Mapeamento de dados do setor** (LGPD): outro assunto, no mesmo sistema, sem código novo.
+6. **Dashboard (1 min).** Crie um dashboard, adicione um widget do módulo novo, arraste e redimensione. Ligue **Ocultar valores** para mostrar o modo privacidade.
+7. **Arquitetura (1 min).** Mostre um template em `backend/templates/`. Ruby cuida das regras e do banco, e o C++ faz as contas. Rode o motor sozinho: `echo '{...}' | dashzon_engine.exe`.
+8. **Próximos passos (30 s).** Servidor (já configurável por variáveis de ambiente), executável, orçamento × realizado, importação de CSV e login.
 
 Perguntas que costumam aparecer:
 
