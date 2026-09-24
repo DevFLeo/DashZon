@@ -74,6 +74,9 @@ module Database
   #  - usuarios: login simulado.
   #  - jsons: JSON do usuário (templates importados e exportações/backups).
   #    Os templates padrão continuam em backend/templates/*.json, no git.
+  #  - tokens: links de uso único (redefinir senha, verificar e-mail); só o
+  #    hash do token é gravado.
+  #  - ajustes: preferências do painel do administrador (chave/valor).
   EXTRAS_SQL = <<~SQL
     CREATE TABLE IF NOT EXISTS usuarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,6 +84,22 @@ module Database
       senha_hash TEXT NOT NULL,
       sal TEXT NOT NULL,
       criado_em TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      tipo TEXT NOT NULL CHECK (tipo IN ('redefinir_senha', 'verificar_email')),
+      token_hash TEXT NOT NULL UNIQUE,
+      dado TEXT,
+      expira_em TEXT NOT NULL,
+      usado_em TEXT,
+      criado_em TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ajustes (
+      chave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS jsons (
@@ -92,10 +111,6 @@ module Database
     );
     CREATE INDEX IF NOT EXISTS idx_jsons_tipo ON jsons(tipo);
   SQL
-
-  # Login de demonstração criado quando o banco ainda não tem nenhum usuário
-  # (bancos criados antes do login existir).
-  USUARIO_DEMO = { login: "admin", senha: "admin" }.freeze
 
   # Uma única conexão para o processo, serializada por um Monitor (reentrante,
   # para que execute/insert funcionem dentro de transaction). O WEBrick atende
@@ -129,7 +144,39 @@ module Database
       next if @extras_ok
 
       connection.execute_batch(EXTRAS_SQL)
+      migrar_usuarios!
       @extras_ok = true
+    end
+  end
+
+  # Colunas acrescentadas depois que a tabela `usuarios` já existia. SQLite não
+  # tem "ADD COLUMN IF NOT EXISTS", então compara com o PRAGMA table_info.
+  COLUNAS_USUARIO = {
+    "nome" => "TEXT",
+    "email" => "TEXT",
+    "email_verificado_em" => "TEXT",
+    "documento_tipo" => "TEXT",
+    "documento_hash" => "TEXT",
+    "documento_mascara" => "TEXT",
+    "cargo" => "TEXT",
+    "perfil" => "TEXT NOT NULL DEFAULT 'usuario'",
+    "ativo" => "INTEGER NOT NULL DEFAULT 1",
+    "deve_trocar_senha" => "INTEGER NOT NULL DEFAULT 0",
+    "sessao_versao" => "INTEGER NOT NULL DEFAULT 1",
+    "ultimo_login_em" => "TEXT",
+    "atualizado_em" => "TEXT"
+  }.freeze
+
+  def self.migrar_usuarios!
+    existentes = connection.execute("PRAGMA table_info(usuarios)").map { |c| c["name"] || c[1] }
+    COLUNAS_USUARIO.each do |col, tipo|
+      connection.execute("ALTER TABLE usuarios ADD COLUMN #{col} #{tipo}") unless existentes.include?(col)
+    end
+    # Banco com usuários mas sem nenhum administrador (criado antes dos perfis):
+    # o primeiro usuário vira administrador, para ninguém ficar trancado fora.
+    sem_admin = connection.get_first_value("SELECT COUNT(*) FROM usuarios WHERE perfil = 'admin'").to_i.zero?
+    if sem_admin
+      connection.execute("UPDATE usuarios SET perfil = 'admin' WHERE id = (SELECT MIN(id) FROM usuarios)")
     end
   end
 
@@ -205,45 +252,10 @@ module Database
     end
   end
 
-  # --- usuários (login simulado) ---------------------------------------------
+  # Usuários, senhas e tokens ficam em lib/usuarios.rb (módulo Usuarios).
 
-  def self.hash_senha(senha, sal)
-    OpenSSL::KDF.pbkdf2_hmac(senha.to_s, salt: sal, iterations: 100_000, length: 32, hash: "SHA256").unpack1("H*")
-  end
-
-  def self.criar_usuario!(login, senha)
-    garantir_tabelas!
-    sal = SecureRandom.hex(16)
-    execute("INSERT INTO usuarios (login, senha_hash, sal, criado_em) VALUES (?, ?, ?, ?)",
-            [login, hash_senha(senha, sal), sal, now])
-  end
-
-  # Garante que existe ao menos um usuário; num banco antigo cria o demo.
-  def self.garantir_usuario!
-    garantir_tabelas!
-    return if row("SELECT id FROM usuarios LIMIT 1")
-
-    criar_usuario!(USUARIO_DEMO[:login], USUARIO_DEMO[:senha])
-  end
-
-  def self.usuario(login)
-    garantir_usuario!
-    row("SELECT * FROM usuarios WHERE login = ?", [login.to_s.strip])
-  end
-
-  def self.senha_confere?(u, senha)
-    OpenSSL.fixed_length_secure_compare(hash_senha(senha, u["sal"]), u["senha_hash"])
-  end
-
-  # true enquanto o login demo (admin/admin) funciona, para a tela mostrar a dica.
-  def self.usuario_demo?
-    u = usuario(USUARIO_DEMO[:login])
-    !u.nil? && senha_confere?(u, USUARIO_DEMO[:senha])
-  end
-
-  def self.autenticar(login, senha)
-    u = usuario(login)
-    u && senha_confere?(u, senha) ? u["login"] : nil
+  def self.atualizar_config!(org_name:, moeda:)
+    execute("UPDATE config SET org_name = ?, moeda = ? WHERE id = 1", [org_name, moeda])
   end
 
   # --- JSON do usuário ----------------------------------------------------------

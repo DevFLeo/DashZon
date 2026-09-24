@@ -1,11 +1,15 @@
 require "sinatra"
 require "json"
 require "securerandom"
+require "ipaddr"
 require_relative "lib/database"
 require_relative "lib/module_schema"
 require_relative "lib/template_registry"
 require_relative "lib/engine_client"
 require_relative "lib/dados_ficticios"
+require_relative "lib/segredo"
+require_relative "lib/correio"
+require_relative "lib/usuarios"
 
 set :public_folder, File.expand_path("../frontend", __dir__)
 set :bind, ENV.fetch("DASHZON_HOST", "127.0.0.1")
@@ -14,10 +18,21 @@ set :server, %w[puma webrick]
 set :show_exceptions, false
 set :raise_errors, false
 
-# Sessão por cookie para o login simulado. Sem DASHZON_SESSION_SECRET a chave
-# muda a cada boot (é preciso entrar de novo depois de reiniciar o servidor).
-set :session_secret, ENV.fetch("DASHZON_SESSION_SECRET") { SecureRandom.hex(64) }
-set :sessions, same_site: :strict, httponly: true
+# Sessão por cookie assinado. A chave vem de DASHZON_SESSION_SECRET ou do
+# arquivo segredo.key ao lado do banco (ver lib/segredo.rb), então reiniciar o
+# servidor não derruba ninguém.
+set :session_secret, Segredo.chave
+# DASHZON_COOKIE_SEGURO=1 quando o acesso é por HTTPS (atrás do Caddy): o
+# navegador só manda o cookie de sessão por conexão criptografada.
+set :sessions, same_site: :strict, httponly: true, secure: ENV["DASHZON_COOKIE_SEGURO"] == "1"
+
+# O Sinatra, em modo desenvolvimento, só aceita o Host localhost ou um IP. Para
+# acessar por um domínio (ex.: meupainel.duckdns.org via Caddy), liste-o em
+# DASHZON_HOSTS, separado por vírgula.
+set :host_authorization, {
+  permitted_hosts: ["localhost", ".localhost", IPAddr.new("0.0.0.0/0"), IPAddr.new("::/0")] +
+                   ENV.fetch("DASHZON_HOSTS", "").split(",").map(&:strip).reject(&:empty?)
+}
 
 helpers do
   def json(obj, status_code = nil)
@@ -50,13 +65,39 @@ error EngineClient::EngineError do
   json({ error: env["sinatra.error"].message }, 500)
 end
 
+error Usuarios::Erro do
+  json({ error: env["sinatra.error"].message }, env["sinatra.error"].status)
+end
+
+error Correio::Falha do
+  json({ error: env["sinatra.error"].message }, 502)
+end
+
 error do
   json({ error: "Erro interno: #{env['sinatra.error'].message}" }, 500)
 end
 
-# Rotas abertas: status/login/logout sempre; setup e galeria só antes do
-# setup (depois disso a galeria inclui templates do usuário e exige login).
-ROTAS_ABERTAS = %w[/api/status /api/login /api/logout].freeze
+# Rotas abertas (sem login): status, login/logout e os links de e-mail. Setup e
+# galeria só ficam abertos antes do setup. /api/usuarios/primeiro só age
+# quando o banco não tem nenhum usuário.
+ROTAS_ABERTAS = %w[/api/status /api/login /api/logout /api/usuarios/primeiro
+                   /api/senha/esqueci /api/senha/redefinir /api/email/verificar].freeze
+
+# Quem está com senha temporária só pode trocar a senha (e sair).
+ROTAS_COM_SENHA_TEMPORARIA = %w[/api/status /api/logout /api/eu /api/eu/senha].freeze
+
+helpers do
+  # Usuário da sessão, conferido a cada requisição: se foi desativado, excluído
+  # ou teve a senha redefinida (sessao_versao mudou), a sessão cai na hora.
+  def usuario_atual
+    return @usuario_atual if defined?(@usuario_atual)
+
+    u = session[:uid] && Usuarios.por_id(session[:uid])
+    valido = u && u["ativo"].to_i == 1 && u["sessao_versao"].to_i == session[:sv].to_i
+    session.clear if session[:uid] && !valido
+    @usuario_atual = valido ? u : nil
+  end
+end
 
 def rota_do_setup?(req)
   path = req.path_info
@@ -68,10 +109,18 @@ end
 before "/api/*" do
   next if ROTAS_ABERTAS.include?(request.path_info)
 
-  if Database.configured?
-    halt json({ error: "Faça login para continuar" }, 401) unless session[:usuario]
-  else
+  unless Database.configured?
     halt json({ error: "O sistema ainda não foi configurado" }, 409) unless rota_do_setup?(request)
+    next
+  end
+
+  u = usuario_atual
+  halt json({ error: "Faça login para continuar" }, 401) unless u
+  if u["deve_trocar_senha"].to_i == 1 && !ROTAS_COM_SENHA_TEMPORARIA.include?(request.path_info)
+    halt json({ error: "Defina uma senha nova para continuar", trocar_senha: true }, 403)
+  end
+  if request.path_info.start_with?("/api/admin/") && u["perfil"] != "admin"
+    halt json({ error: "Só administradores podem fazer isso" }, 403)
   end
 end
 
@@ -81,13 +130,16 @@ end
 
 # ----------------------------------------------------------------- setup ---
 get "/api/status" do
-  if Database.configured?
-    cfg = Database.config
-    base = { configured: true, org_name: cfg["org_name"], usuario: session[:usuario] }
-    # A moeda só interessa depois do login; a dica do login demo, só antes.
-    json(session[:usuario] ? base.merge(moeda: cfg["moeda"]) : base.merge(demo: Database.usuario_demo?))
+  halt json(configured: false) unless Database.configured?
+
+  cfg = Database.config
+  u = usuario_atual
+  base = { configured: true, org_name: cfg["org_name"], email_configurado: Correio.configurado? }
+  if u
+    json base.merge(usuario: Usuarios.publico(u), moeda: cfg["moeda"])
   else
-    json configured: false
+    # Antes do login: só o necessário para a tela de entrada.
+    json base.merge(usuario: nil, sem_usuario: !Usuarios.existe_algum?)
   end
 end
 
@@ -97,13 +149,15 @@ post "/api/setup" do
   halt json({ error: "O sistema já está configurado" }, 409) if Database.configured?
 
   d = body_json
-  org = d["org_name"].to_s.strip
-  halt json({ error: "Informe o nome da empresa/área" }, 422) if org.empty?
+  # O nome da organização é opcional (sem ele, a tela mostra só "DashZon").
+  org = d["org_name"].to_s.strip[0, 80]
 
+  # Confere login e senha ANTES de criar o banco: um erro aqui não pode deixar
+  # um banco pela metade. (O resto do cadastro é validado por Usuarios.criar!.)
   login = d["usuario"].to_s.strip
   senha = d["senha"].to_s
-  halt json({ error: "Informe um usuário para o login" }, 422) if login.empty?
-  halt json({ error: "A senha precisa ter ao menos 4 caracteres" }, 422) if senha.length < 4
+  halt json({ error: "Login deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou _" }, 422) unless login.match?(Usuarios::LOGIN_RE)
+  Usuarios.validar_senha!(senha)
 
   escolhidos = Array(d["templates"]).map do |id|
     TemplateRegistry.find(id) || halt(json({ error: "Template '#{id}' não existe" }, 422))
@@ -112,7 +166,9 @@ post "/api/setup" do
 
   Database.arquivar_versao_antiga!
   Database.create_schema!(org_name: org, moeda: (d["moeda"] || "BRL").to_s)
-  Database.criar_usuario!(login, senha)
+  # Quem faz o setup é o primeiro administrador.
+  uid = Usuarios.criar!({ "login" => login, "nome" => d["nome"].to_s.strip.empty? ? login : d["nome"], "perfil" => "admin" },
+                        senha: senha)
   pacotes.each { |t| TemplateRegistry.install!(t, com_exemplos: d["com_exemplos"] != false) }
   Array(d["importados"]).each { |t| TemplateRegistry.salvar_importado!(t) }
 
@@ -120,29 +176,16 @@ post "/api/setup" do
     Database.execute("INSERT INTO dashboards (nome, criado_em, atualizado_em) VALUES (?, ?, ?)",
                      ["Visão geral", Database.now, Database.now])
   end
-  session[:usuario] = login
+  u = Usuarios.por_id(uid)
+  session.clear
+  session[:uid] = u["id"]
+  session[:sv] = u["sessao_versao"].to_i
   json ok: true
 end
 
-# ----------------------------------------------------------------- login ---
-# Login simulado: usuários locais com senha em hash (PBKDF2) e sessão por
-# cookie. Não há perfis nem permissões; serve para exigir uma entrada.
-post "/api/login" do
-  halt json({ error: "O sistema ainda não foi configurado" }, 409) unless Database.configured?
+# Login, minha conta e painel do administrador.
+require_relative "rotas/usuarios"
 
-  d = body_json
-  login = Database.autenticar(d["usuario"], d["senha"])
-  halt json({ error: "Usuário ou senha inválidos" }, 401) unless login
-
-  session.clear
-  session[:usuario] = login
-  json ok: true, usuario: login
-end
-
-post "/api/logout" do
-  session.clear
-  json ok: true
-end
 
 # ------------------------------------------------------------- templates ---
 get "/api/templates" do

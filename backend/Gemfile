@@ -6,6 +6,8 @@ gem "webrick", "~> 1.8"
 gem "sqlite3", "~> 2.1"
 # Leitura de CSV (importação de extratos). No Ruby 3.4 deixou de ser padrão.
 gem "csv", "~> 3.3"
+# Envio de e-mail (verificação e redefinição de senha), quando houver SMTP.
+gem "net-smtp", "~> 0.5"
 
 group :test do
   gem "minitest", "~> 5.25"

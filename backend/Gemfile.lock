@@ -6,6 +6,10 @@ GEM
     logger (1.7.0)
     minitest (5.27.0)
     mustermann (3.1.1)
+    net-protocol (0.4.0)
+      timeout
+    net-smtp (0.5.1)
+      net-protocol
     rack (3.2.7)
     rack-protection (4.2.1)
       base64 (>= 0.1.0)
@@ -28,6 +32,7 @@ GEM
       tilt (~> 2.0)
     sqlite3 (2.9.6-x64-mingw-ucrt)
     tilt (2.9.0)
+    timeout (0.6.1)
     webrick (1.9.2)
 
 PLATFORMS
@@ -36,6 +41,7 @@ PLATFORMS
 DEPENDENCIES
   csv (~> 3.3)
   minitest (~> 5.25)
+  net-smtp (~> 0.5)
   rack-test (~> 2.2)
   rackup (~> 2.1)
   rake (~> 13.2)
@@ -50,6 +56,8 @@ CHECKSUMS
   logger (1.7.0) sha256=196edec7cc44b66cfb40f9755ce11b392f21f7967696af15d274dde7edff0203
   minitest (5.27.0) sha256=2d3b17f8a36fe7801c1adcffdbc38233b938eb0b4966e97a6739055a45fa77d5
   mustermann (3.1.1) sha256=4c6170c7234d5499c345562ba7c7dfe73e1754286dcc1abb053064d66a127198
+  net-protocol (0.4.0) sha256=f9f90c8c6f64794a45160bf422177a336db12809de3beeeaa26b88fcd2e8c853
+  net-smtp (0.5.1) sha256=ed96a0af63c524fceb4b29b0d352195c30d82dd916a42f03c62a3a70e5b70736
   rack (3.2.7) sha256=93e13e1c24f93556671d85d2d79fa228c3485815c50d7e2f265b5330c6528fb7
   rack-protection (4.2.1) sha256=cf6e2842df8c55f5e4d1a4be015e603e19e9bc3a7178bae58949ccbb58558bac
   rack-session (2.1.2) sha256=595434f8c0c3473ae7d7ac56ecda6cc6dfd9d37c0b2b5255330aa1576967ffe8
@@ -59,6 +67,7 @@ CHECKSUMS
   sinatra (4.2.1) sha256=b7aeb9b11d046b552972ade834f1f9be98b185fa8444480688e3627625377080
   sqlite3 (2.9.6-x64-mingw-ucrt) sha256=1f2b88f417fd0a8c1d5ef19c7e817d8b9c61bee6e33b6b36255fb6e40148e6f8
   tilt (2.9.0) sha256=da5735d0280bba96e9a91041bb14aee435ccad5c17b0fa519249ae543d9aa3a5
+  timeout (0.6.1) sha256=78f57368a7e7bbadec56971f78a3f5ecbcfb59b7fcbb0a3ed6ddc08a5094accb
   webrick (1.9.2) sha256=beb4a15fc474defed24a3bda4ffd88a490d517c9e4e6118c3edce59e45864131
 
 BUNDLED WITH
