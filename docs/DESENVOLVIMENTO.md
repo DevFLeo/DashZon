@@ -396,7 +396,7 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 
 ### `js/tema.js` (`Tema`)
 
-Botão sol/lua (`.tema-btn`: na barra lateral e, antes do login, flutuando no canto). Sol = claro, lua = escuro; a troca gira o botão e cruza os dois ícones (CSS; desliga com "reduzir movimento"). `aplicar(tema)` põe `data-theme` no `<html>` (ou tira, para seguir o sistema), guarda no navegador (`dashzon.tema`) e dispara o evento `dashzon:tema`, que o dashboard usa para **redesenhar** os gráficos com as mesmas funções (a regra dos gráficos não muda). Um script no `<head>` aplica o tema salvo antes de desenhar a página, sem piscar. Com alguém logado, o botão também salva na conta (`Conta.salvarTema`), e ao entrar vale o tema da conta.
+Botão de tema (`.tema-btn`: na barra lateral e, antes do login, flutuando no canto) com ciclo de três: sol = claro (`data-theme="light"`) → pôr do sol = **suave** (`"soft"`: sol sobre fundo alaranjado e lua com brilho clarinho) → lua = escuro (`"dark"`). A troca gira o botão e cruza os ícones (CSS; desliga com "reduzir movimento"). `aplicar(tema)` põe `data-theme` no `<html>` (ou tira, para seguir o sistema), guarda no navegador (`dashzon.tema`) e dispara o evento `dashzon:tema`, que o dashboard usa para **redesenhar** os gráficos com as mesmas funções (a regra dos gráficos não muda). Um script no `<head>` aplica o tema salvo antes de desenhar a página, sem piscar. Com alguém logado, o botão também salva na conta (`Conta.salvarTema`), e ao entrar vale o tema da conta.
 
 ### `js/admin.js` (`Admin`)
 
@@ -459,6 +459,9 @@ Os prints são gerados por `scripts/gerar-previews.js` (ver seção 8). Para um 
 Formatação (`fmtMoeda`, `fmtNumero`, `fmtData`, `fmtMes`, `fmtCompacto`, `fmtValor(campo, v)`, `rotuloChave`), opções de um campo (`opcoesDe`), datas relativas (`resolverToken`), cores lidas dos tokens CSS (`cssVar`, `corSerie`) e utilidades de modal e aviso. `fmtData` não passa por `new Date()` de propósito: `new Date("2026-09-23")` é meia-noite UTC e, no Brasil, apareceria como dia 22.
 
 ### Cores
+
+São três paletas de tokens: claro (`:root`), escuro (`[data-theme="dark"]` ou o sistema no escuro, só quando não há `data-theme`) e suave (`[data-theme="soft"]`). O suave foi conferido para texto ≥ 4,5:1 e séries dos gráficos ≥ 3:1 contra o fundo; se mexer nele, confira de novo. As séries mantêm a mesma ordem e identidade nas três paletas.
+
 
 As cores dos gráficos vêm dos tokens `--series-1` a `--series-8` em `css/style.css`, com um valor para o tema claro e outro para o escuro. A cor de uma série segue a **posição da opção no schema**, nunca o ranking. Assim, "Restrita" é sempre a mesma cor, mesmo quando um filtro esconde outras categorias. Entrada/saída usam o par azul/vermelho. Da 9ª opção em diante vem o cinza, em vez de inventar uma cor nova.
 
