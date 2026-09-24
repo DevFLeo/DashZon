@@ -1,0 +1,21 @@
+# Banco de dados local (criado em runtime pelo assistente de setup)
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# Build do motor C++
+engine-cpp/build/
+engine-cpp/out/
+
+# Ruby / bundler
+backend/.bundle/
+backend/vendor/bundle/
+*.gem
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
