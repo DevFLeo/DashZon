@@ -4,7 +4,15 @@ Dashboard de gestão **modular** e **multiuso**: você escolhe (ou importa) temp
 
 Inspirado em projetos open source de finanças como [OpenMonetis](https://openmonetis.com/) e [Actual Budget](https://actualbudget.org/), mas genérico.
 
-> **Estado atual:** o motor C++, a API em Ruby e os templates estão prontos e testados. O frontend em `frontend/` ainda é a primeira versão, com as telas fixas de demandas e fluxo de caixa, e está sendo reescrito para usar os módulos. Até lá, use a API diretamente (veja [docs/DESENVOLVIMENTO.md](docs/DESENVOLVIMENTO.md)).
+## O que dá para fazer
+
+- **Primeiro acesso guiado:** nome, moeda e galeria de templates (dá para escolher vários ou importar um JSON). O banco só é criado no final.
+- **Módulos gerados pelo JSON:** resumo (KPIs), busca, filtros, tabela e formulário montados a partir dos campos, com validação.
+- **Estrutura editável:** edite campos, opções e resumos de um módulo em JSON direto na tela, ou adicione módulos pela galeria ou colando/importando um JSON.
+- **Dashboards de arrastar e soltar:** widgets de número, barras, linha e tabela, com medida (contagem, soma, média, saldo), agrupamento (inclusive por mês), séries e filtro.
+- **Modo privacidade:** esconde os valores em moeda com um clique.
+- **Exportar/backup:** a configuração (e, se quiser, os dados) sai em JSON no mesmo formato de template.
+- **Tema claro e escuro**, seguindo o sistema operacional.
 
 ## Como funciona
 
@@ -79,7 +87,14 @@ backend/
 engine-cpp/
   src/main.cpp           comandos aggregate, multi e search
   src/json.hpp           parser/serializador JSON mínimo
-frontend/                SPA (em migração para os módulos)
+frontend/
+  index.html             estrutura da tela e modais
+  js/app.js              inicialização, navegação e barra lateral
+  js/setup.js            assistente de primeiro acesso
+  js/modulos.js          tela genérica de módulo e editor JSON
+  js/dashboards.js       canvas de dashboards e widgets
+  js/util.js, js/api.js  formatação, cores e cliente HTTP
+  vendor/                Chart.js e GridStack (offline)
 docs/DESENVOLVIMENTO.md  lógica, funções e tutorial
 ```
 
@@ -91,6 +106,7 @@ docs/DESENVOLVIMENTO.md  lógica, funções e tutorial
 
 ## Próximos passos
 
-- Frontend genérico: assistente de setup com a galeria de templates e importação JSON, tela de módulo com CRUD dinâmico e editor JSON, e o construtor de dashboards ligado aos módulos.
-- Modo privacidade (ocultar valores), inspirado no OpenMonetis.
-- Script de inicialização e empacotamento como executável Windows.
+- Script de inicialização (um clique) e empacotamento como executável Windows.
+- Orçamento × realizado (cruzar dois módulos, como no Actual Budget).
+- Importação de CSV/extrato para dentro de um módulo.
+- Autenticação e usuários antes de publicar em servidor.
