@@ -9,257 +9,259 @@
 </head>
 <body>
 
-<!-- Assistente de configuração inicial: só depois de preenchido o banco é criado -->
-<div id="setup-overlay">
-  <div class="setup-card">
+<!-- ============ Assistente de primeiro acesso ============ -->
+<div class="setup" id="setup">
+  <form class="setup-card" id="setup-form">
     <h1>Bem-vindo ao DashZon</h1>
-    <p class="sub">Antes de tudo, defina alguns parâmetros. É só depois disso que o banco de dados local é criado.</p>
-    <form id="setup-form">
-      <div class="field">
-        <label for="setup-org">Nome da empresa / área</label>
-        <input id="setup-org" type="text" placeholder="Ex.: Financeiro Zon Ltda" required>
-      </div>
+    <p>Escolha o que você quer controlar. O banco de dados só é criado quando você concluir este cadastro.</p>
+
+    <div class="setup-step">
+      <h2>1. Sobre você ou sua empresa</h2>
       <div class="field-row">
+        <div class="field">
+          <label for="setup-org" class="obrigatorio">Nome (pessoa, empresa ou área)</label>
+          <input id="setup-org" type="text" placeholder="Ex.: Minhas finanças, Financeiro Zon Ltda" required>
+        </div>
         <div class="field">
           <label for="setup-moeda">Moeda</label>
           <select id="setup-moeda">
-            <option value="BRL">R$ (BRL)</option>
-            <option value="USD">US$ (USD)</option>
-            <option value="EUR">€ (EUR)</option>
+            <option value="BRL">R$ (Real)</option>
+            <option value="USD">US$ (Dólar)</option>
+            <option value="EUR">€ (Euro)</option>
           </select>
         </div>
-        <div class="field">
-          <label for="setup-meta">Meta mensal (opcional)</label>
-          <input id="setup-meta" type="number" step="0.01" placeholder="0,00">
-        </div>
       </div>
-      <div class="modal-actions">
-        <button type="submit" class="btn btn-primary">Criar banco e começar</button>
-      </div>
-    </form>
-  </div>
+    </div>
+
+    <div class="setup-step">
+      <h2>2. Templates</h2>
+      <p>Selecione um ou mais. Cada template traz módulos com campos, resumos e um dashboard pronto. Tudo pode ser editado depois.</p>
+      <div class="galeria" id="setup-galeria"></div>
+    </div>
+
+    <div class="setup-step">
+      <h2>3. Tem um template próprio? (opcional)</h2>
+      <p>Importe um arquivo <code>.json</code> no formato DashZon, como uma exportação de outra instalação.</p>
+      <input type="file" id="setup-importar" accept=".json,application/json">
+    </div>
+
+    <div class="setup-footer">
+      <label class="field-check"><input type="checkbox" id="setup-exemplos" checked> Incluir dados de exemplo</label>
+      <span class="spacer"></span>
+      <span class="hint" id="setup-resumo"></span>
+      <button type="submit" class="btn btn-primary" id="setup-enviar">Criar banco e começar</button>
+    </div>
+    <div class="form-erro" id="setup-erro" hidden></div>
+  </form>
 </div>
 
-<div id="app">
-  <div class="topbar">
-    <div class="brand" id="brand-name">DashZon</div>
-    <div class="tabs">
-      <button data-view="dashboards" class="active">Dashboards</button>
-      <button data-view="demandas">Demandas</button>
-      <button data-view="fluxo">Fluxo de Caixa</button>
-    </div>
-    <div class="topbar-spacer"></div>
-    <div class="meta" id="org-meta"></div>
-  </div>
-
-  <!-- ---------------- Dashboards (canvas modular, arrasta-e-solta) ---------------- -->
-  <div class="view active" id="view-dashboards">
-    <div class="sidebar">
-      <h3>Seus dashboards</h3>
-      <div id="dashboard-list"></div>
-      <button class="btn btn-sm" id="new-dashboard-btn" style="width:100%;margin-top:8px;">+ Novo dashboard</button>
-    </div>
-    <div class="page">
-      <div class="canvas-toolbar">
-        <h2 id="dashboard-title">—</h2>
-        <button class="btn btn-sm" id="rename-dashboard-btn">Renomear</button>
-        <button class="btn btn-primary btn-sm" id="add-widget-btn">+ Adicionar widget</button>
+<!-- ============ Aplicação ============ -->
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="brand"><strong>DashZon</strong><small id="org-nome"></small></div>
+    <nav class="nav">
+      <div class="nav-section">
+        <div class="nav-title">Dashboards <button class="icon-btn" id="btn-novo-dashboard" title="Novo dashboard" aria-label="Novo dashboard">+</button></div>
+        <div id="nav-dashboards"></div>
       </div>
-      <p class="hint">Arraste os cartões pelo canto para reposicionar e pelo canto inferior direito para redimensionar. Cada widget busca a chave (tabela + campo) que você escolher no banco.</p>
+      <div class="nav-section">
+        <div class="nav-title">Módulos <button class="icon-btn" id="btn-add-modulo" title="Adicionar módulo" aria-label="Adicionar módulo">+</button></div>
+        <div id="nav-modulos"></div>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn btn-ghost btn-sm" id="btn-privacidade" aria-pressed="false">Ocultar valores</button>
+      <a class="btn btn-ghost btn-sm" href="/api/export">Exportar configuração (JSON)</a>
+      <a class="btn btn-ghost btn-sm" href="/api/export?dados=1">Backup com dados (JSON)</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- Dashboard -->
+    <section class="view" id="view-dashboard">
+      <header class="page-header">
+        <div>
+          <h1 id="dash-titulo"></h1>
+          <p class="hint">Arraste os cartões pelo título e redimensione pelo canto. Passe o mouse para editar ou remover.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-sm" id="btn-renomear-dashboard">Renomear</button>
+          <button class="btn btn-sm btn-danger" id="btn-excluir-dashboard">Excluir</button>
+          <button class="btn btn-sm btn-primary" id="btn-add-widget">+ Widget</button>
+        </div>
+      </header>
+      <div class="empty-state" id="dash-vazio" hidden>
+        <h2>Dashboard vazio</h2>
+        <div>Adicione widgets escolhendo um módulo e o que medir.</div>
+        <button class="btn btn-primary" data-acao="add-widget">+ Adicionar widget</button>
+      </div>
       <div class="grid-stack" id="grid"></div>
-    </div>
-  </div>
+    </section>
 
-  <!-- ---------------- Demandas ---------------- -->
-  <div class="view" id="view-demandas">
-    <div class="page">
+    <!-- Módulo -->
+    <section class="view" id="view-modulo">
+      <header class="page-header">
+        <div>
+          <h1 id="mod-titulo"></h1>
+          <p class="hint" id="mod-descricao"></p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-sm" id="btn-estrutura">Estrutura (JSON)</button>
+          <button class="btn btn-sm btn-danger" id="btn-excluir-modulo">Excluir módulo</button>
+          <button class="btn btn-sm btn-primary" id="btn-novo-registro">+ Novo registro</button>
+        </div>
+      </header>
+      <div class="kpi-row" id="mod-resumo"></div>
       <div class="toolbar">
-        <input type="text" id="demanda-search" placeholder="Buscar por título ou descrição...">
-        <select id="demanda-filter-status">
-          <option value="">Todos os status</option>
-          <option value="backlog">Backlog</option>
-          <option value="em_andamento">Em andamento</option>
-          <option value="concluido">Concluído</option>
-          <option value="cancelado">Cancelado</option>
-        </select>
-        <div class="toolbar-spacer"></div>
-        <button class="btn btn-primary" id="new-demanda-btn">+ Nova demanda</button>
+        <input type="search" id="mod-busca" placeholder="Buscar...">
+        <span id="mod-filtros" class="toolbar"></span>
+        <span class="spacer"></span>
+        <span class="hint" id="mod-contagem"></span>
       </div>
-      <div id="demanda-kanban" class="kpi-row"></div>
-      <div id="demanda-table-wrap"></div>
+      <div id="mod-tabela"></div>
+    </section>
+
+    <!-- Sem nada ainda -->
+    <section class="view" id="view-vazio">
+      <div class="empty-state">
+        <h2>Nenhum módulo instalado</h2>
+        <div>Adicione um template da galeria, importe um JSON ou crie um módulo do zero.</div>
+        <button class="btn btn-primary" data-acao="add-modulo">+ Adicionar módulo</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ Modal: registro (formulário gerado pelo schema) ============ -->
+<div class="modal-overlay" id="modal-registro">
+  <form class="modal" id="form-registro">
+    <h2 id="registro-titulo">Novo registro</h2>
+    <div id="registro-campos"></div>
+    <div class="form-erro" id="registro-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-registro">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Salvar</button>
     </div>
-  </div>
+  </form>
+</div>
 
-  <!-- ---------------- Fluxo de Caixa ---------------- -->
-  <div class="view" id="view-fluxo">
-    <div class="page">
-      <div class="kpi-row" id="fluxo-kpis"></div>
-      <div class="card">
-        <canvas id="fluxo-chart" height="90"></canvas>
-      </div>
-      <div class="toolbar">
-        <h2 style="margin:0;flex:1;font-size:16px;">Lançamentos</h2>
-        <button class="btn btn-primary" id="new-fluxo-btn">+ Novo lançamento</button>
-      </div>
-      <div id="fluxo-table-wrap"></div>
+<!-- ============ Modal: estrutura do módulo (editor JSON) ============ -->
+<div class="modal-overlay" id="modal-estrutura">
+  <form class="modal modal-lg" id="form-estrutura">
+    <h2>Estrutura do módulo</h2>
+    <p class="hint">Edite campos, opções e resumos. O identificador (<code>slug</code>) não muda. Tipos: texto, texto_longo, numero, moeda, data, selecao, booleano, movimento.</p>
+    <div class="field"><textarea class="code" id="estrutura-json" spellcheck="false"></textarea></div>
+    <div class="form-erro" id="estrutura-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="estrutura-formatar">Formatar JSON</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-fechar="modal-estrutura">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Salvar estrutura</button>
     </div>
-  </div>
+  </form>
 </div>
 
-<!-- ---------------- Modal: nova/editar demanda ---------------- -->
-<div class="modal-overlay" id="modal-demanda">
-  <div class="modal">
-    <h2 id="modal-demanda-title">Nova demanda</h2>
-    <form id="form-demanda">
-      <input type="hidden" id="demanda-id">
-      <div class="field">
-        <label for="demanda-titulo">Título</label>
-        <input id="demanda-titulo" type="text" required>
+<!-- ============ Modal: adicionar módulo (galeria / JSON) ============ -->
+<div class="modal-overlay" id="modal-add-modulo">
+  <div class="modal modal-lg">
+    <h2>Adicionar módulo</h2>
+    <div class="tabs" role="tablist">
+      <button type="button" class="active" data-aba="aba-galeria">Galeria de templates</button>
+      <button type="button" data-aba="aba-json">Importar ou criar em JSON</button>
+    </div>
+    <div id="aba-galeria">
+      <div class="galeria" id="add-galeria"></div>
+      <label class="field-check" style="display:block;margin-top:14px"><input type="checkbox" id="add-exemplos" checked> Incluir dados de exemplo</label>
+    </div>
+    <div id="aba-json" hidden>
+      <p class="hint">Cole um template completo (com <code>modulos</code> e <code>dashboards</code>) ou a definição de um único módulo (com <code>campos</code>).</p>
+      <div class="toolbar" style="margin:10px 0">
+        <input type="file" id="add-arquivo" accept=".json,application/json">
+        <button type="button" class="btn btn-sm" id="add-esqueleto">Começar do zero</button>
       </div>
-      <div class="field">
-        <label for="demanda-descricao">Descrição</label>
-        <textarea id="demanda-descricao"></textarea>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="demanda-status">Status</label>
-          <select id="demanda-status">
-            <option value="backlog">Backlog</option>
-            <option value="em_andamento">Em andamento</option>
-            <option value="concluido">Concluído</option>
-            <option value="cancelado">Cancelado</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="demanda-etapa">Etapa do fluxo</label>
-          <select id="demanda-etapa">
-            <option value="entrada">Entrada</option>
-            <option value="triagem">Triagem</option>
-            <option value="execucao">Execução</option>
-            <option value="validacao">Validação</option>
-            <option value="entregue">Entregue</option>
-          </select>
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="demanda-prioridade">Prioridade</label>
-          <select id="demanda-prioridade">
-            <option value="baixa">Baixa</option>
-            <option value="media" selected>Média</option>
-            <option value="alta">Alta</option>
-            <option value="urgente">Urgente</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="demanda-valor">Valor (R$)</label>
-          <input id="demanda-valor" type="number" step="0.01" value="0">
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="demanda-responsavel">Responsável</label>
-          <input id="demanda-responsavel" type="text">
-        </div>
-        <div class="field">
-          <label for="demanda-prazo">Prazo</label>
-          <input id="demanda-prazo" type="date">
-        </div>
-      </div>
+      <div class="field"><textarea class="code" id="add-json" spellcheck="false" placeholder="{ ... }"></textarea></div>
+      <div class="hint" id="add-previa"></div>
       <div class="modal-actions">
-        <button type="button" class="btn" data-close-modal="modal-demanda">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Salvar</button>
+        <button type="button" class="btn" id="add-validar">Validar</button>
+        <button type="button" class="btn btn-primary" id="add-instalar">Instalar</button>
       </div>
-    </form>
+    </div>
+    <div class="form-erro" id="add-erro" hidden></div>
+    <div class="modal-actions"><button type="button" class="btn" data-fechar="modal-add-modulo">Fechar</button></div>
   </div>
 </div>
 
-<!-- ---------------- Modal: novo/editar lançamento de fluxo ---------------- -->
-<div class="modal-overlay" id="modal-fluxo">
-  <div class="modal">
-    <h2 id="modal-fluxo-title">Novo lançamento</h2>
-    <form id="form-fluxo">
-      <input type="hidden" id="fluxo-id">
-      <div class="field-row">
-        <div class="field">
-          <label for="fluxo-tipo">Tipo</label>
-          <select id="fluxo-tipo">
-            <option value="entrada">Entrada</option>
-            <option value="saida">Saída</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="fluxo-valor">Valor (R$)</label>
-          <input id="fluxo-valor" type="number" step="0.01" required>
-        </div>
-      </div>
-      <div class="field">
-        <label for="fluxo-categoria">Categoria</label>
-        <input id="fluxo-categoria" type="text" placeholder="Ex.: Vendas, Fornecedores...">
-      </div>
-      <div class="field">
-        <label for="fluxo-descricao">Descrição</label>
-        <input id="fluxo-descricao" type="text">
-      </div>
-      <div class="field">
-        <label for="fluxo-data">Data</label>
-        <input id="fluxo-data" type="date" required>
-      </div>
-      <div class="modal-actions">
-        <button type="button" class="btn" data-close-modal="modal-fluxo">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Salvar</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- ---------------- Modal: adicionar widget ao dashboard ---------------- -->
+<!-- ============ Modal: widget ============ -->
 <div class="modal-overlay" id="modal-widget">
-  <div class="modal">
-    <h2>Adicionar widget</h2>
-    <form id="form-widget">
+  <form class="modal" id="form-widget">
+    <h2 id="widget-modal-titulo">Adicionar widget</h2>
+    <div class="field">
+      <label for="w-titulo" class="obrigatorio">Nome que vai aparecer</label>
+      <input id="w-titulo" type="text" required>
+    </div>
+    <div class="field-row">
       <div class="field">
-        <label for="widget-titulo">Nome que vai aparecer</label>
-        <input id="widget-titulo" type="text" required placeholder="Ex.: Demandas por status">
-      </div>
-      <div class="field">
-        <label for="widget-tipo">Tipo de visualização</label>
-        <select id="widget-tipo">
+        <label for="w-tipo">Visualização</label>
+        <select id="w-tipo">
           <option value="kpi">Número (KPI)</option>
-          <option value="bar">Gráfico de barras</option>
-          <option value="line">Gráfico de linha</option>
+          <option value="bar">Barras</option>
+          <option value="line">Linha</option>
           <option value="table">Tabela</option>
         </select>
       </div>
       <div class="field">
-        <label for="widget-tabela">Tabela (fonte de dados)</label>
-        <select id="widget-tabela"></select>
+        <label for="w-modulo">Módulo (fonte dos dados)</label>
+        <select id="w-modulo"></select>
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="widget-agrupar">Agrupar por (chave)</label>
-          <select id="widget-agrupar"><option value="">— sem agrupamento —</option></select>
-        </div>
-        <div class="field">
-          <label for="widget-campo">Somar campo (opcional)</label>
-          <select id="widget-campo"><option value="">— contagem —</option></select>
-        </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="w-agregacao">Medida</label>
+        <select id="w-agregacao"></select>
       </div>
-      <div class="modal-actions">
-        <button type="button" class="btn" data-close-modal="modal-widget">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Adicionar ao dashboard</button>
+      <div class="field" id="w-campo-wrap">
+        <label for="w-campo">Campo</label>
+        <select id="w-campo"></select>
       </div>
-    </form>
-  </div>
+    </div>
+    <div class="field-row">
+      <div class="field" id="w-agrupar-wrap">
+        <label for="w-agrupar">Agrupar por</label>
+        <select id="w-agrupar"></select>
+      </div>
+      <div class="field" id="w-serie-wrap">
+        <label for="w-serie">Separar séries por</label>
+        <select id="w-serie"></select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="w-filtro-campo">Filtrar por (opcional)</label>
+        <select id="w-filtro-campo"></select>
+      </div>
+      <div class="field">
+        <label for="w-filtro-valor">Valor do filtro</label>
+        <select id="w-filtro-valor"></select>
+      </div>
+    </div>
+    <p class="hint" id="w-filtro-extra" hidden></p>
+    <div class="form-erro" id="widget-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-widget">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Salvar widget</button>
+    </div>
+  </form>
 </div>
+
+<div class="toast" id="toast" hidden role="status"></div>
 
 <script src="/vendor/gridstack-all.js"></script>
 <script src="/vendor/chart.umd.js"></script>
 <script src="/js/util.js"></script>
 <script src="/js/api.js"></script>
+<script src="/js/setup.js"></script>
+<script src="/js/modulos.js"></script>
 <script src="/js/dashboards.js"></script>
-<script src="/js/demandas.js"></script>
-<script src="/js/fluxo.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>
