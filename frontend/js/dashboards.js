@@ -17,6 +17,8 @@ const Dashboards = (() => {
   const campoDe = (modulo, id) => modulo && id ? modulo.schema.campos.find((c) => c.id === id) : null;
 
   // -------------------------------------------------------------- canvas ----
+  // REGRA (ver CLAUDE.md): grade de 12 colunas, arrastar pelo título e
+  // salvarLayout gravando só posição/tamanho. Não alterar sem pedido explícito.
   function init() {
     grid = GridStack.init({
       column: 12,
@@ -100,6 +102,11 @@ const Dashboards = (() => {
   }
 
   // ---------------------------------------------------------- dados ----
+  // REGRA (ver CLAUDE.md): a lógica de funcionamento e a fórmula de
+  // organização dos gráficos (valorDe, formatador, descricao, ordenar,
+  // renderKpi, renderTabela, renderGrafico) e do layout do canvas não mudam
+  // sem pedido explícito. O criador de card e o "Lançar" só reaproveitam estas
+  // funções; não as reimplemente em outro lugar.
   function valorDe(cfg, alvo) {
     if (!alvo) return 0;
     if (cfg.agregacao === "contagem") return alvo.count;

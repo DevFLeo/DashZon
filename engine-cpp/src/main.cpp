@@ -87,6 +87,10 @@ struct GroupAcc {
     std::map<std::string, Acc> series;
 };
 
+// REGRA (ver CLAUDE.md): nao alterar a logica de agregacao nem o formato da
+// resposta sem pedido explicito. Dashboards, resumos e a pre-visualizacao do
+// criador de card dependem exatamente deste comportamento.
+//
 // Opcoes (todas opcionais):
 //   group_by        campo usado como chave de agrupamento
 //   group_format    "mes" -> usa YYYY-MM de um campo data

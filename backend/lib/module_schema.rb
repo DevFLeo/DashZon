@@ -125,6 +125,10 @@ module ModuleSchema
 
   # Configuração comum a widgets e itens de resumo: o que medir, como agrupar,
   # como quebrar em séries e o que filtrar.
+  #
+  # REGRA (ver CLAUDE.md): não alterar a lógica nem o formato do `config`
+  # (normalize_consulta!, normalize_widget!, engine_query) sem pedido
+  # explícito. Telas novas de criação de card devem gerar este mesmo config.
   def normalize_consulta!(cfg, campos, contexto)
     campo_por_id = campos.to_h { |c| [c["id"], c] }
 
