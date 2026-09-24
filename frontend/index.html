@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DashZon</title>
+<link rel="stylesheet" href="/vendor/gridstack.min.css">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- Assistente de configuração inicial: só depois de preenchido o banco é criado -->
+<div id="setup-overlay">
+  <div class="setup-card">
+    <h1>Bem-vindo ao DashZon</h1>
+    <p class="sub">Antes de tudo, defina alguns parâmetros. É só depois disso que o banco de dados local é criado.</p>
+    <form id="setup-form">
+      <div class="field">
+        <label for="setup-org">Nome da empresa / área</label>
+        <input id="setup-org" type="text" placeholder="Ex.: Financeiro Zon Ltda" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="setup-moeda">Moeda</label>
+          <select id="setup-moeda">
+            <option value="BRL">R$ (BRL)</option>
+            <option value="USD">US$ (USD)</option>
+            <option value="EUR">€ (EUR)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="setup-meta">Meta mensal (opcional)</label>
+          <input id="setup-meta" type="number" step="0.01" placeholder="0,00">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">Criar banco e começar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div class="brand" id="brand-name">DashZon</div>
+    <div class="tabs">
+      <button data-view="dashboards" class="active">Dashboards</button>
+      <button data-view="demandas">Demandas</button>
+      <button data-view="fluxo">Fluxo de Caixa</button>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="meta" id="org-meta"></div>
+  </div>
+
+  <!-- ---------------- Dashboards (canvas modular, arrasta-e-solta) ---------------- -->
+  <div class="view active" id="view-dashboards">
+    <div class="sidebar">
+      <h3>Seus dashboards</h3>
+      <div id="dashboard-list"></div>
+      <button class="btn btn-sm" id="new-dashboard-btn" style="width:100%;margin-top:8px;">+ Novo dashboard</button>
+    </div>
+    <div class="page">
+      <div class="canvas-toolbar">
+        <h2 id="dashboard-title">—</h2>
+        <button class="btn btn-sm" id="rename-dashboard-btn">Renomear</button>
+        <button class="btn btn-primary btn-sm" id="add-widget-btn">+ Adicionar widget</button>
+      </div>
+      <p class="hint">Arraste os cartões pelo canto para reposicionar e pelo canto inferior direito para redimensionar. Cada widget busca a chave (tabela + campo) que você escolher no banco.</p>
+      <div class="grid-stack" id="grid"></div>
+    </div>
+  </div>
+
+  <!-- ---------------- Demandas ---------------- -->
+  <div class="view" id="view-demandas">
+    <div class="page">
+      <div class="toolbar">
+        <input type="text" id="demanda-search" placeholder="Buscar por título ou descrição...">
+        <select id="demanda-filter-status">
+          <option value="">Todos os status</option>
+          <option value="backlog">Backlog</option>
+          <option value="em_andamento">Em andamento</option>
+          <option value="concluido">Concluído</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+        <div class="toolbar-spacer"></div>
+        <button class="btn btn-primary" id="new-demanda-btn">+ Nova demanda</button>
+      </div>
+      <div id="demanda-kanban" class="kpi-row"></div>
+      <div id="demanda-table-wrap"></div>
+    </div>
+  </div>
+
+  <!-- ---------------- Fluxo de Caixa ---------------- -->
+  <div class="view" id="view-fluxo">
+    <div class="page">
+      <div class="kpi-row" id="fluxo-kpis"></div>
+      <div class="card">
+        <canvas id="fluxo-chart" height="90"></canvas>
+      </div>
+      <div class="toolbar">
+        <h2 style="margin:0;flex:1;font-size:16px;">Lançamentos</h2>
+        <button class="btn btn-primary" id="new-fluxo-btn">+ Novo lançamento</button>
+      </div>
+      <div id="fluxo-table-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ---------------- Modal: nova/editar demanda ---------------- -->
+<div class="modal-overlay" id="modal-demanda">
+  <div class="modal">
+    <h2 id="modal-demanda-title">Nova demanda</h2>
+    <form id="form-demanda">
+      <input type="hidden" id="demanda-id">
+      <div class="field">
+        <label for="demanda-titulo">Título</label>
+        <input id="demanda-titulo" type="text" required>
+      </div>
+      <div class="field">
+        <label for="demanda-descricao">Descrição</label>
+        <textarea id="demanda-descricao"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="demanda-status">Status</label>
+          <select id="demanda-status">
+            <option value="backlog">Backlog</option>
+            <option value="em_andamento">Em andamento</option>
+            <option value="concluido">Concluído</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="demanda-etapa">Etapa do fluxo</label>
+          <select id="demanda-etapa">
+            <option value="entrada">Entrada</option>
+            <option value="triagem">Triagem</option>
+            <option value="execucao">Execução</option>
+            <option value="validacao">Validação</option>
+            <option value="entregue">Entregue</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="demanda-prioridade">Prioridade</label>
+          <select id="demanda-prioridade">
+            <option value="baixa">Baixa</option>
+            <option value="media" selected>Média</option>
+            <option value="alta">Alta</option>
+            <option value="urgente">Urgente</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="demanda-valor">Valor (R$)</label>
+          <input id="demanda-valor" type="number" step="0.01" value="0">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="demanda-responsavel">Responsável</label>
+          <input id="demanda-responsavel" type="text">
+        </div>
+        <div class="field">
+          <label for="demanda-prazo">Prazo</label>
+          <input id="demanda-prazo" type="date">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" data-close-modal="modal-demanda">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ---------------- Modal: novo/editar lançamento de fluxo ---------------- -->
+<div class="modal-overlay" id="modal-fluxo">
+  <div class="modal">
+    <h2 id="modal-fluxo-title">Novo lançamento</h2>
+    <form id="form-fluxo">
+      <input type="hidden" id="fluxo-id">
+      <div class="field-row">
+        <div class="field">
+          <label for="fluxo-tipo">Tipo</label>
+          <select id="fluxo-tipo">
+            <option value="entrada">Entrada</option>
+            <option value="saida">Saída</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="fluxo-valor">Valor (R$)</label>
+          <input id="fluxo-valor" type="number" step="0.01" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="fluxo-categoria">Categoria</label>
+        <input id="fluxo-categoria" type="text" placeholder="Ex.: Vendas, Fornecedores...">
+      </div>
+      <div class="field">
+        <label for="fluxo-descricao">Descrição</label>
+        <input id="fluxo-descricao" type="text">
+      </div>
+      <div class="field">
+        <label for="fluxo-data">Data</label>
+        <input id="fluxo-data" type="date" required>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" data-close-modal="modal-fluxo">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ---------------- Modal: adicionar widget ao dashboard ---------------- -->
+<div class="modal-overlay" id="modal-widget">
+  <div class="modal">
+    <h2>Adicionar widget</h2>
+    <form id="form-widget">
+      <div class="field">
+        <label for="widget-titulo">Nome que vai aparecer</label>
+        <input id="widget-titulo" type="text" required placeholder="Ex.: Demandas por status">
+      </div>
+      <div class="field">
+        <label for="widget-tipo">Tipo de visualização</label>
+        <select id="widget-tipo">
+          <option value="kpi">Número (KPI)</option>
+          <option value="bar">Gráfico de barras</option>
+          <option value="line">Gráfico de linha</option>
+          <option value="table">Tabela</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="widget-tabela">Tabela (fonte de dados)</label>
+        <select id="widget-tabela"></select>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="widget-agrupar">Agrupar por (chave)</label>
+          <select id="widget-agrupar"><option value="">— sem agrupamento —</option></select>
+        </div>
+        <div class="field">
+          <label for="widget-campo">Somar campo (opcional)</label>
+          <select id="widget-campo"><option value="">— contagem —</option></select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" data-close-modal="modal-widget">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Adicionar ao dashboard</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/vendor/gridstack-all.js"></script>
+<script src="/vendor/chart.umd.js"></script>
+<script src="/js/util.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/dashboards.js"></script>
+<script src="/js/demandas.js"></script>
+<script src="/js/fluxo.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
