@@ -6,8 +6,21 @@
 <title>DashZon</title>
 <link rel="stylesheet" href="/vendor/gridstack.min.css">
 <link rel="stylesheet" href="/css/style.css">
+<script>
+  // Aplica o tema salvo antes de desenhar a página (evita piscar no tema errado).
+  try {
+    var t = localStorage.getItem("dashzon.tema");
+    if (t === "claro" || t === "escuro") document.documentElement.setAttribute("data-theme", t === "escuro" ? "dark" : "light");
+  } catch (_) { /* navegação privada: segue o sistema */ }
+</script>
 </head>
 <body>
+
+<!-- Botão de tema flutuante, para as telas antes de entrar (setup, login, links). -->
+<button type="button" class="tema-btn tema-flutuante" aria-label="Mudar o tema">
+  <svg class="tema-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><g><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></g></svg>
+  <svg class="tema-lua" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/></svg>
+</button>
 
 <!-- ============ Assistente de primeiro acesso ============ -->
 <div class="setup" id="setup">
@@ -113,7 +126,13 @@
 <!-- ============ Aplicação ============ -->
 <div class="app" id="app">
   <aside class="sidebar">
-    <div class="brand"><strong>DashZon</strong><small id="org-nome"></small></div>
+    <div class="brand">
+      <div><strong>DashZon</strong><small id="org-nome"></small></div>
+      <button type="button" class="tema-btn" aria-label="Mudar o tema">
+        <svg class="tema-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><g><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></g></svg>
+        <svg class="tema-lua" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/></svg>
+      </button>
+    </div>
     <nav class="nav">
       <div class="nav-section">
         <div class="nav-title">Dashboards <button class="icon-btn" id="btn-novo-dashboard" title="Novo dashboard" aria-label="Novo dashboard">+</button></div>
@@ -459,6 +478,34 @@
       </div>
     </form>
 
+    <h2 class="secao-modal">Preferências</h2>
+    <form id="form-preferencias">
+      <div class="field-row">
+        <div class="field">
+          <label for="pref-tema">Tema</label>
+          <select id="pref-tema">
+            <option value="sistema">Seguir o sistema</option>
+            <option value="claro">Claro (sol)</option>
+            <option value="escuro">Escuro (lua)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="pref-inicial">Ao entrar, abrir</label>
+          <select id="pref-inicial"></select>
+        </div>
+      </div>
+      <label class="field-check"><input type="checkbox" id="pref-privacidade"> Começar com os valores em moeda ocultos</label>
+      <p class="hint">Suas preferências ficam na sua conta e valem em qualquer computador.</p>
+      <div class="form-erro" id="pref-erro" hidden></div>
+      <div class="modal-actions"><button type="submit" class="btn btn-primary">Salvar preferências</button></div>
+    </form>
+
+    <h2 class="secao-modal">Segurança</h2>
+    <p class="hint" id="conta-acessos"></p>
+    <div class="modal-actions modal-actions-esquerda">
+      <button type="button" class="btn" id="conta-sair-outros">Sair dos outros dispositivos</button>
+    </div>
+
     <h2 class="secao-modal">Trocar senha</h2>
     <form id="form-senha">
       <input type="text" autocomplete="username" id="senha-usuario" hidden>
@@ -611,6 +658,7 @@
 <script src="/vendor/chart.umd.js"></script>
 <script src="/js/util.js"></script>
 <script src="/js/ajuda.js"></script>
+<script src="/js/tema.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/setup.js"></script>
 <script src="/js/login.js"></script>

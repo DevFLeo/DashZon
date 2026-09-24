@@ -126,6 +126,15 @@ const App = (() => {
       status = await Api.get("/api/status");
     }
 
+    // Preferências da conta: tema (o botão sol/lua passa a salvar na conta),
+    // valores ocultos ao entrar e página inicial.
+    const prefs = status.usuario.preferencias;
+    Tema.aplicar(prefs.tema);
+    Tema.definirCallback(Conta.salvarTema);
+    if (prefs.privacidade) aplicarPrivacidade(true);
+    if (!location.hash && prefs.pagina_inicial) history.replaceState(null, "", prefs.pagina_inicial);
+    document.body.classList.add("logado");
+
     Util.setMoeda(status.moeda);
     // Nome da organização é opcional: sem ele, só "DashZon".
     $("org-nome").textContent = status.org_name || "";
@@ -146,6 +155,7 @@ const App = (() => {
 
   async function boot() {
     ligarComportamentosGlobais();
+    Tema.init();
     aplicarPrivacidade(Util.storage("dashzon.privado") === "1");
     if (Conta.paginaLink()) return; // aberto por um link de e-mail/redefinição
     const status = await Api.get("/api/status");
@@ -156,5 +166,5 @@ const App = (() => {
 
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { modulo, modulos: () => modulos, recarregarNav, ir, irPadrao, atualizarUsuario };
+  return { modulo, modulos: () => modulos, dashboards: () => dashboards, recarregarNav, ir, irPadrao, atualizarUsuario };
 })();

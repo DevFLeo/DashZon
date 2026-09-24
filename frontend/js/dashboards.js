@@ -50,7 +50,10 @@ const Dashboards = (() => {
     initNovo();
 
     // Troca de tema claro/escuro: redesenha os gráficos com as novas cores.
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => atual && abrir(atual.id));
+    // (O Tema avisa tanto a troca pelo botão sol/lua quanto a do sistema.)
+    document.addEventListener("dashzon:tema", () => {
+      if (atual && document.getElementById("view-dashboard").classList.contains("active")) abrir(atual.id);
+    });
   }
 
   function destruirCharts() {

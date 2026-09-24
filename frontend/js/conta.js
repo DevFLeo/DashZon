@@ -27,6 +27,59 @@ const Conta = (() => {
       eu.admin ? "Administrador" : "Usuário"
     ].filter(Boolean).join(" · ");
     $("senha-usuario").value = eu.login;
+    preencherPreferencias();
+  }
+
+  // ------------------------------------------------------ preferências ----
+  function opcoesPaginaInicial() {
+    const esc = Util.escapeHtml;
+    const grupo = (rotulo, itens) => (itens.length ? `<optgroup label="${rotulo}">${itens.join("")}</optgroup>` : "");
+    const dashboards = App.dashboards().map((d) => `<option value="#/d/${d.id}">${esc(d.nome)}</option>`);
+    const modulos = App.modulos().map((m) => `<option value="#/m/${esc(m.slug)}">${esc(m.nome)}</option>`);
+    return '<option value="">Padrão (primeiro dashboard)</option>' +
+      grupo("Dashboards", dashboards) + grupo("Módulos", modulos) +
+      (eu.admin ? '<option value="#/admin">Painel do adm</option>' : "");
+  }
+
+  function preencherPreferencias() {
+    const p = eu.preferencias;
+    $("pref-tema").value = p.tema;
+    $("pref-inicial").innerHTML = opcoesPaginaInicial();
+    // Página que não existe mais (dashboard excluído): mostra "Padrão".
+    $("pref-inicial").value = [...$("pref-inicial").options].some((o) => o.value === p.pagina_inicial) ? p.pagina_inicial : "";
+    $("pref-privacidade").checked = p.privacidade;
+    const quando = (iso) => (iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");
+    $("conta-acessos").textContent = `Último acesso: ${quando(eu.ultimo_login_em)} · Conta criada em ${quando(eu.criado_em)}. ` +
+      "Se você entrou num computador que não é seu, use o botão abaixo.";
+  }
+
+  async function salvarPreferencias(ev) {
+    ev.preventDefault();
+    erro("pref-erro", "");
+    try {
+      eu = await Api.put("/api/eu/preferencias", {
+        tema: $("pref-tema").value,
+        pagina_inicial: $("pref-inicial").value,
+        privacidade: $("pref-privacidade").checked
+      });
+      Tema.aplicar(eu.preferencias.tema);
+      Util.aviso("Preferências salvas");
+    } catch (e) { erro("pref-erro", e.message); }
+  }
+
+  // Chamado pelo botão de tema (sol/lua): guarda a escolha na conta.
+  async function salvarTema(tema) {
+    try {
+      eu = await Api.put("/api/eu/preferencias", { tema });
+    } catch (_) { /* o tema já foi aplicado neste navegador; só não sincronizou */ }
+  }
+
+  async function sairOutros() {
+    if (!confirm("Desconectar sua conta de todos os outros navegadores e computadores? Este aqui continua conectado.")) return;
+    try {
+      const r = await Api.post("/api/eu/sair-outros", {});
+      Util.aviso(r.mensagem);
+    } catch (e) { Util.aviso(e.message, "erro"); }
   }
 
   async function abrir() {
@@ -137,8 +190,10 @@ const Conta = (() => {
     $("form-conta").addEventListener("submit", salvarDados);
     $("conta-verificar").addEventListener("click", pedirVerificacao);
     $("form-senha").addEventListener("submit", trocarSenha);
+    $("form-preferencias").addEventListener("submit", salvarPreferencias);
+    $("conta-sair-outros").addEventListener("click", sairOutros);
     $("troca-sair").addEventListener("click", Login.sair);
   }
 
-  return { init, abrir, trocaObrigatoria, paginaLink };
+  return { init, abrir, trocaObrigatoria, paginaLink, salvarTema };
 })();
