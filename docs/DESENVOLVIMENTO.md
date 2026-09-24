@@ -80,6 +80,8 @@ POST /api/login              -> {usuario (login ou e-mail), senha}
 POST /api/logout
 POST /api/usuarios/primeiro  -> só num banco sem nenhum usuário; o criado vira admin
 GET  /api/eu | PUT /api/eu   -> minha conta (nome, email, documento)
+PUT  /api/eu/preferencias    -> {tema: sistema|claro|escuro, pagina_inicial: ""|#/d/<id>|#/m/<slug>|#/admin, privacidade}
+POST /api/eu/sair-outros     -> derruba as outras sessões (esta continua)
 PUT  /api/eu/senha           -> {senha_atual, senha_nova}
 POST /api/senha/esqueci      -> manda link por e-mail (se houver SMTP)
 POST /api/senha/redefinir    -> {token, senha}
@@ -357,7 +359,7 @@ Todas as opções são opcionais. Resposta:
 
 ## 7. Frontend
 
-`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `ajuda` → `api` → `setup` → `login` → `conta` → `admin` → `modulos` → `dashboards` → `app`.
+`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `ajuda` → `tema` → `api` → `setup` → `login` → `conta` → `admin` → `modulos` → `dashboards` → `app`.
 
 ### Navegação
 
@@ -391,6 +393,10 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 ### `js/conta.js` (`Conta`)
 
 "Minha conta" (nome, e-mail com situação de confirmação, CPF/CNPJ e troca de senha), `trocaObrigatoria(usuario)` (modal que não fecha até a pessoa criar a senha própria, depois de uma senha temporária) e `paginaLink()`, que trata `#/redefinir/<token>` e `#/verificar-email/<token>` e depois tira o token da barra de endereço.
+
+### `js/tema.js` (`Tema`)
+
+Botão sol/lua (`.tema-btn`: na barra lateral e, antes do login, flutuando no canto). Sol = claro, lua = escuro; a troca gira o botão e cruza os dois ícones (CSS; desliga com "reduzir movimento"). `aplicar(tema)` põe `data-theme` no `<html>` (ou tira, para seguir o sistema), guarda no navegador (`dashzon.tema`) e dispara o evento `dashzon:tema`, que o dashboard usa para **redesenhar** os gráficos com as mesmas funções (a regra dos gráficos não muda). Um script no `<head>` aplica o tema salvo antes de desenhar a página, sem piscar. Com alguém logado, o botão também salva na conta (`Conta.salvarTema`), e ao entrar vale o tema da conta.
 
 ### `js/admin.js` (`Admin`)
 
@@ -512,6 +518,17 @@ curl -s "$B/api/modulos/movimentacoes/registros?q=folha&f%5Bsituacao%5D=Realizad
 curl -s -X POST $B/api/modulos/movimentacoes/registros -H "Content-Type: application/json" \
   -d '{"descricao":"Venda balcão","tipo":"entrada","valor":"1.250,00","categoria":"Vendas","situacao":"Realizado"}'
 ```
+
+### Publicar no domínio (DuckDNS + Caddy)
+
+O passo a passo para o usuário está em `docs/PUBLICAR-DUCKDNS.md`. Por dentro:
+
+- `deploy/Caddyfile`: HTTPS na porta pública com certificado pelo **desafio DNS-01 do DuckDNS** (só a 2444 fica aberta, então não dá para usar as portas 80/443), cabeçalhos de segurança e `reverse_proxy` para o DashZon em `127.0.0.1`.
+- `deploy/iniciar-publico.ps1` sobe o DashZon com `DASHZON_HOST=127.0.0.1`, `DASHZON_HOSTS=<domínio>`, `DASHZON_COOKIE_SEGURO=1` e `DASHZON_URL_PUBLICA`, e depois o Caddy. Tem parâmetros de teste (`-ArquivoConfig`, `-PortaInterna`, `-Banco`, `-Caddyfile`, `-SemDuckDns`).
+- **Cookie Secure por requisição:** com `DASHZON_COOKIE_SEGURO=1`, um `before` marca `secure` só quando `request.ssl?` (o Caddy manda `X-Forwarded-Proto: https`). Ligar Secure para tudo quebraria o acesso local: o Rack não grava cookie Secure numa requisição HTTP.
+- Scripts `.ps1` são salvos em **UTF-8 com BOM** (o Windows PowerShell 5.1 lê arquivo sem BOM como ANSI e estraga os acentos). E chamada a programa que escreve na saída de erro (como o Caddy) precisa de `ErrorActionPreference = Continue` naquele trecho.
+
+Para testar a publicação sem o domínio real: um `.env` de teste, uma cópia do `Caddyfile` com `tls internal` no lugar do bloco `dns duckdns`, `iniciar-publico.ps1 -PortaInterna 4600 -Banco <db de teste> -Caddyfile <cópia> -SemDuckDns`, e um navegador com `--host-resolver-rules="MAP teste.duckdns.org 127.0.0.1"`.
 
 ### Refazer os prints de prévia (?)
 
