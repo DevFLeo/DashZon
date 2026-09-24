@@ -6,12 +6,15 @@ Inspirado em projetos open source de finanças como [OpenMonetis](https://openmo
 
 ## O que dá para fazer
 
-- **Primeiro acesso guiado:** nome, moeda e galeria de templates (dá para escolher vários ou importar um JSON). O banco só é criado no final.
+- **Primeiro acesso guiado:** nome, moeda, usuário e senha, e galeria de templates (dá para escolher vários ou importar um JSON). O banco só é criado no final.
+- **Login (simulado):** tela de entrada com usuário e senha e botão **Sair**. Bancos criados antes do login entram com **admin / admin**.
+- **Novo dashboard a partir de um template:** em branco ou escolhendo outro template da galeria, que instala os módulos dele e abre o dashboard pronto.
 - **Módulos gerados pelo JSON:** resumo (KPIs), busca, filtros, tabela e formulário montados a partir dos campos, com validação.
 - **Estrutura editável:** edite campos, opções e resumos de um módulo em JSON direto na tela, ou adicione módulos pela galeria ou colando/importando um JSON.
 - **Dashboards de arrastar e soltar:** widgets de número, barras, linha e tabela, com medida (contagem, soma, média, saldo), agrupamento (inclusive por mês), séries e filtro.
 - **Modo privacidade:** esconde os valores em moeda com um clique.
 - **Exportar/backup:** a configuração (e, se quiser, os dados) sai em JSON no mesmo formato de template.
+- **JSON do usuário no banco:** templates importados e cada exportação ficam guardados no SQLite (tabela `jsons`), e os importados voltam na galeria. No git ficam só os templates padrão; qualquer outro `.json` é ignorado.
 - **Tema claro e escuro**, seguindo o sistema operacional.
 
 ## Como funciona
@@ -68,6 +71,7 @@ O motor C++ é portável (CMake + C++17, sem dependências). Compile-o na máqui
 | `PORT` | `4567` | Porta HTTP |
 | `DASHZON_DB_PATH` | `data/dashzon.db` | Caminho do banco SQLite |
 | `DASHZON_ENGINE` | `engine-cpp/build/...` | Caminho do binário do motor |
+| `DASHZON_SESSION_SECRET` | sorteada a cada boot | Chave do cookie de login (64+ caracteres). Fixe-a no servidor para as sessões sobreviverem a um reinício |
 
 ```bash
 cd backend && bundle exec rackup -o 0.0.0.0 -p 8080   # usa config.ru
@@ -79,11 +83,11 @@ cd backend && bundle exec rackup -o 0.0.0.0 -p 8080   # usa config.ru
 backend/
   app.rb                 rotas da API (Sinatra)
   config.ru              entrada para rackup/puma em servidor
-  lib/database.rb        SQLite: schema, conexão, módulos e registros
+  lib/database.rb        SQLite: schema, conexão, módulos, registros, usuários e JSON guardados
   lib/module_schema.rb   validação de módulos, widgets e registros
   lib/template_registry.rb  listar/validar/instalar/exportar templates
   lib/engine_client.rb   ponte com o binário C++
-  templates/*.json       templates padrão
+  templates/*.json       templates padrão (os únicos JSON versionados)
 engine-cpp/
   src/main.cpp           comandos aggregate, multi e search
   src/json.hpp           parser/serializador JSON mínimo
@@ -91,6 +95,7 @@ frontend/
   index.html             estrutura da tela e modais
   js/app.js              inicialização, navegação e barra lateral
   js/setup.js            assistente de primeiro acesso
+  js/login.js            tela de login e botão Sair
   js/modulos.js          tela genérica de módulo e editor JSON
   js/dashboards.js       canvas de dashboards e widgets
   js/util.js, js/api.js  formatação, cores e cliente HTTP
@@ -109,4 +114,5 @@ docs/DESENVOLVIMENTO.md  lógica, funções e tutorial
 - Script de inicialização (um clique) e empacotamento como executável Windows.
 - Orçamento × realizado (cruzar dois módulos, como no Actual Budget).
 - Importação de CSV/extrato para dentro de um módulo.
-- Autenticação e usuários antes de publicar em servidor.
+- Usuários de verdade antes de publicar em servidor: cadastro de mais pessoas, troca de senha e permissões (hoje o login é simulado, com um usuário local).
+- Tela para ver e baixar de novo as exportações guardadas no banco (a API `/api/exportacoes` já existe).
