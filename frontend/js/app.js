@@ -57,6 +57,9 @@ const App = (() => {
       } else if (tipo === "m" && modulo(id)) {
         mostrar("view-modulo");
         await Modulos.abrir(id);
+      } else if (tipo === "admin" && usuario?.admin) {
+        mostrar("view-admin");
+        await Admin.abrir(usuario.id);
       } else if (!modulos.length) {
         mostrar("view-vazio");
       } else {
@@ -78,11 +81,12 @@ const App = (() => {
   function ligarComportamentosGlobais() {
     Ajuda.init();
     document.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => Util.fecharModal(b.dataset.fechar)));
-    document.querySelectorAll(".modal-overlay").forEach((o) => o.addEventListener("mousedown", (e) => {
+    // Modais com data-fixo (troca de senha obrigatória) não fecham por fora nem com Esc.
+    document.querySelectorAll(".modal-overlay:not([data-fixo])").forEach((o) => o.addEventListener("mousedown", (e) => {
       if (e.target === o) o.classList.remove("open");
     }));
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") document.querySelectorAll(".modal-overlay.open").forEach((o) => o.classList.remove("open"));
+      if (e.key === "Escape") document.querySelectorAll(".modal-overlay.open:not([data-fixo])").forEach((o) => o.classList.remove("open"));
     });
 
     // Tab dentro dos editores JSON insere indentação em vez de sair do campo.
@@ -104,16 +108,36 @@ const App = (() => {
     window.addEventListener("unhandledrejection", (e) => Util.aviso(e.reason?.message || "Erro inesperado", "erro"));
   }
 
+  // ------------------------------------------------------ usuário ----
+  let usuario = null;
+
+  // Nome no rodapé e o link "Painel do adm" (só para administradores).
+  function atualizarUsuario(u) {
+    usuario = u;
+    $("usuario-nome").textContent = u.nome || u.login;
+    $("link-admin").hidden = !u.admin;
+  }
+
   async function iniciarApp() {
-    const status = await Api.get("/api/status");
+    let status = await Api.get("/api/status");
+    // Entrou com senha temporária: cria a própria antes de qualquer outra coisa.
+    if (status.usuario.deve_trocar_senha) {
+      await Conta.trocaObrigatoria(status.usuario);
+      status = await Api.get("/api/status");
+    }
+
     Util.setMoeda(status.moeda);
-    $("org-nome").textContent = status.org_name;
-    $("usuario-nome").textContent = status.usuario;
-    document.title = `DashZon · ${status.org_name}`;
+    // Nome da organização é opcional: sem ele, só "DashZon".
+    $("org-nome").textContent = status.org_name || "";
+    $("org-nome").hidden = !status.org_name;
+    document.title = status.org_name ? `DashZon · ${status.org_name}` : "DashZon";
+    atualizarUsuario(status.usuario);
     $("app").classList.add("ready");
 
     Dashboards.init();
     Modulos.init();
+    Conta.init(status);
+    Admin.init();
 
     await recarregarNav();
     window.addEventListener("hashchange", rotear);
@@ -123,6 +147,7 @@ const App = (() => {
   async function boot() {
     ligarComportamentosGlobais();
     aplicarPrivacidade(Util.storage("dashzon.privado") === "1");
+    if (Conta.paginaLink()) return; // aberto por um link de e-mail/redefinição
     const status = await Api.get("/api/status");
     if (!status.configured) await Setup.iniciar(iniciarApp);
     else if (!status.usuario) Login.iniciar(status, iniciarApp);
@@ -131,5 +156,5 @@ const App = (() => {
 
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { modulo, modulos: () => modulos, recarregarNav, ir, irPadrao };
+  return { modulo, modulos: () => modulos, recarregarNav, ir, irPadrao, atualizarUsuario };
 })();

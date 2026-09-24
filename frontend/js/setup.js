@@ -80,11 +80,10 @@ const Setup = (() => {
     ev.preventDefault();
     erro("");
     const org = $("setup-org").value.trim();
-    if (!org) { erro("Informe um nome."); return; }
     const usuario = $("setup-usuario").value.trim();
     const senha = $("setup-senha").value;
     if (!usuario) { erro("Informe um usuário para o login."); return; }
-    if (senha.length < 4) { erro("A senha precisa ter ao menos 4 caracteres."); return; }
+    if (senha.length < 8) { erro("A senha precisa ter ao menos 8 caracteres."); return; }
 
     const ativos = importados.filter((i) => i.ativo).map((i) => i.template);
     if (!selecionados.size && !ativos.length &&

@@ -19,8 +19,8 @@
       <h2>1. Sobre você ou sua empresa</h2>
       <div class="field-row">
         <div class="field">
-          <label for="setup-org" class="obrigatorio">Nome (pessoa, empresa ou área)</label>
-          <input id="setup-org" type="text" placeholder="Ex.: Minhas finanças, Financeiro Zon Ltda" required>
+          <label for="setup-org">Nome (pessoa, empresa ou área) · opcional</label>
+          <input id="setup-org" type="text" maxlength="80" placeholder="Ex.: Minhas finanças, Financeiro Zon Ltda">
         </div>
         <div class="field">
           <label for="setup-moeda">Moeda</label>
@@ -37,8 +37,8 @@
           <input id="setup-usuario" type="text" autocomplete="username" placeholder="Ex.: leonardo" required>
         </div>
         <div class="field">
-          <label for="setup-senha" class="obrigatorio">Senha (mínimo 4 caracteres)</label>
-          <input id="setup-senha" type="password" autocomplete="new-password" minlength="4" required>
+          <label for="setup-senha" class="obrigatorio">Senha (mínimo 8 caracteres)</label>
+          <input id="setup-senha" type="password" autocomplete="new-password" minlength="8" required>
         </div>
       </div>
     </div>
@@ -71,16 +71,42 @@
     <h1>DashZon</h1>
     <p id="login-org"></p>
     <div class="field">
-      <label for="login-usuario">Usuário</label>
-      <input id="login-usuario" type="text" autocomplete="username" required>
+      <label for="login-usuario">Usuário ou e-mail</label>
+      <input id="login-usuario" type="text" autocomplete="username" maxlength="40" required>
     </div>
     <div class="field">
       <label for="login-senha">Senha</label>
       <input id="login-senha" type="password" autocomplete="current-password" required>
     </div>
+    <div class="field" id="login-confirmar-wrap" hidden>
+      <label for="login-confirmar">Repita a senha</label>
+      <input id="login-confirmar" type="password" autocomplete="new-password">
+    </div>
     <div class="form-erro" id="login-erro" hidden></div>
     <button type="submit" class="btn btn-primary login-entrar" id="login-entrar">Entrar</button>
-    <p class="hint" id="login-demo" hidden>Acesso de demonstração: usuário <code>admin</code>, senha <code>admin</code>.</p>
+    <button type="button" class="btn btn-ghost btn-sm" id="login-esqueci">Esqueci minha senha</button>
+  </form>
+</div>
+
+<!-- ============ Links recebidos (redefinir senha / confirmar e-mail) ============ -->
+<div class="setup login" id="pagina-link">
+  <form class="setup-card login-card" id="form-link">
+    <h1>DashZon</h1>
+    <h2 id="link-titulo"></h2>
+    <p id="link-texto"></p>
+    <div id="link-campos" hidden>
+      <div class="field">
+        <label for="link-senha">Nova senha (mínimo 8)</label>
+        <input id="link-senha" type="password" autocomplete="new-password" minlength="8">
+      </div>
+      <div class="field">
+        <label for="link-confirmar">Repita a nova senha</label>
+        <input id="link-confirmar" type="password" autocomplete="new-password" minlength="8">
+      </div>
+    </div>
+    <div class="form-erro" id="link-erro" hidden></div>
+    <button type="submit" class="btn btn-primary login-entrar" id="link-enviar"></button>
+    <a class="btn btn-ghost btn-sm" href="/" id="link-voltar">Ir para o login</a>
   </form>
 </div>
 
@@ -102,6 +128,8 @@
       <button class="btn btn-ghost btn-sm" id="btn-privacidade" aria-pressed="false">Ocultar valores</button>
       <a class="btn btn-ghost btn-sm" href="/api/export">Exportar configuração (JSON)</a>
       <a class="btn btn-ghost btn-sm" href="/api/export?dados=1">Backup com dados (JSON)</a>
+      <button class="btn btn-ghost btn-sm" id="btn-conta">Minha conta</button>
+      <a class="btn btn-ghost btn-sm link-admin" id="link-admin" href="#/admin" hidden>Painel do adm</a>
       <div class="usuario-atual">
         <span>Conectado como <strong id="usuario-nome"></strong></span>
         <button class="btn btn-sm" id="btn-sair">Sair</button>
@@ -157,6 +185,60 @@
     </section>
 
     <!-- Sem nada ainda -->
+    <!-- Painel do administrador -->
+    <section class="view" id="view-admin">
+      <header class="page-header">
+        <div>
+          <h1>Painel do adm</h1>
+          <p class="hint">Usuários, senhas e regras de cadastro. Só administradores veem esta tela.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-sm btn-primary" id="btn-novo-usuario">+ Novo usuário</button>
+        </div>
+      </header>
+
+      <div class="admin-grid">
+        <form class="admin-bloco" id="form-ajustes">
+          <h2>Regras de cadastro</h2>
+          <div class="field">
+            <label for="aj-documento">CPF/CNPJ no cadastro</label>
+            <select id="aj-documento">
+              <option value="nao">Opcional</option>
+              <option value="cpf">CPF obrigatório</option>
+              <option value="cnpj">CNPJ obrigatório</option>
+              <option value="qualquer">CPF ou CNPJ obrigatório</option>
+            </select>
+          </div>
+          <label class="field-check"><input type="checkbox" id="aj-email"> E-mail obrigatório</label>
+          <label class="field-check"><input type="checkbox" id="aj-email-verificado"> Só entra quem confirmou o e-mail (administradores sempre entram)</label>
+          <p class="hint" id="aj-smtp"></p>
+          <div class="form-erro" id="aj-erro" hidden></div>
+          <div class="modal-actions"><button type="submit" class="btn btn-primary btn-sm">Salvar regras</button></div>
+        </form>
+
+        <form class="admin-bloco" id="form-org">
+          <h2>Organização</h2>
+          <div class="field">
+            <label for="org-nome-input">Nome (opcional)</label>
+            <input id="org-nome-input" type="text" maxlength="80" placeholder="Em branco: aparece só DashZon">
+          </div>
+          <div class="field">
+            <label for="org-moeda">Moeda</label>
+            <select id="org-moeda">
+              <option value="BRL">R$ (Real)</option>
+              <option value="USD">US$ (Dólar)</option>
+              <option value="EUR">€ (Euro)</option>
+            </select>
+          </div>
+          <div class="form-erro" id="org-erro" hidden></div>
+          <div class="modal-actions"><button type="submit" class="btn btn-primary btn-sm">Salvar</button></div>
+        </form>
+      </div>
+
+      <h2 class="admin-titulo">Usuários</h2>
+      <div id="admin-usuarios"></div>
+    </section>
+
     <section class="view" id="view-vazio">
       <div class="empty-state">
         <h2>Nenhum módulo instalado</h2>
@@ -351,6 +433,168 @@
   </div>
 </div>
 
+<!-- ============ Modal: minha conta ============ -->
+<div class="modal-overlay" id="modal-conta">
+  <div class="modal">
+    <h2>Minha conta</h2>
+    <form id="form-conta">
+      <div class="field">
+        <label for="conta-nome" class="obrigatorio">Nome</label>
+        <input id="conta-nome" type="text" maxlength="80" required>
+      </div>
+      <div class="field">
+        <label for="conta-email">E-mail <span class="selo" id="conta-email-selo"></span></label>
+        <input id="conta-email" type="email" maxlength="120" autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="conta-documento">CPF ou CNPJ</label>
+        <input id="conta-documento" type="text" maxlength="18" inputmode="numeric" autocomplete="off">
+        <div class="ajuda" id="conta-documento-atual"></div>
+      </div>
+      <p class="hint" id="conta-info"></p>
+      <div class="form-erro" id="conta-erro" hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="conta-verificar" hidden>Enviar confirmação de e-mail</button>
+        <button type="submit" class="btn btn-primary">Salvar meus dados</button>
+      </div>
+    </form>
+
+    <h2 class="secao-modal">Trocar senha</h2>
+    <form id="form-senha">
+      <input type="text" autocomplete="username" id="senha-usuario" hidden>
+      <div class="field">
+        <label for="senha-atual">Senha atual</label>
+        <input id="senha-atual" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="senha-nova">Nova senha (mínimo 8)</label>
+          <input id="senha-nova" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <div class="field">
+          <label for="senha-confirmar">Repita a nova senha</label>
+          <input id="senha-confirmar" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+      </div>
+      <div class="form-erro" id="senha-erro" hidden></div>
+      <div class="modal-actions"><button type="submit" class="btn btn-primary">Trocar senha</button></div>
+    </form>
+    <div class="modal-actions"><button type="button" class="btn" data-fechar="modal-conta">Fechar</button></div>
+  </div>
+</div>
+
+<!-- ============ Troca de senha obrigatória (senha temporária) ============ -->
+<div class="modal-overlay" id="modal-troca-obrigatoria" data-fixo>
+  <form class="modal" id="form-troca-obrigatoria">
+    <h2>Crie sua senha</h2>
+    <p class="hint">Você entrou com uma senha temporária. Defina a sua para continuar.</p>
+    <input type="text" autocomplete="username" id="troca-usuario" hidden>
+    <div class="field">
+      <label for="troca-atual">Senha temporária</label>
+      <input id="troca-atual" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="troca-nova">Nova senha (mínimo 8)</label>
+        <input id="troca-nova" type="password" autocomplete="new-password" minlength="8" required>
+      </div>
+      <div class="field">
+        <label for="troca-confirmar">Repita a nova senha</label>
+        <input id="troca-confirmar" type="password" autocomplete="new-password" minlength="8" required>
+      </div>
+    </div>
+    <div class="form-erro" id="troca-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="troca-sair">Sair</button>
+      <button type="submit" class="btn btn-primary">Salvar senha e continuar</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ Modal: usuário (painel do adm) ============ -->
+<div class="modal-overlay" id="modal-usuario">
+  <form class="modal" id="form-usuario">
+    <h2 id="usuario-titulo">Novo usuário</h2>
+    <div class="field-row">
+      <div class="field">
+        <label for="u-nome" class="obrigatorio">Nome</label>
+        <input id="u-nome" type="text" maxlength="80" required>
+      </div>
+      <div class="field">
+        <label for="u-login" class="obrigatorio">Login</label>
+        <input id="u-login" type="text" maxlength="40" autocomplete="off" required pattern="[a-zA-Z0-9._\-]{3,40}"
+               title="3 a 40 caracteres: letras, números, ponto, hífen ou _">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="u-email" id="u-email-label">E-mail</label>
+        <input id="u-email" type="email" maxlength="120" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="u-documento" id="u-documento-label">CPF ou CNPJ</label>
+        <input id="u-documento" type="text" maxlength="18" inputmode="numeric" autocomplete="off">
+        <div class="ajuda" id="u-documento-atual"></div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="u-cargo">Cargo</label>
+        <input id="u-cargo" type="text" maxlength="40" list="u-cargos" placeholder="Ex.: Sócio, Líder de produção">
+        <datalist id="u-cargos"></datalist>
+      </div>
+      <div class="field">
+        <label for="u-perfil">Perfil</label>
+        <select id="u-perfil">
+          <option value="usuario">Usuário (usa o sistema)</option>
+          <option value="admin">Administrador (usa e acessa este painel)</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" id="u-senha-wrap">
+      <label for="u-senha">Senha inicial</label>
+      <input id="u-senha" type="password" autocomplete="new-password" minlength="8" placeholder="Em branco: gera uma senha temporária">
+      <div class="ajuda">Com senha temporária, a pessoa cria a própria senha no primeiro acesso.</div>
+    </div>
+    <div class="form-erro" id="usuario-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-usuario">Cancelar</button>
+      <button type="submit" class="btn btn-primary" id="usuario-salvar">Criar usuário</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ Modal: senha ou link mostrado uma única vez ============ -->
+<div class="modal-overlay" id="modal-segredo">
+  <div class="modal">
+    <h2 id="segredo-titulo"></h2>
+    <p class="hint" id="segredo-texto"></p>
+    <div class="segredo-caixa">
+      <code id="segredo-valor"></code>
+      <button type="button" class="btn btn-sm" id="segredo-copiar">Copiar</button>
+    </div>
+    <p class="hint">Isto aparece só agora. Copie e envie para a pessoa por um canal seguro.</p>
+    <div class="modal-actions"><button type="button" class="btn btn-primary" data-fechar="modal-segredo">Pronto</button></div>
+  </div>
+</div>
+
+<!-- ============ Modal: esqueci minha senha ============ -->
+<div class="modal-overlay" id="modal-esqueci">
+  <form class="modal" id="form-esqueci">
+    <h2>Esqueci minha senha</h2>
+    <div class="field">
+      <label for="esqueci-usuario">Usuário ou e-mail</label>
+      <input id="esqueci-usuario" type="text" autocomplete="username" required>
+    </div>
+    <p class="hint" id="esqueci-msg"></p>
+    <div class="form-erro" id="esqueci-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-esqueci">Fechar</button>
+      <button type="submit" class="btn btn-primary">Pedir link</button>
+    </div>
+  </form>
+</div>
+
 <!-- ============ Popup de ajuda (?) ============ -->
 <div class="modal-overlay" id="modal-dica">
   <div class="modal modal-lg">
@@ -370,6 +614,8 @@
 <script src="/js/api.js"></script>
 <script src="/js/setup.js"></script>
 <script src="/js/login.js"></script>
+<script src="/js/conta.js"></script>
+<script src="/js/admin.js"></script>
 <script src="/js/modulos.js"></script>
 <script src="/js/dashboards.js"></script>
 <script src="/js/app.js"></script>

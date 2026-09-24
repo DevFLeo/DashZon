@@ -1,5 +1,8 @@
 // Cliente HTTP fino para a API do backend Ruby (Sinatra).
 const Api = (() => {
+  // Rotas em que 401 é resposta normal (senha errada), não sessão expirada.
+  const SEM_RECARGA = ["/api/login", "/api/usuarios/primeiro"];
+
   async function request(method, path, body) {
     const opts = { method, headers: {} };
     if (body !== undefined) {
@@ -10,7 +13,7 @@ const Api = (() => {
     let data = null;
     try { data = await res.json(); } catch (_) { /* corpo vazio */ }
     // Sessão expirou (ex.: servidor reiniciado): volta para a tela de login.
-    if (res.status === 401 && path !== "/api/login") location.replace("/");
+    if (res.status === 401 && !SEM_RECARGA.includes(path)) location.replace("/");
     if (!res.ok) throw new Error((data && data.error) || `Erro ${res.status}`);
     return data;
   }
