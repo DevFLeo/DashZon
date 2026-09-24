@@ -19,9 +19,9 @@ A inspiração veio de projetos open source de finanças como o [OpenMonetis](ht
 - **Lançar pelo dashboard:** "+ Lançar" no topo (ou "+" em cada card) cadastra um registro sem sair do dashboard, e os cards se atualizam.
 - **Ajuda (?) com imagem:** no criador de card e na criação de módulos, passar o mouse mostra um print de exemplo; clicar abre um popup com explicação e imagens (`frontend/preview/`).
 - **Modo privacidade:** esconde os valores em moeda com um clique.
+- **Tema claro e escuro com um clique:** o sol gira e vira lua (e vice-versa). Em **Minha conta** dá para escolher o tema, a página que abre ao entrar, começar com os valores ocultos e "sair dos outros dispositivos". Tudo fica salvo na conta.
 - **Exportar/backup:** a configuração (e, se quiser, os dados) sai em JSON no mesmo formato de template.
 - **JSON do usuário no banco:** templates importados e cada exportação ficam guardados no SQLite (tabela `jsons`), e os importados voltam na galeria. No git ficam só os templates padrão; qualquer outro `.json` é ignorado.
-- **Tema claro e escuro**, seguindo o sistema operacional.
 
 ## Como funciona
 
@@ -74,6 +74,10 @@ cd backend
 bundle exec rake test
 ```
 
+### No seu domínio (DuckDNS + HTTPS)
+
+Para acessar de fora de casa em `https://SEUNOME.duckdns.org:2444`, siga o passo a passo em **[docs/PUBLICAR-DUCKDNS.md](docs/PUBLICAR-DUCKDNS.md)**. Os scripts prontos estão em `deploy/` (`instalar.ps1`, `iniciar-publico.ps1`, `parar-publico.ps1`), com o Caddy cuidando do certificado HTTPS.
+
 ### Em servidor
 
 O motor C++ é portável (CMake + C++17, sem dependências). Compile-o na máquina de destino e configure por variáveis de ambiente:
@@ -86,7 +90,7 @@ O motor C++ é portável (CMake + C++17, sem dependências). Compile-o na máqui
 | `DASHZON_ENGINE` | `engine-cpp/build/...` | Caminho do binário do motor |
 | `DASHZON_SESSION_SECRET` | arquivo `data/segredo.key` | Chave do servidor (64+ caracteres): assina o login e protege o hash do CPF/CNPJ. Sem a variável, é criada no arquivo na primeira vez. **Não apague nem troque** |
 | `DASHZON_HOSTS` | só localhost e IPs | Domínios aceitos, separados por vírgula (ex.: `meupainel.duckdns.org`) |
-| `DASHZON_COOKIE_SEGURO` | desligado | `1` quando o acesso é por HTTPS: o cookie de login só trafega criptografado |
+| `DASHZON_COOKIE_SEGURO` | desligado | `1` no uso público: requisições por HTTPS (via Caddy) recebem o cookie de login marcado como Secure. O acesso local por `http://127.0.0.1` continua funcionando |
 | `DASHZON_URL_PUBLICA` | o endereço da requisição | Endereço usado nos links de e-mail (ex.: `https://meupainel.duckdns.org:2444`) |
 | `DASHZON_SMTP_HOST`, `_PORTA`, `_USUARIO`, `_SENHA`, `_REMETENTE` | sem e-mail | Servidor de e-mail para confirmação e "esqueci a senha". Sem isso, o admin manda os links por outro canal |
 
@@ -128,6 +132,12 @@ A tela pode continuar aberta, mas a próxima ação dela já volta para o login:
 
 **"Por que o CPF aparece com asteriscos até para o administrador?"**
 Porque o número completo não é guardado (LGPD): o banco tem só um hash, para achar duplicados, e a versão mascarada para mostrar. Quer corrigir um documento? É só digitar o novo.
+
+**"Coloquei no DuckDNS e do celular não abre."**
+Os suspeitos de sempre, nessa ordem: operadora com **CGNAT** (o IP da WAN do roteador é diferente do que aparece em api.ipify.org; peça "IP público" para a operadora), porta 2444 não redirecionada para o IP certo do PC, ou firewall. Tem uma tabela de problemas no fim do `docs/PUBLICAR-DUCKDNS.md`.
+
+**"Pelo Wi-Fi de casa o meu domínio não abre, mas no 4G abre."**
+É o roteador que não faz "NAT loopback" (não deixa acessar o próprio IP público de dentro da rede). Em casa, use `http://127.0.0.1:4567`.
 
 ### Erros que já apareceram
 
@@ -209,6 +219,7 @@ frontend/
   js/login.js            tela de login, esqueci a senha e botão Sair
   js/conta.js            minha conta, troca obrigatória de senha e links
   js/admin.js            painel do adm
+  js/tema.js             botão sol/lua (tema claro/escuro)
   js/modulos.js          tela genérica de módulo e editor JSON
   js/dashboards.js       canvas de dashboards, criador de card e "Lançar"
   js/ajuda.js            ícones (?) com prévia em imagem
@@ -216,6 +227,8 @@ frontend/
   js/util.js, js/api.js  formatação, cores e cliente HTTP
   vendor/                Chart.js e GridStack (offline)
 docs/DESENVOLVIMENTO.md  lógica, funções e tutorial
+docs/PUBLICAR-DUCKDNS.md passo a passo para rodar no seu domínio
+deploy/                  Caddyfile e scripts de publicação (instalar, iniciar, parar, DuckDNS)
 scripts/gerar-previews.js  refaz os prints de frontend/preview/
 CLAUDE.md                regras do projeto
 ```
@@ -234,5 +247,5 @@ CLAUDE.md                regras do projeto
 - Orçamento × realizado (cruzar dois módulos, como no Actual Budget).
 - Importação do extrato em CSV/OFX para dentro de um módulo (é a alternativa ao Open Finance; ver as perguntas e respostas).
 - Permissões por módulo/dashboard (hoje: usuário e administrador).
-- Publicar na internet com HTTPS (DuckDNS + Caddy), sem expor o servidor Ruby direto.
+- Subir sozinho junto com o Windows (hoje é preciso rodar o `iniciar-publico.ps1` depois de reiniciar o PC).
 - Tela para ver e baixar de novo as exportações guardadas no banco (a API `/api/exportacoes` já existe).
