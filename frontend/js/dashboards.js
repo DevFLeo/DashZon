@@ -38,6 +38,7 @@ const Dashboards = (() => {
     $("w-tipo").addEventListener("change", atualizarVisibilidade);
     $("w-agregacao").addEventListener("change", atualizarVisibilidade);
     $("w-filtro-campo").addEventListener("change", () => preencherValoresFiltro(""));
+    initNovo();
 
     // Troca de tema claro/escuro: redesenha os gráficos com as novas cores.
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => atual && abrir(atual.id));
@@ -400,5 +401,65 @@ const Dashboards = (() => {
     App.irPadrao();
   }
 
-  return { init, abrir, novoWidget: () => abrirFormulario() };
+  // ------------------------------------------------- novo dashboard ----
+  // Em branco (só o nome) ou a partir de um template da galeria: o template
+  // instala os próprios módulos e o dashboard dele, que já abre em seguida.
+  function erroNovo(msg) {
+    $("nd-erro").textContent = msg;
+    $("nd-erro").hidden = !msg;
+  }
+
+  function trocarAbaNovo(id) {
+    document.querySelectorAll("#modal-novo-dashboard .tabs button").forEach((b) => b.classList.toggle("active", b.dataset.aba === id));
+    $("nd-aba-template").hidden = id !== "nd-aba-template";
+    $("nd-aba-branco").hidden = id !== "nd-aba-branco";
+    erroNovo("");
+    if (id === "nd-aba-branco") $("nd-nome").focus();
+  }
+
+  async function concluirNovo(hash) {
+    Util.fecharModal("modal-novo-dashboard");
+    await App.recarregarNav();
+    App.ir(hash);
+  }
+
+  async function criarEmBranco(ev) {
+    ev.preventDefault();
+    const nome = $("nd-nome").value.trim();
+    if (!nome) { erroNovo("Informe o nome do dashboard."); return; }
+    try {
+      const { id } = await Api.post("/api/dashboards", { nome });
+      await concluirNovo(`#/d/${id}`);
+    } catch (e) { erroNovo(e.message); }
+  }
+
+  async function criarDeTemplate(t) {
+    if (!confirm(`Criar um dashboard com o template "${t.nome}"? Ele instala os módulos: ${t.modulos.map((m) => m.nome).join(", ")}.`)) return;
+    try {
+      const res = await Api.post("/api/templates/instalar", { template_id: t.id, com_exemplos: $("nd-exemplos").checked });
+      Util.aviso(`"${t.nome}" instalado: ${res.modulos.length} módulo(s)`);
+      await concluirNovo(res.dashboards.length ? `#/d/${res.dashboards[0]}` : `#/m/${encodeURIComponent(res.modulos[0])}`);
+    } catch (e) { erroNovo(e.message); }
+  }
+
+  async function abrirNovo() {
+    const templates = await Api.get("/api/templates");
+    $("nd-galeria").innerHTML = templates.map((t) => Setup.cardHtml({
+      id: t.id, nome: t.nome, descricao: t.descricao, tag: Setup.tagDe(t),
+      modulos: t.modulos.map((m) => m.nome), dashboards: t.dashboards, selecionavel: false
+    })).join("");
+    $("nd-galeria").querySelectorAll(".tpl-card").forEach((card) => card.addEventListener("click", () => {
+      criarDeTemplate(templates.find((x) => x.id === card.dataset.id));
+    }));
+    $("nd-nome").value = "";
+    trocarAbaNovo("nd-aba-template");
+    Util.abrirModal("modal-novo-dashboard");
+  }
+
+  function initNovo() {
+    document.querySelectorAll("#modal-novo-dashboard .tabs button").forEach((b) => b.addEventListener("click", () => trocarAbaNovo(b.dataset.aba)));
+    $("nd-aba-branco").addEventListener("submit", criarEmBranco);
+  }
+
+  return { init, abrir, abrirNovo, novoWidget: () => abrirFormulario() };
 })();

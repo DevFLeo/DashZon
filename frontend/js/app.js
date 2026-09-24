@@ -67,14 +67,6 @@ const App = (() => {
     }
   }
 
-  async function novoDashboard() {
-    const nome = prompt("Nome do novo dashboard:");
-    if (!nome || !nome.trim()) return;
-    const { id } = await Api.post("/api/dashboards", { nome: nome.trim() });
-    await recarregarNav();
-    ir(`#/d/${id}`);
-  }
-
   function aplicarPrivacidade(ligado) {
     document.body.classList.toggle("privado", ligado);
     const btn = $("btn-privacidade");
@@ -103,6 +95,9 @@ const App = (() => {
 
     document.querySelectorAll('[data-acao="add-widget"]').forEach((b) => b.addEventListener("click", () => Dashboards.novoWidget()));
     document.querySelectorAll('[data-acao="add-modulo"]').forEach((b) => b.addEventListener("click", () => Modulos.abrirAdicionar()));
+    document.querySelectorAll('[data-acao="novo-dashboard"]').forEach((b) => b.addEventListener("click", () => Dashboards.abrirNovo()));
+    $("btn-novo-dashboard").addEventListener("click", () => Dashboards.abrirNovo());
+    $("btn-sair").addEventListener("click", Login.sair);
 
     $("btn-privacidade").addEventListener("click", () => aplicarPrivacidade(!document.body.classList.contains("privado")));
     window.addEventListener("unhandledrejection", (e) => Util.aviso(e.reason?.message || "Erro inesperado", "erro"));
@@ -112,12 +107,12 @@ const App = (() => {
     const status = await Api.get("/api/status");
     Util.setMoeda(status.moeda);
     $("org-nome").textContent = status.org_name;
+    $("usuario-nome").textContent = status.usuario;
     document.title = `DashZon · ${status.org_name}`;
     $("app").classList.add("ready");
 
     Dashboards.init();
     Modulos.init();
-    $("btn-novo-dashboard").addEventListener("click", novoDashboard);
 
     await recarregarNav();
     window.addEventListener("hashchange", rotear);
@@ -128,8 +123,9 @@ const App = (() => {
     ligarComportamentosGlobais();
     aplicarPrivacidade(Util.storage("dashzon.privado") === "1");
     const status = await Api.get("/api/status");
-    if (status.configured) await iniciarApp();
-    else await Setup.iniciar(iniciarApp);
+    if (!status.configured) await Setup.iniciar(iniciarApp);
+    else if (!status.usuario) Login.iniciar(status, iniciarApp);
+    else await iniciarApp();
   }
 
   document.addEventListener("DOMContentLoaded", boot);

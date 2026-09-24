@@ -9,6 +9,8 @@ const Api = (() => {
     const res = await fetch(path, opts);
     let data = null;
     try { data = await res.json(); } catch (_) { /* corpo vazio */ }
+    // Sessão expirou (ex.: servidor reiniciado): volta para a tela de login.
+    if (res.status === 401 && path !== "/api/login") location.replace("/");
     if (!res.ok) throw new Error((data && data.error) || `Erro ${res.status}`);
     return data;
   }

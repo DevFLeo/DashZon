@@ -272,7 +272,7 @@ const Modulos = (() => {
   async function abrirAdicionar() {
     const templates = await Api.get("/api/templates");
     $("add-galeria").innerHTML = templates.map((t) => Setup.cardHtml({
-      id: t.id, nome: t.nome, descricao: t.descricao,
+      id: t.id, nome: t.nome, descricao: t.descricao, tag: Setup.tagDe(t),
       modulos: t.modulos.map((m) => m.nome), dashboards: t.dashboards, selecionavel: false
     })).join("");
     $("add-galeria").querySelectorAll(".tpl-card").forEach((card) => card.addEventListener("click", async () => {

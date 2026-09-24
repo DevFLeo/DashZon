@@ -20,13 +20,16 @@ const Setup = (() => {
       </button>`;
   }
 
+  // Templates importados antes ficam guardados no banco e voltam na galeria.
+  const tagDe = (t) => (t.origem === "importado" ? "Importado" : "");
+
   function render() {
     const galeria = $("setup-galeria");
     galeria.innerHTML =
       templates.map((t) => cardHtml({
         id: t.id, nome: t.nome, descricao: t.descricao,
         modulos: t.modulos.map((m) => m.nome), dashboards: t.dashboards,
-        selecionado: selecionados.has(t.id)
+        selecionado: selecionados.has(t.id), tag: tagDe(t)
       })).join("") +
       importados.map((imp, i) => cardHtml({
         id: `importado-${i}`, nome: imp.nome, modulos: imp.modulos, dashboards: imp.dashboards,
@@ -78,6 +81,10 @@ const Setup = (() => {
     erro("");
     const org = $("setup-org").value.trim();
     if (!org) { erro("Informe um nome."); return; }
+    const usuario = $("setup-usuario").value.trim();
+    const senha = $("setup-senha").value;
+    if (!usuario) { erro("Informe um usuário para o login."); return; }
+    if (senha.length < 4) { erro("A senha precisa ter ao menos 4 caracteres."); return; }
 
     const ativos = importados.filter((i) => i.ativo).map((i) => i.template);
     if (!selecionados.size && !ativos.length &&
@@ -90,6 +97,8 @@ const Setup = (() => {
       await Api.post("/api/setup", {
         org_name: org,
         moeda: $("setup-moeda").value,
+        usuario,
+        senha,
         templates: [...selecionados],
         importados: ativos,
         com_exemplos: $("setup-exemplos").checked
@@ -113,5 +122,5 @@ const Setup = (() => {
     $("setup-org").focus();
   }
 
-  return { iniciar, cardHtml };
+  return { iniciar, cardHtml, tagDe };
 })();
