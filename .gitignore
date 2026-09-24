@@ -19,6 +19,11 @@ data/
 !/backend/templates/mapeamento-setor.json
 !/.vscode/*.json
 
+# --- Log local de problemas/bugs ----------------------------------------------
+# Diário de desenvolvimento só desta máquina. Ancorado na raiz para não pegar
+# o docs/DESENVOLVIMENTO.md (o Windows não diferencia maiúsculas).
+/desenvolvimento.md
+
 # --- Configuração de ambiente / servidor -----------------------------------
 .env
 .env.*
