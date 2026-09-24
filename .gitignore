@@ -1,21 +1,54 @@
-# Banco de dados local (criado em runtime pelo assistente de setup)
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
+# --- Banco de dados local ---------------------------------------------------
+# Criado em runtime pelo assistente de setup; nunca vai para o repositório.
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+# Backups gerados ao arquivar um banco de schema antigo (dashzon.db.<data>.bak)
+*.bak
 
-# Build do motor C++
+# --- Configuração de ambiente / servidor -----------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Motor C++ (CMake / Visual Studio) -------------------------------------
 engine-cpp/build/
 engine-cpp/out/
+/build/
+/out/
+.vs/
+CMakeFiles/
+CMakeCache.txt
+CMakeUserPresets.json
+cmake-build-*/
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exp
+*.lib
 
-# Ruby / bundler
+# --- Ruby / bundler ---------------------------------------------------------
 backend/.bundle/
 backend/vendor/bundle/
+.ruby-lsp/
+coverage/
+tmp/
 *.gem
 
-# Logs
+# --- Empacotamento (executável) --------------------------------------------
+dist/
+
+# --- Logs --------------------------------------------------------------------
+log/
 *.log
 
-# OS
+# --- Editores e sistema operacional -----------------------------------------
+.idea/
+*.swp
+*~
 Thumbs.db
+desktop.ini
 .DS_Store
