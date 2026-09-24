@@ -9,7 +9,8 @@ A inspiração veio de projetos open source de finanças como o [OpenMonetis](ht
 ## O que dá para fazer
 
 - **Primeiro acesso guiado:** nome, moeda, usuário e senha, e galeria de templates (dá para escolher vários ou importar um JSON). O banco só é criado no final.
-- **Login (simulado):** tela de entrada com usuário e senha e botão **Sair**. Bancos criados antes do login entram com **admin / admin**.
+- **Contas de usuário de verdade:** login por usuário ou e-mail, **Minha conta** (nome, e-mail, CPF/CNPJ, trocar senha), "Esqueci minha senha" e botão **Sair**. Senhas, CPF/CNPJ e links ficam guardados só em **hash**.
+- **Painel do adm** (canto inferior esquerdo, só para administradores): criar gente nova com cargo (sócio, líder de produção, funcionário...) e perfil (administrador ou usuário), gerar senha temporária ou link de redefinição, confirmar e-mail, desativar e excluir. Também define as regras: CPF/CNPJ obrigatório ou não, e-mail obrigatório e "só entra quem confirmou o e-mail".
 - **Novo dashboard a partir de um template:** em branco ou escolhendo outro template da galeria, que instala os módulos dele e abre o dashboard pronto. Módulos com o mesmo nome **não se duplicam**: o existente é reaproveitado.
 - **Módulos gerados pelo JSON:** resumo (KPIs), busca, filtros, tabela e formulário montados a partir dos campos, com validação.
 - **Estrutura editável:** edite campos, opções e resumos de um módulo em JSON direto na tela, ou adicione módulos pela galeria ou colando/importando um JSON.
@@ -64,7 +65,14 @@ bundle install
 bundle exec ruby app.rb
 ```
 
-Depois é só abrir http://127.0.0.1:4567. Se o banco foi criado antes do login existir, entre com **admin / admin**.
+Depois é só abrir http://127.0.0.1:4567. No primeiro acesso você cria o seu usuário, que já nasce **administrador**. Não existe usuário padrão nem senha conhecida.
+
+Para rodar os testes (usam um banco temporário, nunca o seu):
+
+```powershell
+cd backend
+bundle exec rake test
+```
 
 ### Em servidor
 
@@ -76,7 +84,11 @@ O motor C++ é portável (CMake + C++17, sem dependências). Compile-o na máqui
 | `PORT` | `4567` | Porta HTTP |
 | `DASHZON_DB_PATH` | `data/dashzon.db` | Caminho do banco SQLite |
 | `DASHZON_ENGINE` | `engine-cpp/build/...` | Caminho do binário do motor |
-| `DASHZON_SESSION_SECRET` | sorteada a cada boot | Chave do cookie de login (64+ caracteres). Fixe-a no servidor para as sessões sobreviverem a um reinício |
+| `DASHZON_SESSION_SECRET` | arquivo `data/segredo.key` | Chave do servidor (64+ caracteres): assina o login e protege o hash do CPF/CNPJ. Sem a variável, é criada no arquivo na primeira vez. **Não apague nem troque** |
+| `DASHZON_HOSTS` | só localhost e IPs | Domínios aceitos, separados por vírgula (ex.: `meupainel.duckdns.org`) |
+| `DASHZON_COOKIE_SEGURO` | desligado | `1` quando o acesso é por HTTPS: o cookie de login só trafega criptografado |
+| `DASHZON_URL_PUBLICA` | o endereço da requisição | Endereço usado nos links de e-mail (ex.: `https://meupainel.duckdns.org:2444`) |
+| `DASHZON_SMTP_HOST`, `_PORTA`, `_USUARIO`, `_SENHA`, `_REMETENTE` | sem e-mail | Servidor de e-mail para confirmação e "esqueci a senha". Sem isso, o admin manda os links por outro canal |
 
 ```bash
 cd backend && bundle exec rackup -o 0.0.0.0 -p 8080   # usa config.ru
@@ -94,11 +106,28 @@ Ainda não. Para isso precisaríamos da API do **Open Finance**, e ela não é a
 **"E orçamento × realizado, igual ao Actual Budget?"**
 Está na lista, mas exige cruzar dois módulos (orçamento e lançamentos) na hora de agregar. Isso mexe na lógica dos gráficos, que por regra do projeto só muda com pedido explícito (ver `CLAUDE.md`). Vai ser feito com calma, como um recurso separado.
 
-**"Posso ter vários usuários, cada um com seu acesso?"**
-Ainda não. O login é **simulado**: um usuário local, com a senha guardada em hash, só para não ficar aberto. Cadastro de pessoas, troca de senha e permissões ficam para antes de colocar num servidor.
+**"Dá para cada pessoa ver só uma parte (só o módulo dela)?"**
+Ainda não. Hoje existem dois perfis: **usuário** (usa tudo, menos o painel do adm) e **administrador** (usa tudo e mexe nas contas e regras). Permissão por módulo ou por dashboard fica para depois.
+
+**"Dá para mandar o e-mail de confirmação de verdade?"**
+Dá, mas precisa de um servidor de e-mail (SMTP): as variáveis `DASHZON_SMTP_*` (no Gmail, com uma "senha de app"). Sem isso o sistema funciona igual: o administrador marca o e-mail como confirmado no painel e gera o link de redefinição de senha para mandar pelo WhatsApp, por exemplo.
+
+### Contas e senhas
 
 **"Esqueci a senha, e agora?"**
-Ainda não existe "esqueci minha senha". Dá para parar o servidor e renomear o `data/dashzon.db`: o sistema volta para o primeiro acesso e cria um banco novo. O antigo continua lá, renomeado, com os dados intactos.
+Clique em "Esqueci minha senha". Com e-mail configurado, chega um link; sem ele, peça ao administrador: no painel ele gera uma **senha temporária** (você cria a sua no primeiro acesso) ou um **link de redefinição** (vale 24 h, uma vez só).
+
+**"E se quem esqueceu fui eu, o único administrador?"**
+Tem receita no `docs/DESENVOLVIMENTO.md` ("Esqueci a senha do administrador"): um comando que define uma senha temporária direto no banco. Por isso vale ter **dois administradores** (um sócio, por exemplo).
+
+**"Cadê o admin/admin?"**
+Saiu. Ele existia quando o login era só de brincadeira, mas uma senha conhecida seria uma porta aberta com o sistema na internet. Quem já tinha o usuário `admin` continua com ele (e virou administrador), mas **troque essa senha** em Minha conta.
+
+**"Desativei alguém e a pessoa continuou na tela."**
+A tela pode continuar aberta, mas a próxima ação dela já volta para o login: desativar, redefinir ou trocar a senha derruba a sessão na hora.
+
+**"Por que o CPF aparece com asteriscos até para o administrador?"**
+Porque o número completo não é guardado (LGPD): o banco tem só um hash, para achar duplicados, e a versão mascarada para mostrar. Quer corrigir um documento? É só digitar o novo.
 
 ### Erros que já apareceram
 
@@ -109,7 +138,13 @@ O Ruby foi instalado, mas o terminal ainda não sabe onde ele está. Abra um ter
 Ainda não passou pelo primeiro acesso. Abra a página e conclua o assistente: é só aí que o banco nasce.
 
 **"Do nada tudo virou 401 e voltei para a tela de login."**
-O servidor foi reiniciado. Sem a variável `DASHZON_SESSION_SECRET`, a chave da sessão é sorteada a cada vez que o servidor sobe, então todo mundo precisa entrar de novo. Em servidor, defina essa variável.
+Antes isso acontecia a cada reinício do servidor (a chave da sessão era sorteada no boot). Agora a chave fica em `data/segredo.key`, então só cai quem teve a senha trocada ou a conta desativada. Se todo mundo caiu de uma vez, alguém apagou ou trocou esse arquivo.
+
+**"Deu `Host not permitted`."**
+O Sinatra só aceita localhost e IPs. Para acessar por um domínio (DuckDNS, por exemplo), coloque-o em `DASHZON_HOSTS`. Isso apareceu até nos testes automáticos, que usam o host `example.org`.
+
+**"Deu 429: 'Muitas tentativas'."**
+Foram 8 erros de senha (ou pedidos de link) do mesmo IP em 15 minutos. Espere, ou reinicie o servidor, que zera a contagem.
 
 **"O logout pelo `curl` deu `Length Required`."**
 O WEBrick não aceita POST sem corpo. Mande `-d '{}'` com `Content-Type: application/json`. O frontend já faz isso.
@@ -157,6 +192,12 @@ backend/
   lib/template_registry.rb  listar/validar/instalar/exportar templates
   lib/engine_client.rb   ponte com o binário C++
   lib/dados_ficticios.rb registros inventados para a prévia do criador de card
+  lib/usuarios.rb        contas, perfis, senhas (hash), links e regras de cadastro
+  lib/documento.rb       validação e máscara de CPF/CNPJ
+  lib/segredo.rb         chave do servidor, HMAC e tokens
+  lib/correio.rb         envio de e-mail (SMTP opcional)
+  rotas/usuarios.rb      login, minha conta e painel do adm (/api/admin)
+  test/                  testes (Minitest + Rack::Test), banco temporário
   templates/*.json       templates padrão (os únicos JSON versionados)
 engine-cpp/
   src/main.cpp           comandos aggregate, multi e search
@@ -165,7 +206,9 @@ frontend/
   index.html             estrutura da tela e modais
   js/app.js              inicialização, navegação e barra lateral
   js/setup.js            assistente de primeiro acesso
-  js/login.js            tela de login e botão Sair
+  js/login.js            tela de login, esqueci a senha e botão Sair
+  js/conta.js            minha conta, troca obrigatória de senha e links
+  js/admin.js            painel do adm
   js/modulos.js          tela genérica de módulo e editor JSON
   js/dashboards.js       canvas de dashboards, criador de card e "Lançar"
   js/ajuda.js            ícones (?) com prévia em imagem
@@ -190,5 +233,6 @@ CLAUDE.md                regras do projeto
 - Script de inicialização (um clique) e empacotamento como executável Windows.
 - Orçamento × realizado (cruzar dois módulos, como no Actual Budget).
 - Importação do extrato em CSV/OFX para dentro de um módulo (é a alternativa ao Open Finance; ver as perguntas e respostas).
-- Usuários de verdade antes de publicar em servidor: cadastro de mais pessoas, troca de senha e permissões (hoje o login é simulado, com um usuário local).
+- Permissões por módulo/dashboard (hoje: usuário e administrador).
+- Publicar na internet com HTTPS (DuckDNS + Caddy), sem expor o servidor Ruby direto.
 - Tela para ver e baixar de novo as exportações guardadas no banco (a API `/api/exportacoes` já existe).
