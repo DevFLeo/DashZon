@@ -228,13 +228,15 @@ docs/DESENVOLVIMENTO.md  lógica, funções e tutorial
 docs/PUBLICAR-DUCKDNS.md passo a passo para rodar no seu domínio
 deploy/                  Caddyfile e scripts de publicação (instalar, iniciar, parar, DuckDNS)
 scripts/gerar-previews.js  refaz os prints de frontend/preview/
-CLAUDE.md                regras do projeto (e o que fazer quando pedirem "rode o projeto")
+CLAUDE.md                instruções enxutas para o assistente: instalar, subir, parar e o que nunca fazer
+Sistema.md               especificação técnica completa e regras de desenvolvimento
+Log.md                   o que foi feito, quando e por quê
 servidor.md              passo a passo do servidor: Windows, Docker, domínio, backup
 scripts/rodar.ps1        sobe/para o DashZon no Windows, instalando só o que falta
 Dockerfile, docker-compose.yml, .env.example   Docker (motor compilado no Linux, Puma, Caddy opcional)
 ```
 
-> **Regra do projeto:** a lógica de funcionamento e a fórmula de organização dos dashboards e gráficos não mudam sem pedido explícito (detalhes em `CLAUDE.md`).
+> **Regra do projeto:** a lógica de funcionamento e a fórmula de organização dos dashboards e gráficos não mudam sem pedido explícito (resumo em `CLAUDE.md`, detalhes em `Sistema.md`, seção 12.1).
 
 ## Branches
 
