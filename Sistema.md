@@ -64,7 +64,7 @@ backend/
 engine-cpp/                CMakeLists.txt, src/main.cpp, src/json.hpp
 frontend/                  index.html, css/, js/, vendor/, preview/
 deploy/                    Caddyfile (DuckDNS), Caddyfile.servidor (Docker), scripts PowerShell
-scripts/                   rodar.ps1 (Windows), gerar-previews.js
+scripts/                   rodar.ps1 (Windows), auditar-responsivo.ps1/.js (responsividade), gerar-previews.js
 Dockerfile, docker-compose.yml, .env.example
 data/                      (fora do git) dashzon.db, segredo.key, cópias *.bak
 log/                       (fora do git) logs do rodar.ps1
@@ -239,7 +239,21 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 
 ## 9. Frontend
 
-SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `api`, `setup`, `login`, `conta`, `admin`, `modulos`, `dashboards`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
+SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `api`, `setup`, `login`, `conta`, `admin`, `modulos`, `dashboards`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
+
+**Responsividade** (bloco no fim do `style.css`, para ter precedência):
+
+| Faixa | Comportamento |
+|---|---|
+| ≤ 820px ou `pointer: coarse` | Alvos de toque de 36–44px (o `.dica` tem 36px de área por borda transparente); campos com `font-size` 16px (evita o zoom do iOS) |
+| ≤ 800px | Barra superior fixa (☰, marca, tema) e o menu numa gaveta (`#menu-movel`; `app.js` `ligarMenuMovel`, com `aria-expanded`; fecha em `hashchange`, clique em item e Esc). No desktop o invólucro é `display: contents` |
+| ≤ 640px | Dashboard empilhado (`responsivo.js`); KPIs do módulo 2 por linha; modais em tela cheia (`100dvh`), com rodapé fixo nos que são um `form` único |
+| < 360px | KPIs do dashboard 1 por linha |
+
+- **Dashboard empilhado:** `responsivo.js` observa `#grid` (`MutationObserver` em `gs-x/gs-y/gs-w/gs-h` e na lista de filhos) e copia os atributos para `order = y*12 + x`, `--gs-h` e a classe `cel-meia` (w ≤ 3). O CSS troca a grade absoluta por CSS grid de 2 colunas e desliga arrastar/redimensionar. A configuração do GridStack (12 colunas), o `salvarLayout` e o layout salvo não mudam.
+- **Container queries:** `.kpi` e `.grid-stack-item-content` são `container-type: inline-size`; os valores usam `clamp(17px, 12.5–13cqi, 26–30px)`. Com toque, cards de até 280px quebram o cabeçalho (ferramentas acima do título).
+- **Ferramentas do card:** com mouse ficam em `position: absolute`, sem reservar largura (aparecem no hover); com `hover: none` ficam sempre visíveis.
+- **Fechar modal:** um "×" (`.modal-fechar`, sticky no topo) é injetado pelo `app.js` em todo `.modal-overlay` sem `data-fixo`.
 
 - **Rotas por hash:** `#/d/<id>` (dashboard), `#/m/<slug>` (módulo), `#/admin`, `#/inicio`, `#/redefinir/<token>`.
 - **Boot:** `GET /api/status` decide entre setup, login (ou "crie seu usuário") e o app; troca de senha obrigatória antes de qualquer outra tela.
@@ -272,7 +286,8 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
   - cópia de segurança e idempotência;
   - partida em processo novo;
   - falha (nada alterado, sem ir ao setup, sem nova tentativa).
-- **Ponta a ponta:** instância separada (outra `PORT` e outro `DASHZON_DB_PATH`), percorrendo setup → módulo → criar, editar e excluir registro → editor de estrutura → dashboard → sair e entrar.
+- **Ponta a ponta:** instância separada (outra `PORT` e outro `DASHZON_DB_PATH`), percorrendo setup → módulo → criar, editar e excluir registro → editor de estrutura → dashboard → sair e entrar → celular (gaveta, dashboard empilhado, "×" do modal, **layout salvo intacto**).
+- **Responsividade:** `scripts/auditar-responsivo.ps1` (Edge headless via DevTools; 7 larguras × 11 telas = 74 auditorias, com prints em `log/responsivo/`). As checagens estão em `scripts/auditar-responsivo.js`: erros (rolagem horizontal, fora da tela, toque < 24px, texto maior que a caixa, modal que não cabe, card < 150px, botões sobrepostos) e avisos (toque < 36px, campo < 16px, texto < 11px). O loop é repetir até zero erros e revisar os prints. O script recusa instância já configurada.
 
 ## 12. Regras de desenvolvimento
 
@@ -287,7 +302,7 @@ Não alterar a lógica de funcionamento nem a fórmula de organização dos dash
   - comportamento: cores por identidade, séries lado a lado até 2 e empilhadas acima disso, limite de grupos;
   - layout GridStack: 12 colunas, `salvarLayout` só com posição/tamanho, `TAMANHO` por tipo.
 
-Melhorias em **como o usuário alimenta** os dashboards são permitidas, desde que gerem o mesmo `config` e reaproveitem essas funções. Mudanças que só alteram **quais dados** chegam ao motor sem alterar o resultado (projeção de campos, cache) também são permitidas, com teste de igualdade. Trechos protegidos têm comentário `REGRA:`.
+Melhorias em **como o usuário alimenta** os dashboards são permitidas, desde que gerem o mesmo `config` e reaproveitem essas funções. Mudanças que só alteram **quais dados** chegam ao motor sem alterar o resultado (projeção de campos, cache) também são permitidas, com teste de igualdade. A **apresentação no celular** (`responsivo.js` + CSS, §9) é permitida porque só lê o layout: não chama o GridStack nem grava nada, e o teste de ponta a ponta confere que o layout salvo fica idêntico. Trechos protegidos têm comentário `REGRA:`.
 
 ### 12.2 Domínio
 
@@ -333,6 +348,7 @@ Melhorias em **como o usuário alimenta** os dashboards são permitidas, desde q
 - Acessibilidade: `<button>` reais, `aria-label`, foco visível, Esc fecha modais.
 - Moeda com a classe `sensivel`.
 - Ao atualizar uma biblioteca em `vendor/`, mude o nome do arquivo (cache de 1 dia).
+- Mudou a interface? Rode `scripts/auditar-responsivo.ps1` numa instância zerada até zero erros e revise os prints. Regras responsivas vão no bloco do fim do `style.css`.
 
 ### 12.7 Testes, git e documentação
 

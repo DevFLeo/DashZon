@@ -58,5 +58,6 @@ A saída do `rodar.ps1` já traz o fim do log. Se precisar, leia só a cauda de 
 Leia o `Sistema.md` (seção "Regras de desenvolvimento"). O essencial:
 
 - validação dupla antes de commitar: `cd backend; bundle exec rake test` + teste no navegador numa instância separada, duas rodadas, banco zerado;
+- mexeu na interface: `scripts/auditar-responsivo.ps1 -Porta <instância zerada>` até 0 erros (instruções no topo do script);
 - registre o que fez em `Log.md` (quando, o quê, por quê) e os problemas em `desenvolvimento.md` (fora do git);
 - trabalhe na branch `desenvolvimento`.

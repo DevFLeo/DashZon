@@ -432,7 +432,24 @@ Todas as opções são opcionais. Resposta:
 
 ## 7. Frontend
 
-`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `ajuda` → `tema` → `api` → `setup` → `login` → `conta` → `admin` → `modulos` → `dashboards` → `app`.
+`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `ajuda` → `tema` → `api` → `setup` → `login` → `conta` → `admin` → `modulos` → `dashboards` → `responsivo` → `app`.
+
+### Celular e telas pequenas
+
+Faixas do CSS (bloco "Responsividade", no fim do `style.css`, para ter precedência sobre as regras-base):
+
+| Largura | O que muda |
+|---|---|
+| até 820px ou tela de toque | Alvos de toque de 36 a 44px (botões, itens de menu, ícones; o (?) tem 36px de área com o círculo pequeno); campos com 16px (abaixo disso o iPhone dá zoom ao tocar) |
+| até 800px | O menu lateral vira uma barra fixa no topo (marca, tema e botão ☰) e uma **gaveta** que abre por baixo dela (`app.js`, `ligarMenuMovel`: fecha ao navegar, ao escolher um item e com Esc; `aria-expanded` no botão) |
+| até 640px | Dashboard empilhado (abaixo); KPIs do módulo dois por linha; modais em **tela cheia** com o rodapé de botões fixo; setup e login com menos moldura |
+| abaixo de 360px | KPIs do dashboard um por linha |
+
+- **Dashboard no celular** (`js/responsivo.js` + CSS): em vez da grade de 12 colunas espremida, os cards empilham em ordem de leitura (`order = y*12 + x`), com os de até 3 colunas (KPIs) dois por linha e a altura vinda do `gs-h`. O script **só lê** os atributos `gs-x/gs-y/gs-w/gs-h` que o GridStack já põe nos cards; não chama o GridStack e não grava nada (REGRA). Arrastar e redimensionar ficam desligados nessa faixa, porque no toque gravariam posições da tela pequena por cima do layout real. O teste de ponta a ponta confere que o layout salvo fica idêntico depois de usar a versão de celular.
+- **Valores dos KPIs** (`.widget-kpi`, `.kpi .value`) se ajustam à largura do próprio card com *container queries* (`clamp(...cqi...)`), em vez de vazar.
+- **Ferramentas do card:** com mouse, aparecem ao passar sobre o card e não ocupam espaço (o título usa a largura toda); no toque ficam sempre visíveis e, em card estreito (até 280px), vão para uma linha própria acima do título.
+- **"×" nos modais:** `app.js` (`botoesFecharModais`) põe um botão de fechar, preso no topo ao rolar, em todo modal sem `data-fixo`.
+- **Auditoria:** `scripts/auditar-responsivo.ps1` (ver seção 8).
 
 ### Navegação
 
@@ -560,6 +577,21 @@ bundle exec rake test     # Minitest + Rack::Test, banco temporário; nunca toca
 ```
 
 Os testes ficam em `backend/test/` (`usuarios_test.rb`, `documento_test.rb`, `modulos_test.rb`, `desempenho_test.rb`, e os do banco: `registro_codec_test.rb`, `registros_compactos_test.rb`, `json_guardado_test.rb` e `migracao_test.rb`, que monta um banco v2 de verdade, migra e confere dados, cópia de segurança e os caminhos de falha); `test_helper.rb` aponta `DASHZON_DB_PATH` para uma pasta temporária **antes** de carregar o app e zera o banco a cada teste. Pela regra do `CLAUDE.md`, toda mudança passa duas vezes pela validação (testes + teste de ponta a ponta no navegador numa instância separada, em outra porta e com outro banco) antes do commit.
+
+### Testar a responsividade (mudou algo na interface)
+
+A auditoria abre o Edge sem janela, passa por 7 tamanhos de tela (320, 360, 390, 768, 1024, 1366 e 1920px) e por setup, login, dashboard, módulo, admin, menu do celular e os modais, grava um print de cada combinação em `log\responsivo\<data>\` e mede:
+
+- **erros:** rolagem horizontal, elemento fora da tela, alvo de toque menor que 24px, texto maior que a caixa, modal que não cabe, card do dashboard com menos de 150px e botões sobrepostos;
+- **avisos:** alvo de toque menor que 36px, campo com fonte menor que 16px (zoom no iPhone) e texto menor que 11px.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1 -Porta 4570 -Banco data\teste-responsivo.db   # instância separada e zerada
+powershell -ExecutionPolicy Bypass -File scripts\auditar-responsivo.ps1 -Porta 4570                     # -Telas dashboard,modulo para só algumas
+powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1 -Porta 4570 -Parar                           # depois apague data\teste-responsivo.db
+```
+
+Corrija, suba a instância zerada de novo e repita até sair **0 erros** (o script sai com código 1 enquanto houver erro); depois olhe os prints, porque a medição não pega tudo (ex.: um título cortado com reticências é "válido" para ela). Ele se recusa a rodar numa instância já configurada, já que faz o setup com dados de exemplo.
 
 ### Esqueci a senha do administrador
 

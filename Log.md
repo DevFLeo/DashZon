@@ -6,6 +6,46 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-08 · `desenvolvimento` · Interface responsiva (celular, tablet e telas grandes)
+
+**O que:**
+- **Celular (até 800px):** barra fixa no topo (☰, marca, tema) e o menu numa gaveta, em vez de ~270px de menus em rolagem horizontal antes de qualquer conteúdo.
+- **Dashboard no celular (até 640px):**
+  - cards empilhados em ordem de leitura, com os KPIs dois por linha (`js/responsivo.js` + CSS);
+  - arrastar e redimensionar desligados nessa faixa;
+  - **o layout de 12 colunas e o layout salvo não são tocados** (o script só lê `gs-x/gs-y/gs-w/gs-h`).
+- **Modais:** em tela cheia no celular, com o rodapé de botões fixo; "×" no topo de todo modal que pode ser fechado.
+- **Toque e campos:**
+  - alvos de toque de 36–44px (o (?) ganhou área de 36px com o mesmo círculo);
+  - campos com 16px, porque abaixo disso o iPhone dá zoom ao tocar;
+  - filtros do módulo dois por linha.
+- **Cards:**
+  - valores dos KPIs se ajustam à largura do card (*container queries*);
+  - as ferramentas do card não ocupam espaço quando escondidas (os títulos dos KPIs apareciam como "Recei..." até em 1024px);
+  - no toque, as ferramentas ficam sempre visíveis.
+- **Organização do CSS:** o bloco de responsividade foi para o fim do `style.css`, porque regras-base posteriores o anulavam.
+- **Auditoria versionada:** `scripts/auditar-responsivo.ps1` + `.js`, com prints e erros medidos em 7 larguras × 11 telas.
+
+**Por quê:**
+- Pedido de melhorar a UI/UX com teste de responsividade em loop.
+- A auditoria inicial mediu 18 erros e 52 avisos:
+  - 6 de 8 cards do dashboard com menos de 150px no celular, ilegíveis;
+  - valores de KPI vazando do card;
+  - (?) com 18px de área de toque;
+  - campos que disparam zoom no iPhone;
+  - menus pequenos para o dedo.
+- A revisão dos prints achou o que a medição não pega: menu ocupando um terço da tela, títulos cortados, modal em tela cheia sem botão de fechar no topo.
+
+**Loop:**
+- Iteração 0: 18 erros / 52 avisos.
+- Iteração 1: 4 / 20.
+- Iteração 2: 0 / 4.
+- Iterações 3, 4 e 5: 0 / 0, com correções visuais entre elas a partir dos prints.
+
+**Validação:** `rake test` 90/90 e navegador 41/41 (35 checagens anteriores + 6 novas de celular, incluindo "layout salvo intacto") nas duas rodadas. No computador (1366px) a tela continua igual à anterior.
+
+---
+
 ## 2026-10-08 · `desenvolvimento` · Documentação enxuta para o assistente (`CLAUDE.md`, `Sistema.md`, `Log.md`)
 
 **O que:**
