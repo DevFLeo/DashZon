@@ -5,6 +5,7 @@ require "monitor"
 require "time"
 require_relative "ambiente"
 require_relative "record_codec"
+require_relative "json_guardado"
 require_relative "module_schema"
 require_relative "migracao"
 require "openssl"
@@ -308,7 +309,8 @@ module Database
       warn "[DashZon] Banco migrado da versão 2 para a 3: #{resumo[:registros]} registros em #{resumo[:modulos]} módulos, " \
            "#{resumo[:bytes_antes] / 1024} KB -> #{resumo[:bytes_depois] / 1024} KB. " \
            "Cópia de segurança do banco antigo: #{resumo[:backup]}" \
-           "#{resumo[:valores_descartados].positive? ? " (#{resumo[:valores_descartados]} valores inválidos viraram vazio)" : ''}"
+           "#{resumo[:valores_descartados].positive? ? " (#{resumo[:valores_descartados]} valores inválidos viraram vazio)" : ''}" \
+           "#{resumo[:jsons_comprimidos].positive? ? " #{resumo[:jsons_comprimidos]} JSON(s) guardado(s) (exportações/templates) comprimido(s)." : ''}"
     end
   end
 
@@ -355,22 +357,26 @@ module Database
 
   # --- JSON do usuário ----------------------------------------------------------
 
-  # Grava um JSON (template importado ou exportação). Um template idêntico a um
-  # já salvo não é duplicado: devolve o id existente.
+  # Grava um JSON (template importado ou exportação), comprimido (ver
+  # JsonGuardado). Um template idêntico a um já salvo não é duplicado: devolve o
+  # id existente. A comparação é feita sobre o texto descomprimido, então vale
+  # tanto para linhas novas quanto para as antigas em texto puro.
   def self.salvar_json!(tipo, nome, obj)
     garantir_tabelas!
-    conteudo = JSON.generate(obj)
+    texto = JSON.generate(obj)
     if tipo == "template"
-      existente = row("SELECT id FROM jsons WHERE tipo = ? AND conteudo = ?", [tipo, conteudo])
+      existente = rows("SELECT id, conteudo FROM jsons WHERE tipo = 'template'").find { |r| JsonGuardado.texto(r["conteudo"]) == texto }
       return existente["id"] if existente
     end
-    insert("INSERT INTO jsons (tipo, nome, conteudo, criado_em) VALUES (?, ?, ?, ?)", [tipo, nome.to_s, conteudo, now])
+    insert("INSERT INTO jsons (tipo, nome, conteudo, criado_em) VALUES (?, ?, ?, ?)",
+           [tipo, nome.to_s, JsonGuardado.comprimir_texto(texto), now])
   end
 
   # Lista sem o conteúdo (que pode ser grande); use json_salvo para lê-lo.
+  # `bytes` é o tamanho ocupado no banco (comprimido).
   def self.jsons(tipo)
     garantir_tabelas!
-    rows("SELECT id, tipo, nome, criado_em, LENGTH(conteudo) AS bytes FROM jsons WHERE tipo = ? ORDER BY id DESC", [tipo])
+    rows("SELECT id, tipo, nome, criado_em, LENGTH(CAST(conteudo AS BLOB)) AS bytes FROM jsons WHERE tipo = ? ORDER BY id DESC", [tipo])
   end
 
   def self.json_salvo(id, tipo = nil)
@@ -378,7 +384,7 @@ module Database
     r = row("SELECT * FROM jsons WHERE id = ?", [id.to_i])
     return nil unless r && (tipo.nil? || r["tipo"] == tipo)
 
-    r.merge("conteudo" => JSON.parse(r["conteudo"]))
+    r.merge("conteudo" => JsonGuardado.decodificar(r["conteudo"]))
   end
 
   def self.excluir_json!(id)

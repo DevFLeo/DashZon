@@ -4,6 +4,7 @@ require "date"
 require "time"
 require "fileutils"
 require_relative "record_codec"
+require_relative "json_guardado"
 
 # Migração do banco da versão 2 para a 3, feita NO LUGAR (sem arquivar o banco
 # nem perder dados).
@@ -126,8 +127,24 @@ module Migracao
       CREATE INDEX idx_registros_modulo ON registros(modulo_id);
       CREATE INDEX IF NOT EXISTS idx_widgets_dashboard ON widgets(dashboard_id);
     SQL
+    comprimir_jsons!(db, resumo)
     db.execute("PRAGMA user_version = #{VERSAO_NOVA}")
     resumo
+  end
+
+  # Templates importados e exportações antigos estão em texto puro na tabela
+  # `jsons` (criada sob demanda, então pode nem existir). Passam a ser gravados
+  # comprimidos (ver JsonGuardado); o conteúdo é o mesmo, byte a byte, ao
+  # descomprimir. Um por vez, para não carregar todas as exportações na memória.
+  def comprimir_jsons!(db, resumo)
+    resumo[:jsons_comprimidos] = 0
+    return unless tabela?(db, "jsons")
+
+    db.execute("SELECT id FROM jsons WHERE typeof(conteudo) = 'text'").map { |r| r["id"] }.each do |id|
+      texto = db.get_first_value("SELECT conteudo FROM jsons WHERE id = ?", [id])
+      db.execute("UPDATE jsons SET conteudo = ? WHERE id = ?", [JsonGuardado.comprimir_texto(texto), id])
+      resumo[:jsons_comprimidos] += 1
+    end
   end
 
   # Define os slots de cada módulo (campos atuais, na ordem em que estão) e
