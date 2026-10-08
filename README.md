@@ -148,6 +148,9 @@ O Sinatra só aceita localhost e IPs. Para acessar por um domínio (DuckDNS, por
 **"Deu 429: 'Muitas tentativas'."**
 Foram 8 erros de senha (ou pedidos de link) do mesmo IP em 15 minutos. Espere, ou reinicie o servidor, que zera a contagem.
 
+**"Depois de atualizar, tudo responde erro 500 e o log diz que não foi possível migrar o banco."**
+A conversão para o formato compacto falhou e, por segurança, **nada foi alterado** (a migração é uma transação). A mensagem do log traz a causa e o caminho da cópia de segurança (`dashzon.db.v2-....bak`). O sistema não cai no assistente de primeiro acesso de propósito: isso arquivaria o seu banco. Volte para a versão anterior do código, que lê o mesmo arquivo sem problema, e avise o motivo.
+
 **"O logout pelo `curl` deu `Length Required`."**
 O WEBrick não aceita POST sem corpo. Mande `-d '{}'` com `Content-Type: application/json`. O frontend já faz isso.
 
@@ -169,7 +172,10 @@ Aconteceu algumas vezes ao iniciar pelo `Start-Process` com janela minimizada. O
 Busca e soma sobre muitos registros ficam num binário rápido e sem dependências. A API em Ruby continua simples e cuida do banco e das regras. O C++ nunca abre o banco: recebe registros e devolve números.
 
 **"Por que JSON dentro do SQLite?"**
-Para criar ou mudar um módulo sem migração de banco. Um campo novo é só uma chave a mais no JSON.
+Para criar ou mudar um módulo sem migração de banco. Para não desperdiçar espaço, cada registro é guardado como um array (`["Aluguel",1,1450,20412,1]`), sem repetir o nome dos campos em todas as linhas: o arquivo fica mais de **50% menor** (10,5 MB para 4,3 MB com 50 mil lançamentos). A API e o motor continuam vendo o registro completo, e dá para reordenar, remover e adicionar campos no editor de estrutura sem embaralhar os dados.
+
+**"Atualizei e apareceu um arquivo `dashzon.db.v2-....bak` ao lado do banco. Posso apagar?"**
+É a cópia de segurança que o DashZon faz sozinho antes de converter um banco da versão antiga para o formato compacto (acontece uma vez, na primeira partida depois da atualização; o log mostra "Banco migrado da versão 2 para a 3"). Confira que tudo está certo e apague quando quiser: ele só serve para voltar atrás (nesse caso, restaure-o sobre o `dashzon.db` e volte o código à versão anterior; o que foi lançado depois da migração não está nele). Os dados e as contas continuam intactos.
 
 **"Importei um template e o arquivo não apareceu no git."**
 É de propósito. Templates importados e exportações ficam guardados no banco (tabela `jsons`), não em arquivo. No git ficam só os 4 templates padrão, e qualquer outro `.json` é ignorado.
