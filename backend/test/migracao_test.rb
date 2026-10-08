@@ -284,6 +284,38 @@ class MigracaoTest < Minitest::Test
                    RbConfig.ruby, "-e", script, chdir: File.expand_path("..", __dir__))
   end
 
+  def test_migracao_comprime_exportacoes_e_templates_antigos_sem_mudar_o_conteudo
+    criar_banco_v2!
+    exportacao = JSON.generate("nome" => "Backup ✓", "modulos" => Array.new(400) { |i| { "slug" => "m#{i}", "dados" => ["linha #{i}", i, "Ação"] * 6 } })
+    template = JSON.generate("nome" => "Template antigo", "modulos" => [{ "slug" => "x", "nome" => "X", "campos" => [{ "id" => "a", "nome" => "A", "tipo" => "texto" }] }], "dashboards" => [])
+    db = SQLite3::Database.new(caminho)
+    db.execute_batch(<<~SQL)
+      CREATE TABLE jsons (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT NOT NULL CHECK (tipo IN ('template', 'exportacao')),
+        nome TEXT NOT NULL, conteudo TEXT NOT NULL, criado_em TEXT NOT NULL);
+      CREATE INDEX idx_jsons_tipo ON jsons(tipo);
+    SQL
+    db.execute("INSERT INTO jsons (tipo, nome, conteudo, criado_em) VALUES ('exportacao', 'dashzon-antigo.json', ?, '2025-01-01T00:00:00Z')", [exportacao])
+    db.execute("INSERT INTO jsons (tipo, nome, conteudo, criado_em) VALUES ('template', 'Template antigo', ?, '2025-01-02T00:00:00Z')", [template])
+    db.close
+    antes = File.size(caminho)
+
+    err = migrar_e_entrar!
+    assert_match(/2 JSON\(s\) guardado\(s\).*comprimido/, err)
+    linhas = Database.rows("SELECT id, tipo, typeof(conteudo) AS t, conteudo FROM jsons ORDER BY id")
+    assert_equal %w[blob blob], linhas.map { |l| l["t"] }
+    assert_equal [exportacao, template], linhas.map { |l| JsonGuardado.texto(l["conteudo"]) }, "o texto é idêntico, byte a byte"
+    assert_operator File.size(caminho), :<, antes, "a exportação comprimida e o VACUUM devolveram espaço"
+
+    get "/api/exportacoes/1"
+    assert_equal JSON.parse(exportacao), resposta
+    get "/api/templates"
+    assert_equal ["Template antigo"], resposta.select { |t| t["origem"] == "importado" }.map { |t| t["nome"] }
+    # a cópia de segurança guarda o original em texto
+    bak = SQLite3::Database.new(backups.first)
+    assert_equal "text", bak.get_first_value("SELECT typeof(conteudo) FROM jsons WHERE id = 1")
+    bak.close
+  end
+
   def test_migra_ja_na_partida_do_servidor_sem_esperar_a_primeira_requisicao
     criar_banco_v2!
     out, err, status = carregar_app_em_processo_novo
