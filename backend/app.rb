@@ -12,6 +12,18 @@ require_relative "lib/correio"
 require_relative "lib/usuarios"
 require_relative "lib/desempenho"
 
+# Um banco de versão anterior é migrado já na partida (lib/migracao.rb), antes de
+# o servidor aceitar requisições: o primeiro acesso não paga a espera e um banco
+# grande não estoura o healthcheck. Não cria nada: sem arquivo, isto só responde
+# false. Se a migração falhar, o servidor sobe mesmo assim (nada foi alterado) e
+# toda requisição responde o erro, em vez de derrubar o processo (e entrar em
+# loop de reinício); o log diz onde está a cópia de segurança.
+begin
+  Database.configured?
+rescue Migracao::Falha => e
+  warn "[DashZon] #{e.message}"
+end
+
 set :public_folder, File.expand_path("../frontend", __dir__)
 set :bind, Ambiente["DASHZON_HOST", "127.0.0.1"]
 set :port, Ambiente["PORT", "4567"].to_i
@@ -288,14 +300,19 @@ end
 
 put "/api/modulos/:slug" do
   atual = modulo!(params[:slug])
-  m = ModuleSchema.normalize_modulo!(body_json.merge("slug" => atual["slug"]))
+  m = ModuleSchema.normalize_modulo!(body_json.merge("slug" => atual["slug"]), atual["schema"])
   if Database.modulo_por_nome(m["nome"], exceto_id: atual["id"])
     halt json({ error: "Já existe outro módulo chamado '#{m['nome']}'" }, 422)
   end
-  Database.execute(
-    "UPDATE modulos SET nome = ?, descricao = ?, icone = ?, schema = ? WHERE id = ?",
-    [m["nome"], m["descricao"], m["icone"], JSON.generate(m.slice("campos", "rotulo", "resumo")), atual["id"]]
-  )
+  # Se algum campo mudou de tipo, os registros já gravados são convertidos na
+  # mesma transação (o formato em disco depende do tipo).
+  Database.transaction do
+    Database.reconverter_registros!(atual["id"], atual["schema"], ModuleSchema.schema_de(m))
+    Database.execute(
+      "UPDATE modulos SET nome = ?, descricao = ?, icone = ?, schema = ? WHERE id = ?",
+      [m["nome"], m["descricao"], m["icone"], JSON.generate(ModuleSchema.schema_de(m)), atual["id"]]
+    )
+  end
   json Database.modulo(atual["slug"])
 end
 
@@ -306,6 +323,7 @@ delete "/api/modulos/:slug" do
     Database.execute("DELETE FROM registros WHERE modulo_id = ?", [m["id"]])
     Database.execute("DELETE FROM modulos WHERE id = ?", [m["id"]])
   end
+  Database.compactar! # devolve ao disco o espaço dos registros apagados
   json ok: true
 end
 
@@ -315,11 +333,13 @@ get "/api/modulos/:slug/resumo" do
   itens = schema["resumo"]
   halt json([]) if itens.empty?
 
+  queries = itens.map { |r| ModuleSchema.engine_query(schema, r) }
   out = CacheResultados.buscar("resumo", m["id"], schema) do
+    # Só os campos que as consultas leem vão para o motor (mesmo resultado, menos dados).
     EngineClient.run(
       cmd: "multi",
-      records: Database.registros(m["id"]),
-      queries: itens.map { |r| ModuleSchema.engine_query(schema, r) }
+      records: Database.registros(m, campos: ModuleSchema.campos_usados(queries), meta: false),
+      queries: queries
     )
   end
   json(itens.zip(out["results"]).map do |r, res|
@@ -336,7 +356,7 @@ get "/api/modulos/:slug/registros" do
   res = CacheResultados.buscar("busca", m["id"], m["schema"], params[:q].to_s, filtros) do
     EngineClient.run(
       cmd: "search",
-      records: Database.registros(m["id"]),
+      records: Database.registros(m),
       q: params[:q].to_s,
       text_fields: texto_campos(m["schema"]),
       filters: filtros
@@ -348,25 +368,22 @@ end
 post "/api/modulos/:slug/registros" do
   m = modulo!(params[:slug])
   dados = ModuleSchema.coerce_registro!(m["schema"], body_json)
-  now = Database.now
-  id = Database.insert("INSERT INTO registros (modulo_id, dados, criado_em, atualizado_em) VALUES (?, ?, ?, ?)",
-                       [m["id"], JSON.generate(dados), now, now])
-  json Database.registro(m["id"], id), 201
+  id = Database.inserir_registro(m, dados)
+  json Database.registro(m, id), 201
 end
 
 put "/api/modulos/:slug/registros/:id" do
   m = modulo!(params[:slug])
-  halt json({ error: "Registro não encontrado" }, 404) unless Database.registro(m["id"], params[:id].to_i)
+  id = params[:id].to_i
+  halt json({ error: "Registro não encontrado" }, 404) unless Database.registro(m, id)
 
-  dados = ModuleSchema.coerce_registro!(m["schema"], body_json)
-  Database.execute("UPDATE registros SET dados = ?, atualizado_em = ? WHERE id = ? AND modulo_id = ?",
-                   [JSON.generate(dados), Database.now, params[:id].to_i, m["id"]])
-  json Database.registro(m["id"], params[:id].to_i)
+  Database.atualizar_registro(m, id, ModuleSchema.coerce_registro!(m["schema"], body_json))
+  json Database.registro(m, id)
 end
 
 delete "/api/modulos/:slug/registros/:id" do
   m = modulo!(params[:slug])
-  Database.execute("DELETE FROM registros WHERE id = ? AND modulo_id = ?", [params[:id].to_i, m["id"]])
+  Database.remover_registro(m, params[:id].to_i)
   json ok: true
 end
 
@@ -449,8 +466,11 @@ get "/api/widgets/:id/data" do
   m = modulo!(w["modulo_slug"])
   # Revalida contra o schema atual: o módulo pode ter sido editado depois.
   cfg = ModuleSchema.normalize_widget!(widget_json(w), m["schema"])["config"]
+  consulta = ModuleSchema.engine_query(m["schema"], cfg)
   res = CacheResultados.buscar("card", m["id"], m["schema"], cfg) do
-    EngineClient.run({ cmd: "aggregate", records: Database.registros(m["id"]) }.merge(ModuleSchema.engine_query(m["schema"], cfg)))
+    # Só os campos que a consulta lê vão para o motor (mesmo resultado, menos dados).
+    registros = Database.registros(m, campos: ModuleSchema.campos_usados([consulta]), meta: false)
+    EngineClient.run({ cmd: "aggregate", records: registros }.merge(consulta))
   end
   json res.merge("config" => cfg)
 end

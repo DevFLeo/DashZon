@@ -124,20 +124,17 @@ module TemplateRegistry
         slug = slug_livre(m["slug"])
         mapa[m["slug"]] = slug
         ordem += 1
+        schema = ModuleSchema.schema_de(m)
         modulo_id = Database.insert(
           "INSERT INTO modulos (slug, nome, descricao, icone, schema, template_origem, ordem, criado_em)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [slug, m["nome"], m["descricao"], m["icone"], JSON.generate(m.slice("campos", "rotulo", "resumo")),
-           tpl["id"], ordem, now]
+          [slug, m["nome"], m["descricao"], m["icone"], JSON.generate(schema), tpl["id"], ordem, now]
         )
         next unless com_exemplos
 
-        m["seed"].each do |dados|
-          Database.execute(
-            "INSERT INTO registros (modulo_id, dados, criado_em, atualizado_em) VALUES (?, ?, ?, ?)",
-            [modulo_id, JSON.generate(dados), now, now]
-          )
-        end
+        modulo = { "id" => modulo_id, "schema" => schema }
+        agora = Database.agora_i
+        m["seed"].each { |dados| Database.inserir_registro(modulo, dados, agora) }
       end
 
       pulados = 0
@@ -199,9 +196,10 @@ module TemplateRegistry
   def export(com_dados: false)
     cfg = Database.config
     modulos = Database.modulos.map do |m|
-      h = m.slice("slug", "nome", "descricao", "icone").merge(m["schema"])
+      # Os slots são detalhe de armazenamento: na exportação o módulo sai só com o que o template define.
+      h = m.slice("slug", "nome", "descricao", "icone").merge(m["schema"].except("slots"))
       if com_dados
-        h["seed"] = Database.registros(m["id"]).map { |r| r.reject { |k, _| k == "id" || k.start_with?("_") } }
+        h["seed"] = Database.registros(m).map { |r| r.reject { |k, _| k == "id" || k.start_with?("_") } }
       end
       h
     end

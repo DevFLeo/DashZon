@@ -57,8 +57,9 @@ class DesempenhoTest < Minitest::Test
     base = receitas
     outro = SQLite3::Database.new(ENV["DASHZON_DB_PATH"]) # como um script ou outro servidor
     mod = Database.modulo("lancamentos")
-    outro.execute("INSERT INTO registros (modulo_id, dados, criado_em, atualizado_em) VALUES (?, ?, ?, ?)",
-                  [mod["id"], JSON.generate("descricao" => "Fora", "tipo" => "entrada", "valor" => 500.0, "categoria" => "Salário"), Database.now, Database.now])
+    dados = ModuleSchema.coerce_registro!(mod["schema"], "descricao" => "Fora", "tipo" => "entrada", "valor" => 500.0, "categoria" => "Salário")
+    outro.execute("INSERT INTO registros (modulo_id, dados, criado_em) VALUES (?, ?, ?)",
+                  [mod["id"], RecordCodec.pack(mod["schema"], dados), Time.now.to_i])
     outro.close
     assert_in_delta base + 500, receitas, 0.001
   end

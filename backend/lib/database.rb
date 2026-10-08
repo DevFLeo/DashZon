@@ -2,7 +2,11 @@ require "sqlite3"
 require "fileutils"
 require "json"
 require "monitor"
+require "time"
 require_relative "ambiente"
+require_relative "record_codec"
+require_relative "module_schema"
+require_relative "migracao"
 require "openssl"
 require "securerandom"
 
@@ -13,10 +17,14 @@ require "securerandom"
 #
 # Modelo: cada módulo (vindo de um template JSON ou criado pelo usuário)
 # guarda sua própria definição de campos em `modulos.schema`; os registros
-# de todos os módulos ficam em `registros.dados` como JSON. Isso permite
-# adicionar/alterar módulos sem migração de banco.
+# de todos os módulos ficam em `registros.dados`, num array JSON compacto
+# (ver RecordCodec). Isso permite adicionar/alterar módulos sem migração de
+# banco e ocupa bem menos espaço que um objeto JSON por registro.
+#
+# Versões do schema: 2 = registros em objeto JSON com datas em texto; 3 = formato
+# compacto (lib/migracao.rb converte um banco v2 no lugar, com backup antes).
 module Database
-  SCHEMA_VERSION = 2
+  SCHEMA_VERSION = 3
 
   DB_PATH = Ambiente["DASHZON_DB_PATH", File.expand_path("../../data/dashzon.db", __dir__)]
 
@@ -40,12 +48,15 @@ module Database
       criado_em TEXT NOT NULL
     );
 
+    -- criado_em/atualizado_em são inteiros (epoch, segundos UTC); atualizado_em
+    -- fica NULL enquanto o registro nunca foi editado. A API devolve os dois
+    -- como texto ISO (_criado_em/_atualizado_em), como sempre.
     CREATE TABLE IF NOT EXISTS registros (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id INTEGER PRIMARY KEY,
       modulo_id INTEGER NOT NULL REFERENCES modulos(id) ON DELETE CASCADE,
       dados TEXT NOT NULL,
-      criado_em TEXT NOT NULL,
-      atualizado_em TEXT NOT NULL
+      criado_em INTEGER NOT NULL,
+      atualizado_em INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_registros_modulo ON registros(modulo_id);
 
@@ -68,6 +79,7 @@ module Database
       w INTEGER NOT NULL DEFAULT 4,
       h INTEGER NOT NULL DEFAULT 3
     );
+    CREATE INDEX IF NOT EXISTS idx_widgets_dashboard ON widgets(dashboard_id);
   SQL
 
   # Tabelas fora do SCHEMA principal: são criadas sob demanda, então bancos
@@ -127,6 +139,11 @@ module Database
         db.results_as_hash = true
         db.busy_timeout = 3000
         db.execute("PRAGMA foreign_keys = ON")
+        # Só ajustes de velocidade. O modo WAL fica DESLIGADO de propósito: o
+        # backup copia apenas o dashzon.db (ver CLAUDE.md).
+        db.execute("PRAGMA temp_store = MEMORY")
+        db.execute("PRAGMA cache_size = -16384")    # 16 MB de cache de páginas
+        db.execute("PRAGMA mmap_size = 134217728")  # leitura mapeada em memória (até 128 MB)
         db
       end
     end
@@ -137,6 +154,9 @@ module Database
       @db&.close
       @db = nil
       @extras_ok = false
+      @migrado = false
+      @falha_migracao = nil
+      @transacao_aberta = false
       @geracao = (@geracao || 0) + 1
     end
   end
@@ -215,12 +235,36 @@ module Database
     end
   end
 
+  # Escrita que devolve quantas linhas foram afetadas (0 = não achou).
+  def self.alterar(sql, params = [])
+    LOCK.synchronize do
+      connection.execute(sql, params)
+      connection.changes
+    end
+  end
+
+  # Reentrante: chamar `transaction` dentro de outra reaproveita a de fora (o
+  # SQLite não aceita BEGIN dentro de uma transação).
   def self.transaction(&block)
-    LOCK.synchronize { connection.transaction(&block) }
+    LOCK.synchronize do
+      next block.call if @transacao_aberta
+
+      @transacao_aberta = true
+      begin
+        connection.transaction(&block)
+      ensure
+        @transacao_aberta = false
+      end
+    end
   end
 
   def self.now
     Time.now.utc.iso8601
+  end
+
+  # Hora como inteiro (epoch, segundos): é assim que `registros` guarda as datas.
+  def self.agora_i
+    Time.now.to_i
   end
 
   def self.user_version
@@ -229,11 +273,43 @@ module Database
 
   def self.configured?
     return false unless File.exist?(DB_PATH)
+
+    migrar_se_preciso!
     return false if user_version < SCHEMA_VERSION
 
     !row("SELECT id FROM config WHERE id = 1").nil?
   rescue SQLite3::Exception
     false
+  end
+
+  # Banco da versão 2 é convertido no lugar (lib/migracao.rb), ANTES de qualquer
+  # outra coisa: assim ele nunca é confundido com "banco antigo" e arquivado
+  # pelo setup. Se a migração falhar, Migracao::Falha sobe até o usuário em vez
+  # de o sistema se declarar "não configurado".
+  def self.migrar_se_preciso!
+    return if @migrado
+
+    LOCK.synchronize do
+      next if @migrado
+
+      # Falhou antes? Não tenta de novo a cada requisição (cada tentativa grava
+      # outra cópia do banco): o erro volta até o servidor ser reiniciado.
+      raise @falha_migracao if @falha_migracao
+
+      begin
+        resumo = Migracao.se_preciso!(connection, DB_PATH)
+      rescue Migracao::Falha => e
+        @falha_migracao = e
+        raise
+      end
+      @migrado = true
+      next unless resumo
+
+      warn "[DashZon] Banco migrado da versão 2 para a 3: #{resumo[:registros]} registros em #{resumo[:modulos]} módulos, " \
+           "#{resumo[:bytes_antes] / 1024} KB -> #{resumo[:bytes_depois] / 1024} KB. " \
+           "Cópia de segurança do banco antigo: #{resumo[:backup]}" \
+           "#{resumo[:valores_descartados].positive? ? " (#{resumo[:valores_descartados]} valores inválidos viraram vazio)" : ''}"
+    end
   end
 
   def self.config
@@ -254,7 +330,14 @@ module Database
 
   def self.create_schema!(org_name:, moeda:)
     LOCK.synchronize do
+      # Num banco novo, o auto_vacuum incremental precisa ser definido antes da
+      # primeira tabela: depois, o espaço de dados apagados pode ser devolvido
+      # ao disco (compactar!) sem reescrever o arquivo inteiro.
+      if connection.get_first_value("SELECT COUNT(*) FROM sqlite_master").to_i.zero?
+        connection.execute("PRAGMA auto_vacuum = INCREMENTAL")
+      end
       connection.execute_batch(SCHEMA)
+      @migrado = true
       connection.execute("PRAGMA user_version = #{SCHEMA_VERSION}")
       execute(
         "INSERT INTO config (id, org_name, moeda, configured_at) VALUES (1, ?, ?, ?)
@@ -329,22 +412,96 @@ module Database
     !row("SELECT id FROM modulos WHERE slug = ?", [slug]).nil?
   end
 
-  # --- registros -------------------------------------------------------------
+  # Devolve ao sistema operacional o espaço livre deixado por dados apagados
+  # (por exemplo, depois de excluir um módulo grande). Sem WAL, o arquivo
+  # encolhe na hora.
+  def self.compactar!
+    LOCK.synchronize { connection.execute("PRAGMA incremental_vacuum") }
+  end
 
-  # Registro "achatado" (id + metadados + campos de `dados` no mesmo nível),
-  # formato usado tanto pela API quanto pelo motor C++.
-  def self.registros(modulo_id)
-    rows("SELECT * FROM registros WHERE modulo_id = ? ORDER BY criado_em DESC, id DESC", [modulo_id]).map do |r|
-      flatten_registro(r)
+  # --- registros -------------------------------------------------------------
+  # `modulo` é o hash devolvido por `modulo(slug)` (precisa do id e do schema,
+  # que diz em que posição do array cada campo está).
+
+  # Registros "achatados" (id + metadados + campos no mesmo nível), formato
+  # usado tanto pela API quanto pelo motor C++, do mais novo para o mais
+  # antigo (ordenar pelo id usa o índice, sem passo de ordenação).
+  #
+  # `campos` (lista de ids) limita o que é lido de cada registro, e `meta: false`
+  # tira os carimbos de data: para somar ou agrupar basta mandar ao motor os
+  # campos da consulta, não a linha toda. Os valores são os mesmos.
+  def self.registros(modulo, campos: nil, meta: true)
+    plano = RecordCodec.plano(modulo["schema"], campos)
+    linhas = LOCK.synchronize do
+      connection.execute(
+        "SELECT id, dados, criado_em, atualizado_em FROM registros WHERE modulo_id = ? ORDER BY id DESC", [modulo["id"]]
+      )
+    end
+    linhas.map { |r| achatar(plano, r, meta) }
+  end
+
+  def self.registro(modulo, id)
+    r = row("SELECT id, dados, criado_em, atualizado_em FROM registros WHERE modulo_id = ? AND id = ?", [modulo["id"], id])
+    r && achatar(RecordCodec.plano(modulo["schema"]), r, true)
+  end
+
+  def self.inserir_registro(modulo, dados, agora = agora_i)
+    insert("INSERT INTO registros (modulo_id, dados, criado_em) VALUES (?, ?, ?)",
+           [modulo["id"], RecordCodec.pack(modulo["schema"], dados), agora])
+  end
+
+  # Devolve false se o registro não existe.
+  def self.atualizar_registro(modulo, id, dados)
+    alterar("UPDATE registros SET dados = ?, atualizado_em = ? WHERE id = ? AND modulo_id = ?",
+            [RecordCodec.pack(modulo["schema"], dados), agora_i, id, modulo["id"]]).positive?
+  end
+
+  def self.remover_registro(modulo, id)
+    alterar("DELETE FROM registros WHERE id = ? AND modulo_id = ?", [id, modulo["id"]]).positive?
+  end
+
+  # Quando a edição de um módulo troca o TIPO de um campo que já existia, os
+  # valores gravados (codificados para o tipo antigo) são convertidos para o
+  # novo, no que for possível: o que não converte vira vazio. Sem mudança de
+  # tipo, não toca em nenhum registro. Rode dentro da mesma transação que
+  # grava o schema novo.
+  def self.reconverter_registros!(modulo_id, antigo, novo)
+    tipos_antigos = antigo["campos"].to_h { |c| [c["id"], c["tipo"]] }
+    mudancas = novo["campos"].filter_map do |c|
+      antes = tipos_antigos[c["id"]]
+      next if antes.nil? || antes == c["tipo"]
+
+      converter = lambda do |valor|
+        ModuleSchema.coerce_valor(c, valor)
+      rescue ModuleSchema::Error
+        nil
+      end
+      [novo["slots"].fetch(c["id"]), antes, c["tipo"], converter]
+    end
+    return if mudancas.empty?
+
+    transaction do
+      rows("SELECT id, dados FROM registros WHERE modulo_id = ?", [modulo_id]).each do |r|
+        execute("UPDATE registros SET dados = ? WHERE id = ?", [RecordCodec.converter_tipos(r["dados"], mudancas), r["id"]])
+      end
     end
   end
 
-  def self.registro(modulo_id, id)
-    r = row("SELECT * FROM registros WHERE modulo_id = ? AND id = ?", [modulo_id, id])
-    r && flatten_registro(r)
+  def self.achatar(plano, r, meta)
+    h = RecordCodec.unpack(plano, r["dados"])
+    h["id"] = r["id"]
+    if meta
+      h["_criado_em"] = iso(r["criado_em"])
+      h["_atualizado_em"] = iso(r["atualizado_em"] || r["criado_em"])
+    end
+    h
   end
 
-  def self.flatten_registro(r)
-    JSON.parse(r["dados"]).merge("id" => r["id"], "_criado_em" => r["criado_em"], "_atualizado_em" => r["atualizado_em"])
+  # Epoch -> texto ISO 8601 (o formato que a API sempre devolveu). Muitos
+  # registros compartilham o mesmo segundo, então o texto é calculado uma vez.
+  def self.iso(epoch)
+    @isos ||= {}
+    @isos.clear if @isos.size > 50_000
+    @isos[epoch] ||= Time.at(epoch).utc.iso8601
   end
 end

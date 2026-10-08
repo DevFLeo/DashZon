@@ -21,7 +21,11 @@ module ModuleSchema
 
   # --- definição de módulo ---------------------------------------------------
 
-  def normalize_modulo!(defn)
+  # `anterior` é o schema já gravado do módulo (na edição). Ele só serve para
+  # manter o slot de cada campo: os registros são guardados em arrays
+  # posicionais (ver RecordCodec), então o slot de um campo nunca muda nem é
+  # reaproveitado por outro, mesmo que o campo seja reordenado ou removido.
+  def normalize_modulo!(defn, anterior = nil)
     raise Error, "A definição do módulo deve ser um objeto JSON" unless defn.is_a?(Hash)
 
     slug = (defn["slug"] || defn["id"]).to_s
@@ -49,8 +53,32 @@ module ModuleSchema
       "icone" => defn["icone"].to_s.strip,
       "campos" => campos,
       "rotulo" => rotulo,
-      "resumo" => resumo
+      "resumo" => resumo,
+      "slots" => atribuir_slots(campos, anterior)
     }
+  end
+
+  # id do campo => posição no array do registro. Campos removidos continuam no
+  # mapa: se voltarem a existir, recuperam os dados antigos em vez de ocupar
+  # (ou herdar) o lugar de outro campo.
+  def atribuir_slots(campos, anterior)
+    slots = (anterior && anterior["slots"] || {}).dup
+    campos.each { |c| slots[c["id"]] ||= slots.size }
+    slots
+  end
+
+  # A parte do módulo que vai para a coluna `modulos.schema`.
+  def schema_de(modulo)
+    modulo.slice("campos", "rotulo", "resumo", "slots")
+  end
+
+  # Ids dos campos que as consultas do motor realmente leem (agrupar, série,
+  # valor, sinal e filtros). Só decide QUAIS campos são enviados ao motor; a
+  # consulta em si (engine_query) não muda.
+  def campos_usados(queries)
+    queries.flat_map do |q|
+      [q["group_by"], q["series_by"], q["value_field"], q["sign_field"], *q["filters"].keys]
+    end.map(&:to_s).reject(&:empty?).uniq
   end
 
   def normalize_campo!(c, slug, vistos)
@@ -218,12 +246,12 @@ module ModuleSchema
     case c["tipo"]
     when "numero", "moeda"
       n = raw.is_a?(Numeric) ? raw.to_f : parse_number(raw.to_s)
-      raise Error, "'#{c['nome']}' deve ser um número" if n.nil?
+      raise Error, "'#{c['nome']}' deve ser um número" if n.nil? || !n.finite?
 
       c["tipo"] == "moeda" ? n.round(2) : n
     when "data"
       s = raw.to_s[0, 10]
-      raise Error, "'#{c['nome']}' deve ser uma data (AAAA-MM-DD)" unless s.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+      raise Error, "'#{c['nome']}' deve ser uma data válida (AAAA-MM-DD)" unless data_valida?(s)
 
       s
     when "selecao", "movimento"
@@ -234,6 +262,17 @@ module ModuleSchema
     when "texto" then raw.to_s.strip[0, 500]
     when "texto_longo" then raw.to_s.strip[0, 5000]
     end
+  end
+
+  # O formato compacto guarda a data como número de dias, então ela precisa
+  # existir de verdade no calendário (2026-13-45 passava no regex antigo).
+  def data_valida?(s)
+    return false unless s.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+
+    Date.strptime(s, "%Y-%m-%d")
+    true
+  rescue Date::Error
+    false
   end
 
   # Aceita "1234.56", "1234,56" e "1.234,56".
