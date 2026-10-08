@@ -68,7 +68,9 @@ O sistema tem uso real (várias pessoas, possivelmente na internet). Toda modifi
 - Acesse o banco só pelos helpers de `Database` (`rows`, `row`, `execute`, `insert`, `transaction`), que serializam a conexão única. Não abra outra conexão SQLite.
 - Operações de várias escritas (instalar template, excluir módulo) ficam dentro de `Database.transaction`: ou tudo ou nada.
 - Erros esperados levantam `ModuleSchema::Error` (vira **422** com mensagem em português). 404 para o que não existe, 401 sem login, 409 antes do setup. Nunca devolva stack trace ao navegador.
-- Tabelas novas em bancos existentes: `CREATE TABLE IF NOT EXISTS` via `garantir_tabelas!`, sem subir `SCHEMA_VERSION` à toa. Subir a versão arquiva o banco do usuário.
+- Tabelas novas em bancos existentes: `CREATE TABLE IF NOT EXISTS` via `garantir_tabelas!`, sem subir `SCHEMA_VERSION` à toa. Subir a versão sem migração arquiva o banco do usuário.
+- Mudança no **formato** de dados já gravados (como o registro compacto da v3) sobe `SCHEMA_VERSION` **e** vem com migração no lugar em `lib/migracao.rb`: cópia de segurança antes, uma única transação, falha vira `Migracao::Falha` (nunca "não configurado") e teste com um banco antigo de verdade (`test/migracao_test.rb`). Quem já tem dados jamais pode cair no `arquivar_versao_antiga!`.
+- `registros.dados` é um array compacto (`RecordCodec`, posições em `schema.slots`). Leia e grave **só** por `Database.registros`, `registro`, `inserir_registro`, `atualizar_registro` e `remover_registro`; SQL direto nessa coluna lê/grava no formato errado. Datas de `registros` são inteiros (a API devolve ISO).
 - Toda rota nova sob `/api` passa pelo filtro de login. Se uma rota precisar ser aberta, ela entra explicitamente em `ROTAS_ABERTAS` e é justificada no comentário.
 - Limites em entradas do usuário (tamanho de texto, quantidade de linhas importadas, tamanho de upload).
 

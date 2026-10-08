@@ -112,7 +112,7 @@ POST /api/email/verificar    -> {token}
 |---|---|
 | `config` | Uma linha só: nome da organização, moeda e data do setup |
 | `modulos` | Um por módulo instalado: `slug` (identificador único), nome, descrição, ícone e **`schema`** (JSON com campos, rótulo e resumo) |
-| `registros` | Os dados de **todos** os módulos: `modulo_id` + **`dados`** (JSON com os valores dos campos) |
+| `registros` | Os dados de **todos** os módulos: `modulo_id` + **`dados`** (array JSON compacto, ver "Formato do registro em disco") + `criado_em` / `atualizado_em` como **inteiros** (epoch em segundos; `atualizado_em` fica vazio enquanto o registro nunca foi editado) |
 | `dashboards` | Nome de cada dashboard |
 | `widgets` | Cada cartão do dashboard: título, tipo (kpi/bar/line/table), `modulo_slug`, **`config`** (JSON: o que medir e como agrupar) e posição x/y/w/h |
 | `usuarios` | Contas: `login`, `senha_hash` + `sal`, nome, e-mail (+ `email_verificado_em`), `documento_tipo` / `documento_hash` / `documento_mascara`, cargo, `perfil` (`admin`/`usuario`), `ativo`, `deve_trocar_senha`, `sessao_versao`, último login |
@@ -124,15 +124,49 @@ POST /api/email/verificar    -> {token}
 
 **Onde fica cada JSON:** os templates padrão são arquivos em `backend/templates/` e vão para o git. Tudo o que o usuário traz ou gera (templates importados, exportações) vai para a tabela `jsons` do banco, que já fica fora do git. O `.gitignore` também ignora qualquer outro `.json` solto no projeto; um template colocado em `backend/templates/` continua aparecendo na galeria localmente, mas não é versionado.
 
-Por que JSON dentro do SQLite? Porque criar ou alterar um módulo não exige migração de banco: um campo novo é só uma chave a mais no JSON. A versão do schema fica em `PRAGMA user_version` (hoje `2`).
+Por que JSON dentro do SQLite? Porque criar ou alterar um módulo não exige migração de banco. A versão do schema fica em `PRAGMA user_version` (hoje `3`).
 
-Um registro "achatado", no formato que a API e o C++ usam, fica assim:
+### Formato do registro em disco
+
+Um objeto JSON por registro repetia o nome de todos os campos em todas as linhas. Por isso cada módulo guarda em `schema.slots` o mapa `id do campo -> posição`, e o registro é um **array JSON posicional** (módulo `RecordCodec`, `lib/record_codec.rb`), com os tipos encurtados:
+
+| Tipo | Como é gravado |
+|---|---|
+| `data` | dias desde 1970-01-01 (`20412` = 2025-11-20) |
+| `booleano` | `1` / `0` |
+| `movimento` | `0` = entrada, `1` = saída |
+| `numero`, `moeda` | número; inteiro quando não tem casas decimais |
+| `texto`, `texto_longo`, `selecao` | o próprio texto |
+
+```
+antes   {"descricao":"Aluguel","tipo":"saida","valor":1450.0,"data":"2025-11-20","pago":true}
+depois  ["Aluguel",1,1450,20412,1]
+```
+
+Campos vazios no fim do array são omitidos. Os `slots` **só crescem**: um campo removido continua reservando a posição dele (se voltar com o mesmo `id`, recupera os dados), e um campo novo ganha a próxima posição livre. Por isso dá para reordenar, remover e adicionar campos no editor "Estrutura (JSON)" sem corromper os registros antigos. **Trocar o tipo** de um campo que já existe converte os valores gravados no mesmo `PUT /api/modulos/:slug` (`Database.reconverter_registros!`); o que não converte vira vazio. Os `slots` são detalhe interno: não vão para a exportação e são ignorados em templates importados.
+
+Um registro "achatado", no formato que a API e o C++ usam (o `RecordCodec` desfaz o formato compacto ao ler; as datas voltam em texto ISO como sempre), fica assim:
 
 ```json
-{ "id": 7, "descricao": "Aluguel", "tipo": "saida", "valor": 1450.0,
-  "categoria": "Moradia", "data": "2026-09-20", "pago": true,
-  "_criado_em": "...", "_atualizado_em": "..." }
+{ "id": 7, "descricao": "Aluguel", "tipo": "saida", "valor": 1450, "categoria": "Moradia",
+  "data": "2026-09-20", "pago": true, "_criado_em": "2026-09-20T12:00:00Z", "_atualizado_em": "2026-09-20T12:00:00Z" }
 ```
+
+### Migração do banco da versão 2 para a 3
+
+Um banco criado antes desta mudança (versão 2: registros em objeto JSON e datas em texto) é convertido **no lugar**, sem arquivar e sem perder dados, por `lib/migracao.rb`. Acontece sozinho na partida do servidor (`app.rb` chama `Database.configured?` logo após carregar), antes de aceitar requisições:
+
+1. Grava uma cópia consistente do banco antigo ao lado (`dashzon.db.v2-AAAAMMDDHHMMSS.bak`, via `VACUUM INTO`). Se não conseguir gravar a cópia, não migra.
+2. Numa **única transação**: calcula os `slots` de cada módulo (chaves de campos já removidos, mas ainda com valores, também ganham slot), reescreve `registros` (ids preservados) e cria o índice `idx_widgets_dashboard`. Qualquer erro desfaz tudo.
+3. Fora da transação: liga o `auto_vacuum` incremental e roda `VACUUM`, para o arquivo já ficar enxuto.
+
+O que o validador antigo aceitava mas não existe (uma data como `2026-13-45`, um texto num campo numérico) vira vazio e é contado no aviso do log; o valor original fica na cópia de segurança. Se a migração **falhar**, o servidor sobe mesmo assim e toda requisição responde erro 500 com a causa e o caminho da cópia: ela **não** é tratada como "sistema não configurado" (isso levaria ao setup, que arquivaria o banco do usuário). A falha é memorizada no processo (não tenta de novo a cada requisição, o que gravaria uma cópia a cada tentativa) até o servidor ser reiniciado. Banco de versão anterior à 2 continua sendo arquivado como `.bak` pelo setup, como antes.
+
+Os arquivos `dashzon.db.v2-*.bak` ficam na pasta do banco (no Docker, no volume `dados`) até você apagá-los. Confira que tudo está certo e remova quando quiser liberar o espaço.
+
+**Voltar atrás depois de migrar:** o código antigo não lê o formato v3. Pare o servidor, restaure a cópia `dashzon.db.v2-*.bak` sobre o `dashzon.db` (renomeando-a) e volte o código à versão anterior; o que foi lançado depois da migração não está na cópia. Se a migração **falhou** nada precisa ser restaurado: o banco continua exatamente como estava, na versão 2.
+
+**Outras convenções do banco (v3):** índice em `widgets(dashboard_id)`; `auto_vacuum` incremental (`Database.compactar!` devolve ao disco o espaço de um módulo excluído); ajustes de velocidade na conexão (`temp_store`, `cache_size`, `mmap_size`). O modo **WAL continua desligado** (o backup copia só o `dashzon.db`). As outras tabelas (`dashboards`, `usuarios`...) mantêm as datas em texto.
 
 ## 4. Formato do template JSON
 
@@ -216,21 +250,42 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 
 | Função | O que faz |
 |---|---|
-| `connection` | Abre **uma** conexão SQLite para o processo todo, com `foreign_keys` ligado |
+| `connection` | Abre **uma** conexão SQLite para o processo todo, com `foreign_keys` ligado e ajustes de velocidade (sem WAL) |
 | `LOCK` (Monitor) | Serializa o acesso. O WEBrick usa uma thread por requisição, e conexões por thread travariam o arquivo no Windows |
 | `rows` / `row` | SELECT devolvendo hashes (remove as chaves numéricas duplicadas que o driver cria) |
-| `execute` / `insert` | Escrita. `insert` devolve o id novo de forma atômica |
-| `transaction { }` | Ou tudo ou nada (usado na instalação de templates) |
-| `configured?` | O arquivo existe, o `user_version` está atual e há linha em `config` |
-| `arquivar_versao_antiga!` | Renomeia um banco de schema antigo para `.bak` (nunca apaga) |
-| `create_schema!` | Cria as tabelas e grava a `config` |
+| `execute` / `insert` / `alterar` | Escrita. `insert` devolve o id novo de forma atômica; `alterar` devolve quantas linhas foram afetadas (0 = não achou) |
+| `transaction { }` | Ou tudo ou nada (usado na instalação de templates). É **reentrante**: dentro de outra transação, reaproveita a de fora |
+| `configured?` | O arquivo existe, o banco está na versão atual (migrando-o antes, se for a 2) e há linha em `config` |
+| `migrar_se_preciso!` | Roda `Migracao.se_preciso!` uma vez por processo; memoriza uma falha para não repetir a cada requisição |
+| `arquivar_versao_antiga!` | Renomeia um banco de schema antigo (anterior à versão 2) para `.bak` (nunca apaga) |
+| `create_schema!` | Cria as tabelas (já com `auto_vacuum` incremental) e grava a `config` |
+| `compactar!` | `PRAGMA incremental_vacuum`: devolve ao disco o espaço livre (chamado ao excluir um módulo) |
 | `garantir_tabelas!` | Cria `usuarios`, `tokens`, `ajustes` e `jsons` se ainda não existirem e roda `migrar_usuarios!` (uma vez por conexão) |
 | `atualizar_config!` | Nome da organização (opcional) e moeda |
 | `salvar_json!(tipo, nome, obj)` | Guarda um JSON; um template idêntico a um já salvo não é duplicado |
 | `jsons(tipo)` / `json_salvo(id)` / `excluir_json!` | Lista (sem o conteúdo), lê e remove JSON guardados |
 | `modulos` / `modulo(slug)` | Lista ou busca módulos, já com o `schema` convertido de JSON |
 | `modulo_por_nome(nome, exceto_id:)` | Acha um módulo pelo nome, sem diferenciar maiúsculas (comparado em Ruby para tratar acentos). Base da regra "nome de módulo é único" |
-| `registros(modulo_id)` | Registros do módulo, "achatados" (ver seção 3) |
+| `registros(modulo, campos: nil, meta: true)` | Registros "achatados" (ver seção 3), do mais novo ao mais antigo. `campos` lê só esses campos e `meta: false` tira os carimbos de data: é o que resumos e cards usam para mandar ao motor só o que a consulta lê (mesmo resultado, menos dados) |
+| `registro` / `inserir_registro` / `atualizar_registro` / `remover_registro` | CRUD de um registro; empacotam e desempacotam pelo `RecordCodec` |
+| `reconverter_registros!(modulo_id, antigo, novo)` | Converte os valores gravados quando a edição do módulo troca o tipo de um campo existente |
+
+### `backend/lib/record_codec.rb` (módulo `RecordCodec`)
+
+| Função | O que faz |
+|---|---|
+| `plano(schema, somente = nil)` | Lista `[id, slot, tipo]` dos campos (ou só dos pedidos em `somente`), calculada uma vez por leitura |
+| `pack(schema, dados)` / `unpack(plano, json)` | Registro `{id => valor}` para o array JSON posicional que vai ao banco, e o caminho de volta com os valores originais |
+| `encode` / `decode` | Conversão por tipo (data em dias, booleano e movimento em 0/1, inteiro quando possível). O `decode` nunca levanta erro |
+| `converter_tipos(json, mudancas)` | Reescreve só os slots cujo tipo mudou (usado por `reconverter_registros!`) |
+
+### `backend/lib/migracao.rb` (módulo `Migracao`)
+
+| Função | O que faz |
+|---|---|
+| `se_preciso!(db, caminho)` | Se o banco é da versão 2: cópia de segurança, conversão numa transação e `VACUUM`. Devolve nil se não havia o que migrar, ou o resumo (registros, módulos, valores descartados, tamanhos, caminho da cópia). Qualquer erro vira `Migracao::Falha` |
+| `copia_de_seguranca!` | `VACUUM INTO` (ou cópia do arquivo, em SQLite sem esse comando). Sem cópia, não migra |
+| `converter!` | Calcula os slots, reescreve `registros` (ids preservados, datas em epoch) e cria o índice dos widgets |
 
 ### `backend/lib/module_schema.rb` (módulo `ModuleSchema`)
 
@@ -238,13 +293,15 @@ Um registro "achatado", no formato que a API e o C++ usam, fica assim:
 
 | Função | O que faz |
 |---|---|
-| `normalize_modulo!(defn)` | Valida slug, nome e campos; define o `rotulo`; valida o `resumo` |
+| `normalize_modulo!(defn, anterior = nil)` | Valida slug, nome e campos; define o `rotulo`; valida o `resumo`; atribui os `slots` (na edição, `anterior` é o schema gravado, para manter as posições) |
+| `schema_de(modulo)` | A parte do módulo que vai para a coluna `modulos.schema` |
+| `campos_usados(queries)` | Ids dos campos que as consultas do motor realmente leem (só decide quais campos mandar; a consulta não muda) |
 | `normalize_campo!` | Valida id/tipo, exige `opcoes` em seleção e fixa `entrada`/`saida` em movimento |
 | `normalize_consulta!` | Regras comuns a resumo e widget (tabela "Consulta" da seção 4) |
 | `normalize_widget!(w, schema)` | Valida título/tipo e a consulta; KPI e tabela não têm série |
 | `engine_query(schema, cfg)` | Traduz a consulta para o motor C++. `saldo` vira `sign_field` + `negative_values: ["saida"]` |
 | `coerce_registro!(schema, dados)` | Valida e converte os valores de um registro, aplica `padrao` e descarta chaves desconhecidas |
-| `coerce_valor` | Conversão por tipo (número, data, opção válida...) |
+| `coerce_valor` | Conversão por tipo (número finito, data que exista no calendário, opção válida...) |
 | `parse_number` | Aceita `1234.56`, `1234,56` e `1.234,56` |
 | `resolve_token` | `$hoje`, `$hoje-30`, `$hoje+7` viram uma data |
 
@@ -486,7 +543,7 @@ cd backend
 bundle exec rake test     # Minitest + Rack::Test, banco temporário; nunca toca data/dashzon.db
 ```
 
-Os testes ficam em `backend/test/` (`usuarios_test.rb`, `documento_test.rb`, `modulos_test.rb`); `test_helper.rb` aponta `DASHZON_DB_PATH` para uma pasta temporária **antes** de carregar o app e zera o banco a cada teste. Pela regra do `CLAUDE.md`, toda mudança passa duas vezes pela validação (testes + teste de ponta a ponta no navegador numa instância separada, em outra porta e com outro banco) antes do commit.
+Os testes ficam em `backend/test/` (`usuarios_test.rb`, `documento_test.rb`, `modulos_test.rb`, `desempenho_test.rb`, e os do banco: `registro_codec_test.rb`, `registros_compactos_test.rb` e `migracao_test.rb`, que monta um banco v2 de verdade, migra e confere dados, cópia de segurança e os caminhos de falha); `test_helper.rb` aponta `DASHZON_DB_PATH` para uma pasta temporária **antes** de carregar o app e zera o banco a cada teste. Pela regra do `CLAUDE.md`, toda mudança passa duas vezes pela validação (testes + teste de ponta a ponta no navegador numa instância separada, em outra porta e com outro banco) antes do commit.
 
 ### Esqueci a senha do administrador
 
@@ -533,6 +590,8 @@ curl -s -X POST $B/api/modulos/movimentacoes/registros -H "Content-Type: applica
 - **Cache de resultados** (`lib/desempenho.rb`, `CacheResultados`): cards, resumos, buscas e a prévia guardam a resposta do motor C++. A chave leva módulo, schema e consulta; a validade é `Database.versao_dados` (`PRAGMA data_version` + `total_changes` + geração da conexão), que muda a cada gravação, inclusive de outro processo. Mudou o banco, o cache inteiro some. Os testes em `test/desempenho_test.rb` cobrem incluir, editar, excluir, duas gravações no mesmo segundo e gravação por outro processo.
 - **gzip** (`Rack::Deflater`) em tudo e **cache de estáticos** (`CacheEstaticos`): `vendor/` e `preview/` por 1 dia; o resto com `no-cache` (o navegador revalida e recebe 304).
 - **Puma** fora do Windows (no Docker); no Windows fica o WEBrick.
+- **Banco compacto** (schema v3): registros em array posicional com datas em dias e datas de criação em inteiros, índice nos widgets, `auto_vacuum` incremental e cache de páginas maior. Com 50 mil lançamentos, o arquivo foi de 10,5 MB para 4,3 MB (e de 19,7 MB para 8,6 MB com 100 mil, migrando um banco real). O WAL segue desligado de propósito.
+- **Resumos e cards leem só o que usam:** `Database.registros(m, campos:, meta: false)` manda ao motor C++ apenas os campos da consulta (a conta e o resultado são os mesmos; num card de soma por mês com 50 mil registros, de 11,4 MB para 6,0 MB enviados e de 1,37 s para 0,82 s sem cache).
 - Medido na instância de teste: transferência ao abrir de 375 KB para 116 KB; 8 cards em paralelo de ~90–150 ms para ~50 ms no Windows e ~30 ms no Docker.
 
 ### Docker

@@ -121,6 +121,8 @@ Para usar outra porta local: crie um `.env` na raiz com `DASHZON_PORTA=8080` (ve
 
 Os dados (banco + chave do servidor) ficam no volume **`dashzon_dashzon-dados`**. Eles continuam lá quando você para, atualiza ou recria o container. **Nunca rode `docker compose down -v`** (o `-v` apaga o volume, e com ele todos os dados).
 
+**Primeira partida depois de uma atualização que mudou o formato do banco** (a que trouxe o banco compacto, versão 3): o DashZon converte o banco sozinho antes de aceitar acessos. Antes disso ele grava uma cópia ao lado (`dashzon.db.v2-AAAAMMDDHHMMSS.bak`, dentro do volume). Leva alguns segundos (cerca de 6 s para 100 mil registros), e o `docker compose ps` pode mostrar `starting` até terminar. Acompanhe com `docker compose logs --tail 20 dashzon`: aparece "Banco migrado da versão 2 para a 3". O arquivo de cópia pode ser apagado depois que você conferir que está tudo certo.
+
 ### 2.4 Backup e restauração
 
 Rode na pasta onde quer guardar o arquivo. Os comandos são iguais no PowerShell e no bash.
@@ -143,7 +145,7 @@ docker compose -f C:/Projetos/DashZon/docker-compose.yml start dashzon
 
 (No Linux, troque `C:/Projetos/DashZon` pelo caminho do projeto no servidor.)
 
-O backup leva o banco **e** a chave do servidor juntos: restaurado, tudo volta a funcionar, inclusive os logins. Guarde o arquivo em outro lugar (outro disco, nuvem).
+O backup leva o banco **e** a chave do servidor juntos: restaurado, tudo volta a funcionar, inclusive os logins. Guarde o arquivo em outro lugar (outro disco, nuvem). Um backup feito numa versão antiga também pode ser restaurado numa versão nova: o banco é convertido na partida, como acima.
 
 Também dá para exportar pelo próprio DashZon, em "Backup com dados (JSON)", mas esse arquivo não leva as contas de usuário nem as senhas.
 
@@ -210,3 +212,4 @@ Para acessar de fora usando o PC de casa com um endereço grátis (`SEUNOME.duck
 | O certificado HTTPS não sai (Opção 3) | Confira o DNS (registro A) e se as portas 80 e 443 estão abertas; `docker compose logs caddy` |
 | Todo mundo caiu para a tela de login de uma vez | A chave do servidor foi trocada ou apagada (`segredo.key`); restaure do backup |
 | Esqueci a senha do único administrador | Veja "Esqueci a senha do administrador" em `docs/DESENVOLVIMENTO.md` |
+| Depois de atualizar, tudo dá erro 500 e o log fala em "migrar o banco" | A conversão para o formato compacto falhou e **nada foi alterado**. O log traz a causa e o caminho da cópia (`dashzon.db.v2-....bak`). Volte ao código anterior (`git checkout` da versão antiga e `docker compose up -d --build`), que lê o mesmo banco, e avise o motivo |
