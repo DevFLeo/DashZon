@@ -118,7 +118,7 @@ POST /api/email/verificar    -> {token}
 | `usuarios` | Contas: `login`, `senha_hash` + `sal`, nome, e-mail (+ `email_verificado_em`), `documento_tipo` / `documento_hash` / `documento_mascara`, cargo, `perfil` (`admin`/`usuario`), `ativo`, `deve_trocar_senha`, `sessao_versao`, último login |
 | `tokens` | Links de uso único (`redefinir_senha` 24 h, `verificar_email` 7 dias): só o `token_hash`, com validade e data de uso |
 | `ajustes` | Regras do painel do adm (chave/valor): `exigir_documento`, `exigir_email`, `exigir_email_verificado` |
-| `jsons` | JSON do usuário: `tipo` `template` (importados, aparecem na galeria) ou `exportacao` (cada backup baixado), com `nome` e `conteudo` |
+| `jsons` | JSON do usuário: `tipo` `template` (importados, aparecem na galeria) ou `exportacao` (cada backup baixado), com `nome` e `conteudo` (**comprimido com zlib**, num BLOB; ver "JSON do usuário comprimido") |
 
 `usuarios`, `tokens`, `ajustes` e `jsons` ficam fora do `SCHEMA` principal (`EXTRAS_SQL`) e são criadas sob demanda por `garantir_tabelas!`, então um banco existente as ganha sem mudar o `user_version`. As colunas novas de `usuarios` entram por `migrar_usuarios!` (compara com `PRAGMA table_info` e faz `ALTER TABLE`); num banco que já tinha usuários mas nenhum administrador, o primeiro vira administrador.
 
@@ -152,12 +152,20 @@ Um registro "achatado", no formato que a API e o C++ usam (o `RecordCodec` desfa
   "data": "2026-09-20", "pago": true, "_criado_em": "2026-09-20T12:00:00Z", "_atualizado_em": "2026-09-20T12:00:00Z" }
 ```
 
+### JSON do usuário comprimido
+
+Cada "Backup com dados (JSON)" guarda uma cópia completa dos registros na tabela `jsons`, em JSON verboso. Sem compressão, cada exportação ocupava no banco tanto quanto todos os dados juntos. Por isso `conteudo` é gravado **comprimido com zlib**, num BLOB (módulo `JsonGuardado`, `lib/json_guardado.rb`; JSON comprime cerca de 10 vezes). Não muda o schema: a coluna continua `TEXT`, e o SQLite guarda o BLOB como está.
+
+- `Database.salvar_json!`, `json_salvo`, `jsons` e `excluir_json!` são o único caminho: comprimem ao gravar e descomprimem ao ler. A API (`/api/exportacoes`, galeria de templates) não muda; o `bytes` da lista passa a ser o tamanho realmente ocupado no banco.
+- Linhas antigas em texto puro continuam legíveis: `JsonGuardado.decodificar` aceita os dois formatos (um JSON em texto começa por `{` ou `[`; um fluxo zlib sempre começa por `0x78`, então não se confundem). A migração v2 para v3 comprime as que já existem, dentro da mesma transação e coberta pela mesma cópia de segurança.
+- A deduplicação de templates importados compara o texto **descomprimido**, não o BLOB, para não depender de o zlib produzir a mesma saída em versões diferentes.
+
 ### Migração do banco da versão 2 para a 3
 
 Um banco criado antes desta mudança (versão 2: registros em objeto JSON e datas em texto) é convertido **no lugar**, sem arquivar e sem perder dados, por `lib/migracao.rb`. Acontece sozinho na partida do servidor (`app.rb` chama `Database.configured?` logo após carregar), antes de aceitar requisições:
 
 1. Grava uma cópia consistente do banco antigo ao lado (`dashzon.db.v2-AAAAMMDDHHMMSS.bak`, via `VACUUM INTO`). Se não conseguir gravar a cópia, não migra.
-2. Numa **única transação**: calcula os `slots` de cada módulo (chaves de campos já removidos, mas ainda com valores, também ganham slot), reescreve `registros` (ids preservados) e cria o índice `idx_widgets_dashboard`. Qualquer erro desfaz tudo.
+2. Numa **única transação**: calcula os `slots` de cada módulo (chaves de campos já removidos, mas ainda com valores, também ganham slot), reescreve `registros` (ids preservados), cria o índice `idx_widgets_dashboard` e comprime as exportações e templates antigos da tabela `jsons` (o texto descomprimido é idêntico ao original). Qualquer erro desfaz tudo.
 3. Fora da transação: liga o `auto_vacuum` incremental e roda `VACUUM`, para o arquivo já ficar enxuto.
 
 O que o validador antigo aceitava mas não existe (uma data como `2026-13-45`, um texto num campo numérico) vira vazio e é contado no aviso do log; o valor original fica na cópia de segurança. Se a migração **falhar**, o servidor sobe mesmo assim e toda requisição responde erro 500 com a causa e o caminho da cópia: ela **não** é tratada como "sistema não configurado" (isso levaria ao setup, que arquivaria o banco do usuário). A falha é memorizada no processo (não tenta de novo a cada requisição, o que gravaria uma cópia a cada tentativa) até o servidor ser reiniciado. Banco de versão anterior à 2 continua sendo arquivado como `.bak` pelo setup, como antes.
@@ -262,8 +270,8 @@ Os arquivos `dashzon.db.v2-*.bak` ficam na pasta do banco (no Docker, no volume 
 | `compactar!` | `PRAGMA incremental_vacuum`: devolve ao disco o espaço livre (chamado ao excluir um módulo) |
 | `garantir_tabelas!` | Cria `usuarios`, `tokens`, `ajustes` e `jsons` se ainda não existirem e roda `migrar_usuarios!` (uma vez por conexão) |
 | `atualizar_config!` | Nome da organização (opcional) e moeda |
-| `salvar_json!(tipo, nome, obj)` | Guarda um JSON; um template idêntico a um já salvo não é duplicado |
-| `jsons(tipo)` / `json_salvo(id)` / `excluir_json!` | Lista (sem o conteúdo), lê e remove JSON guardados |
+| `salvar_json!(tipo, nome, obj)` | Guarda um JSON **comprimido**; um template idêntico a um já salvo (comparando o texto descomprimido) não é duplicado |
+| `jsons(tipo)` / `json_salvo(id)` / `excluir_json!` | Lista (sem o conteúdo, com o `bytes` ocupado), lê (descomprimindo, aceita também texto antigo) e remove JSON guardados |
 | `modulos` / `modulo(slug)` | Lista ou busca módulos, já com o `schema` convertido de JSON |
 | `modulo_por_nome(nome, exceto_id:)` | Acha um módulo pelo nome, sem diferenciar maiúsculas (comparado em Ruby para tratar acentos). Base da regra "nome de módulo é único" |
 | `registros(modulo, campos: nil, meta: true)` | Registros "achatados" (ver seção 3), do mais novo ao mais antigo. `campos` lê só esses campos e `meta: false` tira os carimbos de data: é o que resumos e cards usam para mandar ao motor só o que a consulta lê (mesmo resultado, menos dados) |
@@ -279,13 +287,21 @@ Os arquivos `dashzon.db.v2-*.bak` ficam na pasta do banco (no Docker, no volume 
 | `encode` / `decode` | Conversão por tipo (data em dias, booleano e movimento em 0/1, inteiro quando possível). O `decode` nunca levanta erro |
 | `converter_tipos(json, mudancas)` | Reescreve só os slots cujo tipo mudou (usado por `reconverter_registros!`) |
 
+### `backend/lib/json_guardado.rb` (módulo `JsonGuardado`)
+
+| Função | O que faz |
+|---|---|
+| `codificar(obj)` / `comprimir_texto(texto)` | Objeto Ruby (ou texto JSON pronto) para o BLOB zlib que vai ao banco |
+| `decodificar(valor)` / `texto(valor)` | O caminho de volta: aceita o BLOB comprimido e também texto antigo, e devolve o objeto (ou o texto JSON) |
+| `comprimido?(valor)` | Reconhece um fluxo zlib pelo primeiro byte (`0x78`) |
+
 ### `backend/lib/migracao.rb` (módulo `Migracao`)
 
 | Função | O que faz |
 |---|---|
 | `se_preciso!(db, caminho)` | Se o banco é da versão 2: cópia de segurança, conversão numa transação e `VACUUM`. Devolve nil se não havia o que migrar, ou o resumo (registros, módulos, valores descartados, tamanhos, caminho da cópia). Qualquer erro vira `Migracao::Falha` |
 | `copia_de_seguranca!` | `VACUUM INTO` (ou cópia do arquivo, em SQLite sem esse comando). Sem cópia, não migra |
-| `converter!` | Calcula os slots, reescreve `registros` (ids preservados, datas em epoch) e cria o índice dos widgets |
+| `converter!` | Calcula os slots, reescreve `registros` (ids preservados, datas em epoch), cria o índice dos widgets e comprime os JSON antigos (`comprimir_jsons!`) |
 
 ### `backend/lib/module_schema.rb` (módulo `ModuleSchema`)
 
@@ -543,7 +559,7 @@ cd backend
 bundle exec rake test     # Minitest + Rack::Test, banco temporário; nunca toca data/dashzon.db
 ```
 
-Os testes ficam em `backend/test/` (`usuarios_test.rb`, `documento_test.rb`, `modulos_test.rb`, `desempenho_test.rb`, e os do banco: `registro_codec_test.rb`, `registros_compactos_test.rb` e `migracao_test.rb`, que monta um banco v2 de verdade, migra e confere dados, cópia de segurança e os caminhos de falha); `test_helper.rb` aponta `DASHZON_DB_PATH` para uma pasta temporária **antes** de carregar o app e zera o banco a cada teste. Pela regra do `CLAUDE.md`, toda mudança passa duas vezes pela validação (testes + teste de ponta a ponta no navegador numa instância separada, em outra porta e com outro banco) antes do commit.
+Os testes ficam em `backend/test/` (`usuarios_test.rb`, `documento_test.rb`, `modulos_test.rb`, `desempenho_test.rb`, e os do banco: `registro_codec_test.rb`, `registros_compactos_test.rb`, `json_guardado_test.rb` e `migracao_test.rb`, que monta um banco v2 de verdade, migra e confere dados, cópia de segurança e os caminhos de falha); `test_helper.rb` aponta `DASHZON_DB_PATH` para uma pasta temporária **antes** de carregar o app e zera o banco a cada teste. Pela regra do `CLAUDE.md`, toda mudança passa duas vezes pela validação (testes + teste de ponta a ponta no navegador numa instância separada, em outra porta e com outro banco) antes do commit.
 
 ### Esqueci a senha do administrador
 

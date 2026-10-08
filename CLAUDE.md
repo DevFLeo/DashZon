@@ -27,7 +27,7 @@ Os trechos protegidos têm um comentário `REGRA:` no código apontando para est
 
 ## Regras de domínio
 
-- JSON do usuário (templates importados, exportações) vai para a tabela `jsons` do banco, nunca para arquivos versionados. Só os templates padrão em `backend/templates/` ficam no git.
+- JSON do usuário (templates importados, exportações) vai para a tabela `jsons` do banco, nunca para arquivos versionados. Só os templates padrão em `backend/templates/` ficam no git. O `conteudo` é gravado **comprimido** (`JsonGuardado`): leia e grave só por `Database.salvar_json!`, `json_salvo`, `jsons` e `excluir_json!`.
 - Nomes de módulo são únicos (sem diferenciar maiúsculas); instalar um template reaproveita o módulo que já tem o mesmo nome.
 - O banco só nasce no setup. Nenhuma rota pode criar `data/dashzon.db` antes disso.
 - Um banco de schema antigo nunca é apagado: vira `.bak` (`arquivar_versao_antiga!`).
