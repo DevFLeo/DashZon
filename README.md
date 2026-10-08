@@ -21,7 +21,7 @@ A inspiração veio de projetos open source de finanças como o [OpenMonetis](ht
 - **Modo privacidade:** esconde os valores em moeda com um clique.
 - **Três temas com um clique:** sol (claro) → pôr do sol (**suave**: fundo creme, contraste mais baixo e menos luz azul, para cansar menos a vista) → lua (escuro). O ícone gira a cada troca. Em **Minha conta** dá para escolher o tema, a página que abre ao entrar, começar com os valores ocultos e "sair dos outros dispositivos". Tudo fica salvo na conta.
 - **Exportar/backup:** a configuração (e, se quiser, os dados) sai em JSON no mesmo formato de template.
-- **JSON do usuário no banco:** templates importados e cada exportação ficam guardados no SQLite (tabela `jsons`), e os importados voltam na galeria. No git ficam só os templates padrão; qualquer outro `.json` é ignorado.
+- **JSON do usuário no banco:** templates importados e cada exportação ficam guardados no SQLite (tabela `jsons`), **comprimidos** (ocupam cerca de 1/10 do espaço), e os importados voltam na galeria. No git ficam só os templates padrão; qualquer outro `.json` é ignorado.
 
 ## Como funciona
 
@@ -172,7 +172,7 @@ Aconteceu algumas vezes ao iniciar pelo `Start-Process` com janela minimizada. O
 Busca e soma sobre muitos registros ficam num binário rápido e sem dependências. A API em Ruby continua simples e cuida do banco e das regras. O C++ nunca abre o banco: recebe registros e devolve números.
 
 **"Por que JSON dentro do SQLite?"**
-Para criar ou mudar um módulo sem migração de banco. Para não desperdiçar espaço, cada registro é guardado como um array (`["Aluguel",1,1450,20412,1]`), sem repetir o nome dos campos em todas as linhas: o arquivo fica mais de **50% menor** (10,5 MB para 4,3 MB com 50 mil lançamentos). A API e o motor continuam vendo o registro completo, e dá para reordenar, remover e adicionar campos no editor de estrutura sem embaralhar os dados.
+Para criar ou mudar um módulo sem migração de banco. Para não desperdiçar espaço, cada registro é guardado como um array (`["Aluguel",1,1450,20412,1]`), sem repetir o nome dos campos em todas as linhas: o arquivo fica mais de **50% menor** (10,5 MB para 4,3 MB com 50 mil lançamentos). A API e o motor continuam vendo o registro completo, e dá para reordenar, remover e adicionar campos no editor de estrutura sem embaralhar os dados. Pelo mesmo motivo, as exportações guardadas no banco ("Backup com dados") ficam comprimidas: cada uma ocupava tanto quanto todos os seus dados juntos.
 
 **"Atualizei e apareceu um arquivo `dashzon.db.v2-....bak` ao lado do banco. Posso apagar?"**
 É a cópia de segurança que o DashZon faz sozinho antes de converter um banco da versão antiga para o formato compacto (acontece uma vez, na primeira partida depois da atualização; o log mostra "Banco migrado da versão 2 para a 3"). Confira que tudo está certo e apague quando quiser: ele só serve para voltar atrás (nesse caso, restaure-o sobre o `dashzon.db` e volte o código à versão anterior; o que foi lançado depois da migração não está nele). Os dados e as contas continuam intactos.
