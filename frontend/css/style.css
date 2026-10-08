@@ -154,6 +154,11 @@ h1, h2, h3 { margin: 0; }
 }
 
 .brand { padding: 18px 18px 12px; }
+.brand-nome { flex: 1; min-width: 0; }
+.menu-btn { display: none; }
+/* No computador o invólucro do menu não existe para o layout: nav e rodapé
+   continuam filhos diretos da barra lateral. No celular ele vira a gaveta. */
+.sidebar-corpo { display: contents; }
 .brand strong { font-size: 17px; letter-spacing: -.01em; }
 .brand small { display: block; color: var(--text-muted); font-size: 12px; margin-top: 2px; }
 
@@ -257,6 +262,14 @@ table.data .row-actions { display: flex; gap: 6px; justify-content: flex-end; wh
   padding: 22px 24px; width: 100%; max-width: 520px; max-height: calc(100vh - 40px); overflow: auto;
 }
 .modal-lg { max-width: 820px; }
+/* "×" no topo de todo modal que pode ser fechado (criado pelo app.js). Fica
+   preso no alto ao rolar, o que importa no celular, onde o modal ocupa a tela
+   e não há tecla Esc. */
+.modal-fechar {
+  position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; margin: -8px -10px -24px auto; font-size: 22px; background: var(--surface-1);
+}
+.modal-fechar + h2 { padding-right: 36px; }
 .modal h2 { font-size: 18px; margin-bottom: 16px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 .modal-actions .spacer { flex: 1; }
@@ -323,9 +336,15 @@ textarea.code {
   background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md);
   padding: 12px 14px; display: flex; flex-direction: column;
 }
-.widget-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: move; margin-bottom: 6px; }
+.widget-header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: move; margin-bottom: 6px; min-height: 24px; }
 .widget-header .title { font-size: 13px; font-weight: 700; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.widget-header .tools { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+/* Com mouse, as ferramentas só aparecem ao passar sobre o card e, escondidas,
+   não ocupam espaço: o título usa a largura toda (antes ficava "Recei..."). */
+.widget-header .tools {
+  display: flex; gap: 2px; opacity: 0; transition: opacity .15s;
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  padding-left: 18px; background: linear-gradient(to right, transparent, var(--surface-1) 16px);
+}
 .grid-stack-item:hover .widget-header .tools, .widget-header .tools:focus-within { opacity: 1; }
 .widget-body { flex: 1; min-height: 0; position: relative; }
 .widget-body.tabela { overflow: auto; }
@@ -413,24 +432,6 @@ textarea.code {
 }
 .toast-erro { background: var(--status-critical); color: #fff; }
 
-@media (max-width: 800px) {
-  .app.ready { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; height: auto; min-height: 100vh; }
-  .sidebar { border-right: none; border-bottom: 1px solid var(--border); min-width: 0; }
-  .brand { padding: 12px 16px 4px; }
-  .nav { padding: 0 8px 8px; overflow: visible; }
-  .nav-section + .nav-section { margin-top: 4px; }
-  #nav-dashboards, #nav-modulos { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
-  .nav-item { flex-shrink: 0; white-space: nowrap; }
-  .sidebar-footer { display: flex; overflow-x: auto; padding: 6px 8px; }
-  .sidebar-footer .btn { flex-shrink: 0; }
-  .view { padding: 16px; }
-  .field-row { grid-template-columns: 1fr; }
-  .criador-grid { grid-template-columns: minmax(0, 1fr); }
-  .criador-previa { position: static; order: -1; }
-  .previa-card { height: 240px; }
-  .tipos { grid-template-columns: repeat(2, 1fr); }
-  .toolbar input[type="search"] { min-width: 0; flex: 1; }
-}
 
 /* ---------- Configurações ---------- */
 .secao-modal { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
@@ -492,3 +493,137 @@ body.logado .tema-flutuante { display: none; }
   .tema-btn.girando { animation: none; }
 }
 .modal-actions-esquerda { justify-content: flex-start; margin-top: 6px; }
+
+/* ================= Responsividade =================
+   Faixas: até 800px = celular/tablet em pé (menu vira gaveta); até 640px =
+   celular (dashboard empilhado, modais em tela cheia). Medido com a auditoria
+   de 7 tamanhos de tela (320 a 1920px) descrita no Sistema.md. */
+
+/* Valores grandes (KPIs) se ajustam à largura do próprio card em vez de vazar. */
+.kpi, .grid-stack-item-content { container-type: inline-size; }
+.kpi .value { font-size: clamp(17px, 12.5cqi, 26px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.widget-kpi { font-size: clamp(17px, 13cqi, 30px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Sem mouse (toque), não existe "passar o mouse": as ferramentas do card ficam visíveis. */
+@media (hover: none) {
+  .widget-header .tools { opacity: 1; position: static; transform: none; padding-left: 0; background: none; }
+  /* "Arraste... passe o mouse" não vale para toque. */
+  #view-dashboard .page-header .hint { display: none; }
+}
+/* No toque, em card estreito (em qualquer tamanho de tela), as ferramentas
+   vão para uma linha própria acima do título, que fica com a largura toda. */
+@media (hover: none) {
+  @container (max-width: 280px) {
+    .widget-header { flex-wrap: wrap; row-gap: 2px; }
+    .widget-header .tools { order: 1; margin-left: auto; }
+    .widget-header .title { order: 2; flex: 1 1 100%; }
+  }
+}
+
+/* Alvos de toque confortáveis (mínimo ~40px) em telas pequenas ou com toque. */
+@media (max-width: 820px), (pointer: coarse) {
+  .btn { min-height: 40px; }
+  .btn-sm { min-height: 36px; }
+  .icon-btn { width: 36px; height: 36px; }
+  .nav-item { min-height: 44px; }
+  /* O círculo continua pequeno, mas a área de toque é de 36px: a borda
+     transparente conta para o toque e o anel visível vira uma sombra interna. */
+  .dica {
+    width: 36px; height: 36px; margin: -7px -4px; font-size: 13px;
+    border: 7px solid transparent; background-clip: padding-box;
+    box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  }
+  .dica:hover, .dica:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .sugestao, .tipo-card { min-height: 40px; }
+  .acoes-usuario { min-height: 36px; }
+  .tabs button { min-height: 40px; }
+}
+
+/* Campos com 16px: abaixo disso o iPhone dá zoom na página ao tocar no campo. */
+@media (max-width: 820px) {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea,
+  .toolbar input, .toolbar select, .field input:not([type="checkbox"]), .field select, .field textarea,
+  .criador-passo > select, .criador-passo > input, .acoes-usuario, textarea.code { font-size: 16px; }
+}
+
+@media (max-width: 800px) {
+  /* Barra do topo fixa (marca, tema e ☰) e menu numa gaveta que abre por baixo dela. */
+  .app.ready { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; height: auto; min-height: 100vh; }
+  .sidebar { position: sticky; top: 0; z-index: 40; border-right: none; border-bottom: 1px solid var(--border); min-width: 0; }
+  .brand { padding: 8px 12px; align-items: center; gap: 10px; }
+  .brand-nome strong { font-size: 16px; }
+  .menu-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; color: var(--text-primary); }
+  .menu-btn svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; fill: none; }
+  .sidebar-corpo { display: none; }
+  .app.menu-aberto .sidebar-corpo {
+    display: flex; flex-direction: column; border-top: 1px solid var(--border);
+    max-height: calc(100vh - 57px); max-height: calc(100dvh - 57px); overflow-y: auto; overscroll-behavior: contain;
+  }
+  .app.menu-aberto .nav { flex: none; overflow: visible; }
+  .view { padding: 16px; gap: 14px; }
+  .page-header h1 { font-size: 20px; }
+  .field-row { grid-template-columns: 1fr; }
+  .criador-grid { grid-template-columns: minmax(0, 1fr); }
+  .criador-previa { position: static; order: -1; }
+  .previa-card { height: 240px; }
+  .tipos { grid-template-columns: repeat(2, 1fr); }
+  .toolbar input[type="search"] { min-width: 0; flex: 1 1 100%; }
+  .toolbar select { flex: 1 1 120px; min-width: 0; }
+  .toolbar .spacer { display: none; }
+  .admin-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  /* KPIs do módulo dois por linha. */
+  .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi { padding: 12px 14px; }
+
+  /* Ações do cabeçalho dividem a largura (sem botão solto numa linha). */
+  .page-header .actions { width: 100%; }
+  .page-header .actions .btn { flex: 1 1 auto; }
+
+  /* ---- Dashboard no celular (ver js/responsivo.js) ----
+     Os cards empilham em ordem de leitura; KPIs ficam dois por linha. Só a
+     apresentação muda: a grade de 12 colunas e o layout salvo não são tocados
+     (REGRA em CLAUDE.md). Arrastar/redimensionar ficam desligados aqui, porque
+     no toque gravariam posições da tela pequena por cima do layout real. */
+  .grid-stack { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; height: auto !important; min-height: 0; }
+  .grid-stack > .grid-stack-item {
+    position: relative !important; inset: auto !important; left: auto !important; top: auto !important;
+    width: auto !important; min-width: 0; height: calc(var(--gs-h, 3) * 72px) !important; grid-column: span 2;
+  }
+  .grid-stack > .grid-stack-item.cel-meia { grid-column: span 1; height: calc(var(--gs-h, 2) * 72px + 24px) !important; }
+  .grid-stack > .grid-stack-item > .grid-stack-item-content { inset: 0 !important; }
+  .grid-stack .ui-resizable-handle { display: none !important; }
+  .grid-stack .widget-header { cursor: default; pointer-events: none; }
+  .grid-stack .widget-header .tools { pointer-events: auto; }
+  #view-dashboard .page-header .hint { display: none; }
+
+  /* Modais em tela cheia, com os botões sempre à vista no rodapé. */
+  .modal-overlay { padding: 0; align-items: stretch; }
+  .modal, .modal-lg, .modal-xl {
+    max-width: none; max-height: none; height: 100vh; height: 100dvh; border-radius: 0; border: none; padding: 18px 16px 0;
+  }
+  /* Rodapé fixo só em modal que é um formulário único: em modais com várias
+     seções (Minha conta), cada uma tem seus botões e eles se empilhariam. */
+  form.modal > .modal-actions {
+    position: sticky; bottom: 0; background: var(--surface-1); margin: 18px -16px 0; padding: 12px 16px;
+    border-top: 1px solid var(--border); z-index: 2;
+  }
+  div.modal { padding-bottom: 18px; }
+  .modal-actions .btn { flex: 1 1 auto; }
+
+  /* Setup e login: menos moldura, mais espaço para o formulário. */
+  .setup { padding: 64px 0 0; }
+  .setup-card { border-radius: var(--radius-lg) var(--radius-lg) 0 0; border-left: none; border-right: none; padding: 22px 16px; }
+  .login.open { padding: 64px 12px 24px; align-items: flex-start; }
+  .login-card { border: 1px solid var(--border); border-radius: var(--radius-lg); }
+  .galeria { grid-template-columns: minmax(0, 1fr); }
+
+  .toast { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+}
+
+/* Celular bem estreito (abaixo de 360px): KPIs do dashboard numa linha cada. */
+@media (max-width: 359px) {
+  .grid-stack > .grid-stack-item.cel-meia { grid-column: span 2; }
+}

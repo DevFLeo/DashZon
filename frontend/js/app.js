@@ -78,8 +78,24 @@ const App = (() => {
     Util.storage("dashzon.privado", ligado ? "1" : "0");
   }
 
+  // Botão "×" no topo de cada modal que pode ser fechado (os com data-fixo,
+  // como a troca obrigatória de senha, não ganham).
+  function botoesFecharModais() {
+    document.querySelectorAll(".modal-overlay:not([data-fixo]) > .modal").forEach((modal) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "icon-btn modal-fechar";
+      b.setAttribute("aria-label", "Fechar");
+      b.title = "Fechar";
+      b.textContent = "×";
+      b.addEventListener("click", () => modal.parentElement.classList.remove("open"));
+      modal.prepend(b);
+    });
+  }
+
   function ligarComportamentosGlobais() {
     Ajuda.init();
+    botoesFecharModais();
     document.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => Util.fecharModal(b.dataset.fechar)));
     // Modais com data-fixo (troca de senha obrigatória) não fecham por fora nem com Esc.
     document.querySelectorAll(".modal-overlay:not([data-fixo])").forEach((o) => o.addEventListener("mousedown", (e) => {
@@ -106,6 +122,24 @@ const App = (() => {
 
     $("btn-privacidade").addEventListener("click", () => aplicarPrivacidade(!document.body.classList.contains("privado")));
     window.addEventListener("unhandledrejection", (e) => Util.aviso(e.reason?.message || "Erro inesperado", "erro"));
+    ligarMenuMovel();
+  }
+
+  // Celular: o menu lateral vira uma gaveta aberta pelo botão ☰ (no computador
+  // o botão fica escondido e o menu sempre à vista). Fecha ao navegar, ao
+  // escolher qualquer item e com Esc.
+  function ligarMenuMovel() {
+    const app = $("app");
+    const btn = $("btn-menu");
+    const definir = (aberto) => {
+      app.classList.toggle("menu-aberto", aberto);
+      btn.setAttribute("aria-expanded", String(aberto));
+      btn.setAttribute("aria-label", aberto ? "Fechar menu" : "Abrir menu");
+    };
+    btn.addEventListener("click", () => definir(!app.classList.contains("menu-aberto")));
+    window.addEventListener("hashchange", () => definir(false));
+    $("menu-movel").addEventListener("click", (e) => { if (e.target.closest("a, button")) definir(false); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && app.classList.contains("menu-aberto")) { definir(false); btn.focus(); } });
   }
 
   // ------------------------------------------------------ usuário ----

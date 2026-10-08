@@ -139,13 +139,18 @@
 <div class="app" id="app">
   <aside class="sidebar">
     <div class="brand">
-      <div><strong>DashZon</strong><small id="org-nome"></small></div>
+      <!-- Só no celular: abre/fecha a gaveta com o menu (no computador o menu fica sempre à vista). -->
+      <button type="button" class="icon-btn menu-btn" id="btn-menu" aria-label="Abrir menu" aria-expanded="false" aria-controls="menu-movel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="brand-nome"><strong>DashZon</strong><small id="org-nome"></small></div>
       <button type="button" class="tema-btn" aria-label="Mudar o tema">
         <svg class="tema-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><g><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></g></svg>
         <svg class="tema-suave" viewBox="0 0 24 24" aria-hidden="true"><circle class="suave-fundo" cx="12" cy="12" r="11.5"/><circle class="suave-sol" cx="9" cy="14" r="4.3"/><path class="suave-lua" d="M18.6 10.1A4.4 4.4 0 0 1 14 5.5a4.4 4.4 0 1 0 4.6 4.6z"/></svg>
         <svg class="tema-lua" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/></svg>
       </button>
     </div>
+    <div class="sidebar-corpo" id="menu-movel">
     <nav class="nav">
       <div class="nav-section">
         <div class="nav-title">Dashboards <button class="icon-btn" id="btn-novo-dashboard" title="Novo dashboard" aria-label="Novo dashboard">+</button></div>
@@ -166,6 +171,7 @@
         <span>Conectado como <strong id="usuario-nome"></strong></span>
         <button class="btn btn-sm" id="btn-sair">Sair</button>
       </div>
+    </div>
     </div>
   </aside>
 
@@ -680,6 +686,7 @@
 <script src="/js/admin.js"></script>
 <script src="/js/modulos.js"></script>
 <script src="/js/dashboards.js"></script>
+<script src="/js/responsivo.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>
