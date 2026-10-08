@@ -1,0 +1,342 @@
+# DashZon: especificação técnica do sistema
+
+Referência técnica (arquitetura, dados, API, segurança, implantação e regras de desenvolvimento). Comandos de operação: `CLAUDE.md`. Tutorial e tabelas de funções: `docs/DESENVOLVIMENTO.md`. Histórico de mudanças: `Log.md`.
+
+---
+
+## 1. Arquitetura
+
+```
+Navegador (SPA HTML/CSS/JS, sem build)
+   │ HTTP/JSON (gzip) · cookie de sessão
+   ▼
+Backend Ruby (Sinatra 4 · Puma ou WEBrick) ── SQLite (arquivo único, conexão única)
+   │ JSON via stdin/stdout (um processo por consulta, com cache)
+   ▼
+Motor C++17 (dashzon_engine): busca e agregação, sem estado, sem acesso a disco
+```
+
+| Componente | Responsabilidade | Não faz |
+|---|---|---|
+| Backend Ruby | Dono do banco e das regras: autenticação, validação (`ModuleSchema`), persistência, API REST, cache | Agregação pesada em loop Ruby |
+| Motor C++ | `aggregate`, `multi`, `search` sobre registros recebidos | Abrir o SQLite, conhecer módulos ou templates |
+| Frontend | Telas genéricas montadas a partir do schema JSON dos módulos | Regras de negócio, persistência (só `localStorage` para preferência de navegador) |
+
+O domínio é dirigido por dados: módulos (campos, resumo) e dashboards vêm de templates JSON. O código só conhece tipos de campo genéricos: `texto`, `texto_longo`, `numero`, `moeda`, `data`, `selecao`, `booleano` e `movimento`.
+
+## 2. Stack e versões
+
+| Item | Versão / detalhe |
+|---|---|
+| Ruby | 3.4 (imagem Docker `ruby:3.4-slim`, RubyInstaller no Windows); 3.2+ funciona |
+| Sinatra / Rack / rackup | 4.2.1 / 3.2.7 / 2.3.1 |
+| Servidor HTTP | Puma 7.2.1 fora do Windows (`platforms: :ruby`); WEBrick 1.9.2 no Windows. O Sinatra escolhe sozinho |
+| SQLite | gem `sqlite3` 2.9.6, com o SQLite embutido (pré-compilada para x86_64/aarch64 Linux e x64 Windows) |
+| Outras gems | `csv` 3.3.6 (importação de extratos), `net-smtp` 0.5.1 (e-mail) |
+| Testes | Minitest 5.27, rack-test 2.2, rake 13.4 (grupo `:test`) |
+| Motor | C++17, CMake ≥ 3.15, sem dependências; JSON próprio em `src/json.hpp`; Release por padrão |
+| Frontend | Chart.js 4.5.1 e GridStack, em `frontend/vendor/` (offline, sem CDN) |
+| Proxy HTTPS | Caddy 2 (Let's Encrypt, ou plugin DuckDNS no Windows) |
+
+## 3. Estrutura do repositório
+
+```
+backend/
+  app.rb                   rotas de módulos, registros, dashboards, widgets, templates, setup; filtros
+  config.ru                entrada rackup
+  rotas/usuarios.rb        login, conta, admin, links de e-mail, limite de tentativas
+  lib/ambiente.rb          Ambiente["VAR", padrao]: variável vazia = não definida
+  lib/database.rb          conexão, schema, migração na abertura, registros, jsons
+  lib/record_codec.rb      formato compacto de registros.dados
+  lib/json_guardado.rb     compressão zlib da tabela jsons
+  lib/migracao.rb          migração do banco v2 -> v3 no lugar
+  lib/module_schema.rb     validação de módulos, widgets, consultas e registros
+  lib/template_registry.rb galeria, validação, instalação e exportação de templates
+  lib/engine_client.rb     ponte com o binário C++
+  lib/desempenho.rb        CacheResultados (motor) e CacheEstaticos (cabeçalhos)
+  lib/usuarios.rb          contas, senhas, tokens, preferências, ajustes
+  lib/segredo.rb           chave do servidor (sessão e HMAC)
+  lib/documento.rb         CPF/CNPJ: validação, máscara, HMAC
+  lib/correio.rb           SMTP opcional
+  lib/dados_ficticios.rb   registros fictícios para a prévia de card
+  templates/*.json         4 templates padrão (únicos JSON versionados)
+  test/*_test.rb           Minitest + Rack::Test em banco temporário
+engine-cpp/                CMakeLists.txt, src/main.cpp, src/json.hpp
+frontend/                  index.html, css/, js/, vendor/, preview/
+deploy/                    Caddyfile (DuckDNS), Caddyfile.servidor (Docker), scripts PowerShell
+scripts/                   rodar.ps1 (Windows), gerar-previews.js
+Dockerfile, docker-compose.yml, .env.example
+data/                      (fora do git) dashzon.db, segredo.key, cópias *.bak
+log/                       (fora do git) logs do rodar.ps1
+```
+
+## 4. Configuração (variáveis de ambiente)
+
+Lidas por `Ambiente["NOME", padrao]`: valor vazio ou só espaços conta como não definido (o Docker Compose passa as opcionais vazias).
+
+| Variável | Padrão | Efeito |
+|---|---|---|
+| `DASHZON_HOST` | `127.0.0.1` | Interface de escuta (Docker: `0.0.0.0` dentro do container) |
+| `PORT` | `4567` | Porta HTTP |
+| `DASHZON_DB_PATH` | `data/dashzon.db` | Arquivo do banco; `segredo.key` e as cópias `.bak` ficam na mesma pasta |
+| `DASHZON_ENGINE` | busca em `engine-cpp/build/{Release,Debug,}/dashzon_engine[.exe]` | Caminho do motor |
+| `DASHZON_HOSTS` | vazio | Domínios aceitos no `Host`, além de localhost e IPs |
+| `DASHZON_COOKIE_SEGURO` | `0` | `1`: cookie `Secure` em toda requisição que chega por HTTPS |
+| `DASHZON_SESSION_SECRET` | vazio | Chave do servidor; sem ela, usa `segredo.key` ao lado do banco (criado com 64+ bytes, modo 600) |
+| `DASHZON_URL_PUBLICA` | `request.base_url` | Base dos links de e-mail e de redefinição |
+| `DASHZON_SMTP_HOST`, `_PORTA` (587), `_USUARIO`, `_SENHA`, `_REMETENTE` | vazio | E-mail. Sem host, o envio fica desligado e o admin entrega os links |
+| `APP_ENV` | `development` | `production` no Docker; `test` nos testes |
+
+Docker Compose (`.env`): `DASHZON_DOMINIO` vira `DASHZON_HOSTS` e o domínio do Caddy; `DASHZON_PORTA` é a porta publicada em `127.0.0.1`. DuckDNS (`deploy/publico.env`): `DUCKDNS_DOMINIO`, `DUCKDNS_TOKEN`, `PORTA_PUBLICA` (padrão 2444).
+
+## 5. Persistência (SQLite, schema v3)
+
+### 5.1 Conexão
+
+- **Uma** conexão por processo, serializada por `Monitor` (`Database::LOCK`), porque conexões por thread travariam o arquivo no Windows. `Database.transaction` é reentrante.
+- PRAGMAs: `foreign_keys=ON`, `temp_store=MEMORY`, `cache_size=-16384` (16 MB), `mmap_size=134217728`. Diário em modo **DELETE**: WAL proibido, porque o backup copia só o `.db`.
+- `auto_vacuum=INCREMENTAL` em bancos novos e migrados; `Database.compactar!` roda `PRAGMA incremental_vacuum` depois de excluir um módulo.
+- `Database.versao_dados` = geração da conexão + `PRAGMA data_version` + `total_changes`; muda a cada gravação, inclusive feita por outro processo. É a base de invalidação do cache.
+- O arquivo só é criado no setup. `configured?` responde false sem criar nada enquanto o arquivo não existe.
+
+### 5.2 Tabelas
+
+| Tabela | Colunas | Observações |
+|---|---|---|
+| `config` | `id` (=1), `org_name`, `moeda`, `configured_at` | Uma linha |
+| `modulos` | `id`, `slug` UNIQUE, `nome`, `descricao`, `icone`, `schema` (JSON: `campos`, `rotulo`, `resumo`, `slots`), `template_origem`, `ordem`, `criado_em` | Nome único sem diferenciar maiúsculas (comparado em Ruby, por causa dos acentos) |
+| `registros` | `id` INTEGER PK, `modulo_id` → modulos ON DELETE CASCADE, `dados` (array JSON compacto), `criado_em` INTEGER (epoch), `atualizado_em` INTEGER NULL | Índice `idx_registros_modulo` |
+| `dashboards` | `id`, `nome`, `criado_em`, `atualizado_em` | |
+| `widgets` | `id`, `dashboard_id` → dashboards CASCADE, `titulo`, `tipo` (kpi/bar/line/table), `modulo_slug`, `config` (JSON), `x`, `y`, `w`, `h` | Índice `idx_widgets_dashboard`; grade de 12 colunas |
+| `usuarios` | `id`, `login` UNIQUE, `senha_hash`, `sal`, `nome`, `email`, `email_verificado_em`, `documento_tipo`, `documento_hash`, `documento_mascara`, `cargo`, `perfil` (`admin`/`usuario`), `ativo`, `deve_trocar_senha`, `sessao_versao`, `ultimo_login_em`, `criado_em`, `atualizado_em`, `preferencias` (JSON) | Criada sob demanda; colunas novas por `ALTER TABLE` (`migrar_usuarios!`) |
+| `tokens` | `id`, `usuario_id` → usuarios CASCADE, `tipo` (`redefinir_senha` 24 h, `verificar_email` 7 dias), `token_hash` UNIQUE (SHA-256), `dado`, `expira_em`, `usado_em`, `criado_em` | Uso único |
+| `ajustes` | `chave` PK, `valor` | `exigir_documento` (nao/cpf/cnpj/qualquer), `exigir_email`, `exigir_email_verificado` |
+| `jsons` | `id`, `tipo` (`template`/`exportacao`), `nome`, `conteudo` (BLOB zlib), `criado_em` | Índice `idx_jsons_tipo` |
+
+`usuarios`, `tokens`, `ajustes` e `jsons` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
+
+### 5.3 Formato de `registros.dados` (`RecordCodec`)
+
+Array JSON posicional; a posição de cada campo vem de `modulos.schema.slots` (`id → índice`). Os slots só crescem: um campo removido mantém sua posição (volta com os dados se for recriado com o mesmo `id`), e um campo novo recebe `slots.size`.
+
+| Tipo | Em disco | Na API / no motor |
+|---|---|---|
+| `data` | inteiro: dias desde 1970-01-01 | `"AAAA-MM-DD"` |
+| `booleano` | `1` / `0` | `true` / `false` |
+| `movimento` | `0` / `1` | `"entrada"` / `"saida"` |
+| `numero`, `moeda` | número; inteiro se não tem casas (abaixo de 2^53) | número |
+| `texto`, `texto_longo`, `selecao` | texto | texto |
+
+`null`s finais são omitidos. O `decode` nunca levanta erro: um valor incompatível com o tipo vira `nil`. Na troca de tipo de um campo existente, `Database.reconverter_registros!` converte os valores via `ModuleSchema.coerce_valor` na mesma transação do `PUT`.
+
+A API devolve o registro "achatado" (`campos..., id, _criado_em, _atualizado_em`), com datas ISO (o `_atualizado_em` cai para o `criado_em` quando nulo). Leitura projetada: `Database.registros(m, campos: [...], meta: false)` desempacota só os campos pedidos, sem os carimbos de data.
+
+### 5.4 JSON do usuário (`JsonGuardado`)
+
+`jsons.conteudo` é zlib (`BEST_COMPRESSION`) num BLOB, guardado na própria coluna TEXT, sem mudança de schema. A leitura aceita texto legado: um JSON em texto começa por `{` ou `[`, e o zlib por `0x78`. A deduplicação de templates compara o texto descomprimido. `bytes` na lista é o tamanho ocupado.
+
+### 5.5 Versões e migração
+
+`PRAGMA user_version` = `SCHEMA_VERSION` = 3.
+
+| Versão encontrada | Ação |
+|---|---|
+| 3 | Nenhuma |
+| 2 (com tabela `registros`) | **Migração no lugar** (`Migracao.se_preciso!`), na partida (`app.rb` chama `Database.configured?` ao carregar) |
+| < 2, ou sem tabelas | Considerado antigo: o setup renomeia para `dashzon.db.AAAAMMDDHHMMSS.bak` (`arquivar_versao_antiga!`) |
+
+Migração v2 → v3:
+
+1. Cópia de segurança `dashzon.db.v2-AAAAMMDDHHMMSS.bak` via `VACUUM INTO` (fallback: cópia do arquivo). Sem cópia, não migra.
+2. Transação `IMMEDIATE`, que confere a versão de novo:
+   - calcula os slots de cada módulo, incluindo as chaves órfãs ainda presentes nos registros;
+   - recria `registros` (ids preservados, datas ISO → epoch; `atualizado_em` igual ao `criado_em` vira NULL; valores inválidos viram NULL e são contados);
+   - cria `idx_widgets_dashboard` e comprime as linhas texto de `jsons`;
+   - grava `user_version=3`.
+3. Fora da transação: `auto_vacuum=INCREMENTAL` + `VACUUM`.
+
+Uma falha vira `Migracao::Falha`: nada é alterado, o servidor sobe e as requisições respondem 500 com a causa e o caminho da cópia. Nunca vira "não configurado", que levaria ao setup e arquivaria o banco. A falha é memorizada por processo (não há nova tentativa nem nova cópia por requisição) até `Database.fechar!` ou reinício. A migração imprime um resumo no stderr (registros, módulos, tamanhos, cópia, valores descartados, JSONs comprimidos).
+
+Medido: 100 mil registros migram em ~5,6 s, de 19,7 MB para 8,6 MB.
+
+## 6. Motor C++ e cache
+
+### 6.1 Protocolo
+
+`EngineClient.run(payload)`: um processo por chamada (`Open3.capture3`), JSON pelo stdin, JSON pelo stdout. Se a resposta tiver `error` ou o código de saída não for 0, levanta `EngineError` (HTTP 500).
+
+| Comando | Entrada | Saída |
+|---|---|---|
+| `aggregate` | `records`, `group_by`, `group_format` (`mes`), `series_by`, `value_field`, `filters` {campo: valor}, `sign_field`, `negative_values` | `result` [{key, count, sum, avg, series}], `series_keys`, `total_count`, `total_sum`, `total_avg` |
+| `multi` | `records`, `queries` [opções do aggregate] | `results` [...] (os registros atravessam o pipe uma vez) |
+| `search` | `records`, `q` (substring, sem diferenciar maiúsculas), `text_fields`, `filters` | `result` [registros], `count` |
+
+A tradução da consulta de um widget ou resumo para o motor é feita por `ModuleSchema.engine_query` (protegida pela REGRA). `saldo` vira `sign_field` = campo movimento + `negative_values: ["saida"]`.
+
+### 6.2 Desempenho
+
+- `CacheResultados.buscar(*chave)`: até 300 respostas do motor, com chave = partes (módulo, schema, config/consulta) e validade = `Database.versao_dados` (qualquer gravação limpa tudo).
+- **Projeção:** resumos e cards enviam ao motor só os campos de `ModuleSchema.campos_usados` (agrupar, série, valor, sinal, filtros). Card de 50 mil registros sem cache: 1,37 s → 0,82 s, e payload de 11,4 → 6,0 MB.
+- **Formato compacto:** 50 mil lançamentos ocupam 10,5 MB → 4,3 MB.
+- `Rack::Deflater` (gzip) em todas as respostas. `CacheEstaticos` define `max-age=86400` para `/vendor` e `/preview`, e `no-cache` para o resto (revalidação com 304).
+
+## 7. API HTTP
+
+Formato JSON. Erros: `{"error": "mensagem"}`.
+
+| Status | Quando |
+|---|---|
+| 401 | Sem sessão |
+| 403 | Não é admin em `/api/admin/*`, ou senha temporária pendente (`trocar_senha: true`) |
+| 404 | Recurso inexistente |
+| 409 | Sistema ainda não configurado |
+| 422 | Validação (`ModuleSchema::Error`, `Usuarios::Erro`) |
+| 429 | Limite de tentativas |
+| 500 | Motor ou migração |
+| 502 | SMTP |
+
+**Filtro `before "/api/*"`:**
+
+1. Rotas abertas (`ROTAS_ABERTAS`): `/api/status`, `/api/login`, `/api/logout`, `/api/usuarios/primeiro`, `/api/senha/esqueci`, `/api/senha/redefinir`, `/api/email/verificar`.
+2. Antes do setup: só `/api/setup`, `/api/templates/validar` e `GET /api/templates*`; o resto responde 409.
+3. Sessão obrigatória: usuário ativo e `sessao_versao` igual à da sessão.
+4. `deve_trocar_senha`: só `/api/status`, `/api/logout`, `/api/eu`, `/api/eu/senha`.
+5. `/api/admin/*` exige `perfil == "admin"`.
+
+| Rotas | Função |
+|---|---|
+| `GET /api/status` | `configured`, `org_name`, `email_configurado`; com sessão: `usuario`, `moeda`; sem: `sem_usuario` |
+| `POST /api/setup` | Cria o banco, o primeiro admin (`usuario`, `senha`, `nome`) e instala `templates`/`importados`; abre a sessão |
+| `POST /api/login`, `/api/logout`, `/api/usuarios/primeiro` | Sessão; criação do primeiro usuário quando não há nenhum |
+| `POST /api/senha/esqueci`, `/api/senha/redefinir`, `/api/email/verificar` | Links por token (limite por IP) |
+| `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Minha conta |
+| `GET/PUT /api/admin/ajustes`, `PUT /api/admin/config` | Regras de cadastro; organização e moeda |
+| `GET/POST /api/admin/usuarios`, `PUT/DELETE /api/admin/usuarios/:id`, `POST .../:id/ativo`, `.../senha-temporaria`, `.../link-redefinicao`, `.../email-verificado`, `.../enviar-verificacao` | Gestão de usuários |
+| `GET /api/templates`, `GET /api/templates/:id`, `POST /api/templates/validar`, `POST /api/templates/instalar`, `DELETE /api/templates/:id` (só `salvo-*`) | Galeria |
+| `GET /api/export[?dados=1]`, `GET /api/exportacoes`, `GET/DELETE /api/exportacoes/:id` | Exportação e histórico (guardado em `jsons`) |
+| `GET/POST /api/modulos`, `GET/PUT/DELETE /api/modulos/:slug` | Módulos (o `PUT` preserva slots e reconverte tipos; o `DELETE` remove widgets e registros e compacta) |
+| `GET /api/modulos/:slug/resumo` | KPIs (`multi`, projetado, com cache) |
+| `GET /api/modulos/:slug/registros?q=&f[campo]=` | Busca (`search`, com cache) |
+| `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD validado por `coerce_registro!` |
+| `GET/POST /api/dashboards`, `GET/PUT/DELETE /api/dashboards/:id` | Dashboards (o `GET :id` traz os widgets) |
+| `POST /api/dashboards/:id/widgets`, `PUT/DELETE /api/widgets/:id`, `PUT /api/widgets/:id/layout` | Widgets (o `layout` altera só x/y/w/h) |
+| `GET /api/widgets/:id/data` | Dados do card (`aggregate`, revalidado contra o schema atual, projetado, com cache) |
+| `POST /api/widgets/preview` | Prévia sobre 72 registros fictícios (nada gravado) |
+
+**Validação de valores:** `texto` ≤ 500, `texto_longo` ≤ 5000 caracteres; números finitos (aceita `1.234,56`); datas existentes no calendário; `selecao`/`movimento` restritos às opções; `padrao` aceita `$hoje`, `$hoje±N`.
+
+## 8. Autenticação e segurança
+
+- **Sessão:** cookie Rack assinado com a chave do servidor (`Segredo.chave`), `httponly`, `same_site: strict`, e `Secure` em HTTPS quando `DASHZON_COOKIE_SEGURO=1`. Guarda `uid` e `sv` (= `sessao_versao`). Trocar ou redefinir a senha, desativar o usuário ou "sair dos outros" incrementa `sessao_versao`, e as outras sessões caem na hora.
+- **Senha:** PBKDF2-HMAC-SHA256, 100.000 iterações, sal de 16 bytes por usuário, 32 bytes de saída. `ITERACOES` é imutável (as senhas gravadas dependem dele). Tamanho de 8 a 200. Login: `[A-Za-z0-9._-]{3,40}`.
+- **CPF/CNPJ:** validado; só ficam gravados o HMAC-SHA256 com a chave do servidor e uma máscara para exibição.
+- **Tokens de link:** só o SHA-256 é gravado; uso único; validade de 24 h (redefinição) ou 7 dias (e-mail).
+- **Anti-força-bruta:** 8 falhas por IP em 15 minutos bloqueiam login, "esqueci", "redefinir" e "verificar" para esse IP (contagem em memória, zera ao reiniciar). Login falho espera 0,5 s. As respostas não revelam se um usuário existe.
+- **Contas:** sem usuário padrão. Sempre resta pelo menos um admin ativo; ninguém se exclui, se desativa ou remove o próprio perfil de admin.
+- **Host:** `host_authorization` aceita localhost, `.localhost`, qualquer IP e `DASHZON_HOSTS`; o resto recebe 403.
+- **Rede:** o app escuta em 127.0.0.1 (no Docker, a porta é publicada só em 127.0.0.1). Para a internet, só via Caddy com HTTPS. `Caddyfile.servidor` aplica HSTS, `nosniff`, `X-Frame-Options DENY`, `Referrer-Policy same-origin` e compressão zstd/gzip.
+- **Segredos fora do git:** `.env`, `deploy/publico.env`, `data/`, `*.db`, `*.bak` e `*.json` (exceto os 4 templates padrão e `.vscode`).
+
+## 9. Frontend
+
+SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `api`, `setup`, `login`, `conta`, `admin`, `modulos`, `dashboards`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
+
+- **Rotas por hash:** `#/d/<id>` (dashboard), `#/m/<slug>` (módulo), `#/admin`, `#/inicio`, `#/redefinir/<token>`.
+- **Boot:** `GET /api/status` decide entre setup, login (ou "crie seu usuário") e o app; troca de senha obrigatória antes de qualquer outra tela.
+- **`Api`:** `fetch` + JSON. Um 401 fora de `/api/login` e `/api/usuarios/primeiro` volta para `/`.
+- **Temas:** sistema, claro, suave e escuro, por tokens CSS (`--series-*`, `--text-*`). Modo privacidade pela classe `sensivel`.
+
+## 10. Implantação
+
+| Topologia | Como | Servidor HTTP | Dados |
+|---|---|---|---|
+| Windows local | `scripts/rodar.ps1`: confere Ruby, faz `bundle check/install`, compila o motor se faltar ou se o código for mais novo, sobe `ruby -rbundler/setup app.rb` oculto e espera `/api/status` (30 s) | WEBrick | `data/`; logs em `log/` (`dashzon.log` = stderr, `bundle.log`, `motor.log`) |
+| Docker | Multi-stage: `build` (cmake Release + gems sem teste), `teste` (`docker build --target teste .` roda a suíte), `final` (`ruby:3.4-slim`, usuário uid 1000, `VOLUME /dados`, healthcheck em `/api/status` a cada 30 s com início em 20 s) | Puma | volume `dashzon_dashzon-dados` |
+| Docker + domínio | `--profile https`: serviço `caddy:2` nas portas 80/443, proxy para `dashzon:4567`, certificado Let's Encrypt | Puma | volumes `caddy-dados` e `caddy-config` |
+| Windows + DuckDNS | `deploy/instalar.ps1` (Caddy com plugin `dns.providers.duckdns`, firewall, tarefa de IP a cada 5 min); `iniciar-publico.ps1` (app em 127.0.0.1:4567, Caddy em 0.0.0.0:2444); `parar-publico.ps1` | WEBrick | `data/` |
+
+- **Atualização:** `git pull` e subir de novo. Um banco v2 migra sozinho na partida.
+- **Backup:**
+  - Docker: `tar` do volume com o container parado (comandos em `servidor.md`).
+  - Local: copiar `data/` (banco + `segredo.key`) com o servidor parado.
+  - O export JSON não leva usuários nem senhas.
+- **Restauração de versão:** depois de migrar, o código antigo não lê a v3. Para voltar, restaure o `dashzon.db.v2-*.bak`.
+
+## 11. Testes
+
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`. São 90 testes; os do motor dão `skip` se o binário não existir.
+- **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
+- **`migracao_test`:** monta um banco v2 real e cobre:
+  - dados, ids e datas;
+  - campo órfão e valores inválidos;
+  - cópia de segurança e idempotência;
+  - partida em processo novo;
+  - falha (nada alterado, sem ir ao setup, sem nova tentativa).
+- **Ponta a ponta:** instância separada (outra `PORT` e outro `DASHZON_DB_PATH`), percorrendo setup → módulo → criar, editar e excluir registro → editor de estrutura → dashboard → sair e entrar.
+
+## 12. Regras de desenvolvimento
+
+### 12.1 Regra fixa: lógica dos dashboards e gráficos
+
+Não alterar a lógica de funcionamento nem a fórmula de organização dos dashboards e gráficos sem pedido explícito:
+
+- **Motor C++** (`engine-cpp/src/main.cpp`): `aggregate`, `multi`, `search`, a forma de agrupar, somar, contar, calcular saldo e montar séries, e o formato da resposta (`result`, `series_keys`, `total_*`).
+- **Consulta** (`backend/lib/module_schema.rb`): `normalize_consulta!`, `normalize_widget!` e `engine_query`, isto é, o formato do `config` (`agregacao`, `campo`, `agrupar_por`, `formato_grupo`, `serie_por`, `filtro`).
+- **Desenho e ordem** (`frontend/js/dashboards.js`):
+  - funções `valorDe`, `formatador`, `descricao`, `ordenar`, `renderKpi`, `renderTabela`, `renderGrafico`;
+  - comportamento: cores por identidade, séries lado a lado até 2 e empilhadas acima disso, limite de grupos;
+  - layout GridStack: 12 colunas, `salvarLayout` só com posição/tamanho, `TAMANHO` por tipo.
+
+Melhorias em **como o usuário alimenta** os dashboards são permitidas, desde que gerem o mesmo `config` e reaproveitem essas funções. Mudanças que só alteram **quais dados** chegam ao motor sem alterar o resultado (projeção de campos, cache) também são permitidas, com teste de igualdade. Trechos protegidos têm comentário `REGRA:`.
+
+### 12.2 Domínio
+
+- O JSON do usuário vai para `jsons`, comprimido, só pelos helpers (`salvar_json!`, `json_salvo`, `jsons`, `excluir_json!`). Só os templates padrão ficam no git.
+- Nome de módulo é único; instalar um template reaproveita o módulo que já existe com o mesmo nome.
+- O banco só nasce no setup.
+- Banco antigo nunca é apagado: vira `.bak`. Banco com dados nunca cai no `arquivar_versao_antiga!`: mudar o formato exige migração no lugar (§5.5).
+
+### 12.3 Validação dupla (uso real)
+
+1. Antes de mudar: ler o código atual e confirmar o comportamento afetado.
+2. Depois de mudar:
+   - rodada 1: `bundle exec rake test` + teste de ponta a ponta numa instância separada;
+   - corrigir e repetir tudo (rodada 2) num banco zerado.
+   - Commit só com as duas rodadas sem falha.
+3. Problemas em `desenvolvimento.md` (fora do git); mudanças em `Log.md`.
+
+### 12.4 Contas
+
+- Regras em `lib/usuarios.rb`; as rotas (`rotas/usuarios.rb`) só chamam essas funções.
+- Hash sempre (§8); nada disso sai na API (`Usuarios.publico`).
+- `segredo.key` / `DASHZON_SESSION_SECRET` não podem ser trocados ou apagados: derrubam as sessões e invalidam o HMAC dos documentos.
+- Rota nova de administração vai no prefixo `/api/admin/`.
+
+### 12.5 Backend
+
+- SQL sempre parametrizado (`?`). Acesso ao banco só pelos helpers de `Database` (conexão única). Várias escritas = `Database.transaction`.
+- `registros.dados` só por `Database.registros`, `registro`, `inserir_registro`, `atualizar_registro`, `remover_registro`. SQL direto nessa coluna lê/grava no formato errado.
+- Todo JSON de cadastro passa por `ModuleSchema`. Nada específico de um template no código.
+- Tabela nova em banco existente: `CREATE TABLE IF NOT EXISTS` em `garantir_tabelas!`, sem subir `SCHEMA_VERSION`. Mudar o formato de dados gravados: subir a versão **com** migração em `lib/migracao.rb` (cópia antes, uma transação, `Migracao::Falha`, teste com banco antigo real).
+- Erros esperados → 422 em português; nunca stack trace ao navegador.
+- Rota aberta nova: entra em `ROTAS_ABERTAS`, com justificativa e limite de tentativas.
+- Chamada nova ao motor passa por `CacheResultados.buscar`, com chave completa. Não criar outro mecanismo de invalidação.
+- Variáveis de ambiente por `Ambiente[...]`. WAL proibido.
+- Limites em toda entrada do usuário.
+
+### 12.6 Frontend
+
+- Sem build e sem CDN.
+- Todo texto do usuário/banco passa por `Util.escapeHtml` antes de `innerHTML` (prefira `textContent`).
+- HTTP só pelo `Api`; erros no formulário (`form-erro`) ou em `Util.aviso`.
+- Cores só por tokens CSS. `localStorage` só para preferências do navegador.
+- Acessibilidade: `<button>` reais, `aria-label`, foco visível, Esc fecha modais.
+- Moeda com a classe `sensivel`.
+- Ao atualizar uma biblioteca em `vendor/`, mude o nome do arquivo (cache de 1 dia).
+
+### 12.7 Testes, git e documentação
+
+- Funcionalidade nova no backend vem com teste. Nunca testar contra `data/dashzon.db`. Sintaxe: `ruby -c`, `node --check frontend/js/*.js`.
+- Branches: `desenvolvimento` (trabalho), `main` (estável), `producao` (servidor). Push só quando pedido.
+- Commits em pt-BR, um por parte pronta (`feat(área)`, `fix(área)`, `test`, `docs`), com o README por último.
+- Manter `docs/DESENVOLVIMENTO.md`, `Sistema.md` e `Log.md` em dia. Comentários explicam o porquê.

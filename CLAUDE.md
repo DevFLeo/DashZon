@@ -1,119 +1,62 @@
-# Regras do projeto DashZon
+# DashZon: instruções para o assistente
 
-## "Rode o projeto" (e "pare o projeto" / "reinicie o projeto")
+Gaste o mínimo. Para **instalar, rodar, subir, parar ou atualizar**, use os comandos abaixo: não explore o repositório, não leia outros arquivos, não rode testes e não abra o navegador. Responda com uma linha (ex.: `No ar: http://127.0.0.1:4567`).
+Para **mudar código**, leia antes o `Sistema.md` (arquitetura e regras completas).
 
-Quando pedirem para rodar, parar ou reiniciar o projeto, **gaste o mínimo**: um comando, uma linha de resposta.
+## Local, Windows (padrão desta máquina)
 
-- **Windows, sem Docker (padrão desta máquina):**
-  `powershell -ExecutionPolicy Bypass -File scripts/rodar.ps1` (rodar) · `... -Reiniciar` · `... -Parar`
-  O script já instala só o que falta (gems, motor C++), não reinicia se já estiver no ar e imprime **uma linha**.
-- **Docker** (se pedirem Docker, ou num servidor Linux): `docker compose up -d --build` e depois `docker compose ps` (deve estar `healthy`). Parar: `docker compose stop`. Com domínio: `--profile https` (ver `servidor.md`).
-- **Não** leia arquivos, não explore o repositório, não rode `bundle install`/`cmake`/testes à mão e não abra o navegador para conferir. Responda só com o endereço (ex.: "No ar: http://127.0.0.1:4567").
-- Se falhar, a saída do script já traz o fim do log. Só então leia, se precisar, as últimas linhas de `log/dashzon.log` (ou `docker compose logs --tail 30 dashzon`) e diga o que falta (ex.: instalar Ruby/CMake, ver `servidor.md`).
-- Nunca apague nem mova `data/` (banco + `segredo.key`) nem rode `docker compose down -v`.
-- O passo a passo completo para pessoas está em `servidor.md`.
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/rodar.ps1              # instala só o que falta (gems, motor C++) e sobe
+powershell -ExecutionPolicy Bypass -File scripts/rodar.ps1 -Reiniciar   # -Parar | -Porta 4568 | -Banco outro.db
+```
 
-## Regra fixa: não alterar a lógica dos dashboards e gráficos
+Se o script disser que falta algo: `winget install RubyInstallerTeam.Ruby.3.4`; `winget install Kitware.CMake` + Visual Studio Build Tools (C++). Abra um terminal novo e rode de novo.
 
-**Não altere a lógica de funcionamento nem a fórmula de organização dos dashboards e gráficos**, a menos que o pedido seja explicitamente sobre isso. Isso vale para:
+## Local, Linux/macOS (sem Docker)
 
-- **Motor C++** (`engine-cpp/src/main.cpp`): `aggregate`, `multi`, `search`, a forma de agrupar, somar, contar, calcular saldo e montar séries, e o formato da resposta (`result`, `series_keys`, `total_*`).
-- **Consulta** (`backend/lib/module_schema.rb`): `normalize_consulta!`, `normalize_widget!` e `engine_query`, ou seja, o formato do `config` de um widget (`agregacao`, `campo`, `agrupar_por`, `formato_grupo`, `serie_por`, `filtro`).
-- **Desenho e ordem** (`frontend/js/dashboards.js`): `valorDe`, `formatador`, `descricao`, `ordenar`, `renderKpi`, `renderTabela`, `renderGrafico` (cores por identidade, séries lado a lado até 2 e empilhadas acima disso, limite de grupos) e o layout do GridStack (12 colunas, `salvarLayout` só com posição/tamanho, `TAMANHO` padrão por tipo).
+```bash
+cmake -S engine-cpp -B engine-cpp/build && cmake --build engine-cpp/build
+cd backend && bundle install && bundle exec ruby app.rb        # http://127.0.0.1:4567
+```
 
-Melhorias de **como o usuário alimenta** os dashboards (formulários, sugestões, pré-visualização, atalhos de lançamento) são permitidas, desde que **gerem o mesmo `config`** e reaproveitem as funções acima em vez de reimplementá-las. A pré-visualização do criador de card roda a mesma consulta no mesmo motor, só que sobre registros fictícios.
+## Docker (local ou servidor Linux)
 
-Os trechos protegidos têm um comentário `REGRA:` no código apontando para este arquivo.
+```bash
+docker compose up -d --build && docker compose ps               # "healthy"; escuta só em 127.0.0.1:4567
+docker compose stop | start | logs --tail 30 dashzon
+git pull && docker compose up -d --build                         # atualizar (dados ficam no volume)
+```
 
-## Regras de domínio
+- **Servidor com domínio e HTTPS:** `cp .env.example .env` e preencher `DASHZON_DOMINIO`, `DASHZON_COOKIE_SEGURO=1`, `DASHZON_URL_PUBLICA`; DNS tipo A apontando para o servidor; portas 80 e 443 abertas; então `docker compose --profile https up -d --build`.
+- **PC de casa via DuckDNS (Windows):** `deploy/publico.env` (modelo `deploy/publico.env.example`), uma vez `deploy/instalar.ps1` como administrador, depois `deploy/iniciar-publico.ps1` ou `deploy/parar-publico.ps1`.
+- Passo a passo para pessoas: `servidor.md` e `docs/PUBLICAR-DUCKDNS.md`.
 
-- JSON do usuário (templates importados, exportações) vai para a tabela `jsons` do banco, nunca para arquivos versionados. Só os templates padrão em `backend/templates/` ficam no git. O `conteudo` é gravado **comprimido** (`JsonGuardado`): leia e grave só por `Database.salvar_json!`, `json_salvo`, `jsons` e `excluir_json!`.
-- Nomes de módulo são únicos (sem diferenciar maiúsculas); instalar um template reaproveita o módulo que já tem o mesmo nome.
-- O banco só nasce no setup. Nenhuma rota pode criar `data/dashzon.db` antes disso.
-- Um banco de schema antigo nunca é apagado: vira `.bak` (`arquivar_versao_antiga!`).
+## Se falhar
 
-## Uso real: validação dupla
+A saída do `rodar.ps1` já traz o fim do log. Se precisar, leia só a cauda de `log/dashzon.log` ou `docker compose logs --tail 30 dashzon`.
 
-O sistema tem uso real (várias pessoas, possivelmente na internet). Toda modificação passa por **validação dupla, em loop**:
+| Sintoma | Causa ou ação |
+|---|---|
+| Ruby ou CMake não encontrado | Instale (acima) e abra um terminal novo |
+| Porta ocupada | `-Porta 4568` ou `DASHZON_PORTA` no `.env` |
+| `Host not permitted` | Domínio em `DASHZON_HOSTS` (no Docker: `DASHZON_DOMINIO`) |
+| 1ª partida após atualizar demora | Normal: migração automática do banco (cópia em `dashzon.db.v2-*.bak`) |
+| Tudo 500 e o log fala em "migrar o banco" | A migração falhou e **nada foi alterado**. Não apague nada; mostre a mensagem do log ao usuário |
+| Esqueceu a senha do único admin | `cd backend; bundle exec ruby -e 'require_relative "lib/usuarios"; id = Usuarios.por_login_ou_email("LOGIN")["id"]; Usuarios.definir_senha!(id, "senha-temporaria-123", deve_trocar: true)'` (Docker: prefixe com `docker compose exec dashzon`) |
 
-1. **Antes de mudar:** leia o código atual e confirme o comportamento que vai mudar (e o que depende dele). Não edite de memória.
-2. **Depois de mudar, valide duas vezes:**
-   - rodada 1: `bundle exec rake test` + teste de ponta a ponta no navegador numa instância separada;
-   - corrija o que falhar e **repita tudo** (rodada 2) num banco zerado. Só commite quando as duas rodadas passarem sem falha.
-3. Se algo falhou no caminho, registre em `desenvolvimento.md`.
+## Nunca
 
-## Contas de usuário
+- Apagar ou mover `data/` (banco + `segredo.key`), arquivos `*.bak`, ou rodar `docker compose down -v`.
+- Testar contra `data/dashzon.db`: use outra `PORT` e outro `DASHZON_DB_PATH`.
+- Expor a porta 4567 na internet: só atrás do Caddy, com HTTPS.
+- Ligar o modo WAL do SQLite (o backup copia só o `dashzon.db`).
+- **REGRA:** alterar a lógica ou a organização dos dashboards e gráficos sem pedido explícito: o motor C++ (`engine-cpp/src/main.cpp`), `normalize_consulta!`, `normalize_widget!` e `engine_query` (`backend/lib/module_schema.rb`), e o desenho e layout em `frontend/js/dashboards.js`. Os trechos protegidos têm comentário `REGRA:`; detalhes no `Sistema.md`.
+- Fazer push sem pedido, ou commitar segredos (`.env`, `*.db`, `data/`).
 
-- Regras de conta ficam em `backend/lib/usuarios.rb`; as rotas (`backend/rotas/usuarios.rb`) só chamam essas funções.
-- **Hash sempre:** senha com PBKDF2 (sal por usuário; não mude `ITERACOES`, as senhas gravadas dependem dele), CPF/CNPJ com HMAC da chave do servidor (guardado mascarado para exibir; o número completo nunca é gravado), tokens de link com SHA-256. Nada disso sai na API (`Usuarios.publico`).
-- `data/segredo.key` (ou `DASHZON_SESSION_SECRET`) **não pode ser apagado nem trocado** sem necessidade: derruba as sessões e invalida os hashes de CPF/CNPJ.
-- Não existe usuário padrão nem senha conhecida. Banco sem usuário pede para criar o primeiro, que nasce administrador.
-- Sempre sobra pelo menos um administrador ativo; ninguém se exclui, se desativa ou tira o próprio perfil de administrador.
-- Trocar senha, redefinir, desativar: a sessão da pessoa cai na hora (`sessao_versao`).
-- Toda rota `/api/admin/*` é só de administrador (filtro no `app.rb`). Rota nova de administração vai nesse prefixo.
-- Respostas de login e de "esqueci a senha" não revelam se um usuário existe.
+## Ao mudar código
 
-## Boas práticas
+Leia o `Sistema.md` (seção "Regras de desenvolvimento"). O essencial:
 
-### Arquitetura
-
-- **Ruby é dono do banco e das regras; o C++ só faz conta.** O motor nunca abre o SQLite nem conhece módulos específicos. Busca e agregação pesadas vão para o motor, não para loops em Ruby ou JS.
-- **Todo JSON de cadastro passa por `ModuleSchema`** (módulos, widgets, registros, templates). Não valide nem converta dados em outro lugar; estenda `ModuleSchema`.
-- **Nada específico de um template no código.** Telas e rotas são genéricas e dirigidas pelo schema. Se algo só vale para "finanças", ele pertence ao JSON do template.
-- Configuração de ambiente (host, porta, caminho do banco, motor, chave de sessão) sempre por `ENV`, com padrão para localhost. Nada fixo que impeça rodar num servidor.
-
-### Backend (Ruby / Sinatra)
-
-- SQL **sempre parametrizado** (`?`). Nunca interpole valores vindos do usuário numa string SQL.
-- Acesse o banco só pelos helpers de `Database` (`rows`, `row`, `execute`, `insert`, `transaction`), que serializam a conexão única. Não abra outra conexão SQLite.
-- Operações de várias escritas (instalar template, excluir módulo) ficam dentro de `Database.transaction`: ou tudo ou nada.
-- Erros esperados levantam `ModuleSchema::Error` (vira **422** com mensagem em português). 404 para o que não existe, 401 sem login, 409 antes do setup. Nunca devolva stack trace ao navegador.
-- Tabelas novas em bancos existentes: `CREATE TABLE IF NOT EXISTS` via `garantir_tabelas!`, sem subir `SCHEMA_VERSION` à toa. Subir a versão sem migração arquiva o banco do usuário.
-- Mudança no **formato** de dados já gravados (como o registro compacto da v3) sobe `SCHEMA_VERSION` **e** vem com migração no lugar em `lib/migracao.rb`: cópia de segurança antes, uma única transação, falha vira `Migracao::Falha` (nunca "não configurado") e teste com um banco antigo de verdade (`test/migracao_test.rb`). Quem já tem dados jamais pode cair no `arquivar_versao_antiga!`.
-- `registros.dados` é um array compacto (`RecordCodec`, posições em `schema.slots`). Leia e grave **só** por `Database.registros`, `registro`, `inserir_registro`, `atualizar_registro` e `remover_registro`; SQL direto nessa coluna lê/grava no formato errado. Datas de `registros` são inteiros (a API devolve ISO).
-- Toda rota nova sob `/api` passa pelo filtro de login. Se uma rota precisar ser aberta, ela entra explicitamente em `ROTAS_ABERTAS` e é justificada no comentário.
-- Limites em entradas do usuário (tamanho de texto, quantidade de linhas importadas, tamanho de upload).
-
-### Frontend (HTML/CSS/JS sem build)
-
-- Sem etapa de build e sem CDN: bibliotecas ficam em `frontend/vendor/` para funcionar offline.
-- Um arquivo por tela no padrão `const X = (() => { ...; return { ... }; })()`; a ordem de carga está no `index.html` e no guia.
-- **Todo texto vindo do usuário ou do banco passa por `Util.escapeHtml`** antes de ir para `innerHTML`. Prefira `textContent` quando não precisar de HTML.
-- Chamadas HTTP só pelo `Api` (trata erro e 401). Mostre erros no próprio formulário (`form-erro`) ou com `Util.aviso`, nunca só no console.
-- Cores só pelos tokens CSS (`--series-*`, `--text-*`...), que já cobrem tema claro e escuro. Nada de cor fixa em JS.
-- `localStorage` só para preferências do navegador (privacidade, aba lembrada). Dados de verdade ficam no backend.
-- Acessibilidade: botões de verdade (`<button>`), `aria-label` em ícones, foco visível, Esc fecha modais, e tudo usável pelo teclado.
-- Valores em moeda recebem a classe `sensivel` (modo privacidade).
-
-### Velocidade
-
-- Toda chamada nova ao motor C++ passa por `CacheResultados.buscar(...)` (`lib/desempenho.rb`), com a chave incluindo tudo o que muda o resultado (módulo, schema, config/consulta). A validade vem de `Database.versao_dados`: não crie outro mecanismo de invalidação, e não grave no banco por fora da conexão do `Database` sem pensar no cache (outro processo é detectado pelo `PRAGMA data_version`).
-- Respostas saem com gzip (`Rack::Deflater`) e os estáticos com cabeçalho de cache (`CacheEstaticos`): `vendor/` e `preview/` guardam por 1 dia, então **mude o nome do arquivo** ao atualizar uma biblioteca em `vendor/`.
-- Puma só fora do Windows (`platforms: :ruby` no Gemfile; no Windows exigiria MSYS2); o Sinatra escolhe sozinho entre Puma e WEBrick.
-- Não ligue o modo WAL do SQLite: o backup copia só o `dashzon.db`, e com WAL parte dos dados ficaria no `-wal`.
-- Variáveis de ambiente se leem com `Ambiente["NOME", padrao]` (`lib/ambiente.rb`): o docker compose passa as opcionais vazias.
-
-### Segurança
-
-- Senhas só com hash (PBKDF2 com sal); nunca em log, resposta da API ou commit.
-- Nada de segredo no repositório: `.env`, bancos (`*.db`), `data/` (inclui `segredo.key`), backups e JSON do usuário estão no `.gitignore`. Confira `git status` antes de commitar.
-- A sessão usa cookie `httponly` e `same_site: strict`; atrás de HTTPS, `DASHZON_COOKIE_SEGURO=1`.
-- Acesso por domínio (ex.: DuckDNS) só com o host listado em `DASHZON_HOSTS`. Na internet, só com HTTPS (Caddy); nunca exponha o WEBrick direto.
-- Login e links têm limite de tentativas por IP. Rotas abertas novas também precisam desse limite.
-
-### Testes e verificação
-
-- Rode `cd backend; bundle exec rake test` antes de commitar mudanças no backend. Funcionalidade nova no backend vem com teste em `backend/test/`.
-- Os testes usam um banco temporário (`DASHZON_DB_PATH`, definido em `test/test_helper.rb` antes de carregar o app). **Nunca teste contra `data/dashzon.db`**, o banco real do usuário.
-- Para testar pela interface, suba uma instância separada (outra `PORT` e outro `DASHZON_DB_PATH`) com dados de exemplo.
-- JS: `node --check frontend/js/*.js`. Ruby: `ruby -c` nos arquivos alterados.
-- Se um teste manual criou dados no banco real, remova-os e diga isso ao usuário.
-
-### Git e documentação
-
-- Textos da interface, mensagens de erro, comentários e commits em português (pt-BR).
-- Trabalhe na `desenvolvimento`; `main` é a estável e `producao` a do servidor.
-- Um commit por parte pronta (`tipo(área): resumo`, ex.: `feat(backend): ...`, `fix(frontend): ...`, `docs: ...`, `test: ...`), com o README por último. Push só quando pedido.
-- Mantenha `docs/DESENVOLVIMENTO.md` em dia quando a arquitetura, as rotas ou as funções principais mudarem.
-- Comentários explicam o **porquê** (decisões e armadilhas), não repetem o que o código já diz.
-- **Registre todo problema, bug ou limitação em `desenvolvimento.md`** (raiz do projeto, fora do git), seguindo o modelo do topo do arquivo: quando, onde, sintoma, causa, solução, commit e status. Os que interessam a quem usa o projeto também entram, resumidos, nas "Perguntas e respostas" do README.
+- validação dupla antes de commitar: `cd backend; bundle exec rake test` + teste no navegador numa instância separada, duas rodadas, banco zerado;
+- registre o que fez em `Log.md` (quando, o quê, por quê) e os problemas em `desenvolvimento.md` (fora do git);
+- trabalhe na branch `desenvolvimento`.
