@@ -19,6 +19,7 @@ A inspiração veio de projetos open source de finanças como o [OpenMonetis](ht
 - **Lançar pelo dashboard:** "+ Lançar" no topo (ou "+" em cada card) cadastra um registro sem sair do dashboard, e os cards se atualizam.
 - **Ajuda (?) com imagem:** no criador de card e na criação de módulos, passar o mouse mostra um print de exemplo; clicar abre um popup com explicação e imagens (`frontend/preview/`).
 - **Modo privacidade:** esconde os valores em moeda com um clique.
+- **Funciona no celular:** barra no topo com o menu numa gaveta (☰), dashboard com os cards empilhados (sem mexer no layout do computador), formulários em tela cheia e botões do tamanho do dedo. Testado de 320 a 1920px de largura.
 - **Três temas com um clique:** sol (claro) → pôr do sol (**suave**: fundo creme, contraste mais baixo e menos luz azul, para cansar menos a vista) → lua (escuro). O ícone gira a cada troca. Em **Minha conta** dá para escolher o tema, a página que abre ao entrar, começar com os valores ocultos e "sair dos outros dispositivos". Tudo fica salvo na conta.
 - **Exportar/backup:** a configuração (e, se quiser, os dados) sai em JSON no mesmo formato de template.
 - **JSON do usuário no banco:** templates importados e cada exportação ficam guardados no SQLite (tabela `jsons`), **comprimidos** (ocupam cerca de 1/10 do espaço), e os importados voltam na galeria. No git ficam só os templates padrão; qualquer outro `.json` é ignorado.
@@ -233,6 +234,7 @@ Sistema.md               especificação técnica completa e regras de desenvolv
 Log.md                   o que foi feito, quando e por quê
 servidor.md              passo a passo do servidor: Windows, Docker, domínio, backup
 scripts/rodar.ps1        sobe/para o DashZon no Windows, instalando só o que falta
+scripts/auditar-responsivo.ps1  testa a interface em 7 tamanhos de tela (prints + erros medidos)
 Dockerfile, docker-compose.yml, .env.example   Docker (motor compilado no Linux, Puma, Caddy opcional)
 ```
 
