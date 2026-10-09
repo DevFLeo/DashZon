@@ -80,6 +80,7 @@ Lidas por `Ambiente["NOME", padrao]`: valor vazio ou só espaços conta como nã
 | `PORT` | `4567` | Porta HTTP |
 | `DASHZON_DB_PATH` | `data/dashzon.db` | Arquivo do banco; `segredo.key` e as cópias `.bak` ficam na mesma pasta |
 | `DASHZON_ENGINE` | busca em `engine-cpp/build/{Release,Debug,}/dashzon_engine[.exe]` | Caminho do motor |
+| `DASHZON_ENGINE_TIMEOUT` | `60` | Segundos por chamada ao motor; passou disso, o processo é encerrado (HTTP 500) |
 | `DASHZON_HOSTS` | vazio | Domínios aceitos no `Host`, além de localhost e IPs |
 | `DASHZON_COOKIE_SEGURO` | `0` | `1`: cookie `Secure` em toda requisição que chega por HTTPS |
 | `DASHZON_SESSION_SECRET` | vazio | Chave do servidor; sem ela, usa `segredo.key` ao lado do banco (criado com 64+ bytes, modo 600) |
@@ -163,7 +164,7 @@ Medido: 100 mil registros migram em ~5,6 s, de 19,7 MB para 8,6 MB.
 
 ### 6.1 Protocolo
 
-`EngineClient.run(payload)`: um processo por chamada (`Open3.capture3`), JSON pelo stdin, JSON pelo stdout. Se a resposta tiver `error` ou o código de saída não for 0, levanta `EngineError` (HTTP 500).
+`EngineClient.run(payload)`: um processo por chamada (`EngineClient.executar`, `Open3.popen3` com entrada, stdout e stderr em threads), JSON pelo stdin, JSON pelo stdout. Se a resposta tiver `error`, se o código de saída não for 0 ou se passar de `DASHZON_ENGINE_TIMEOUT` (o processo é encerrado), levanta `EngineError` (HTTP 500).
 
 | Comando | Entrada | Saída |
 |---|---|---|
@@ -191,7 +192,8 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 | 404 | Recurso inexistente |
 | 409 | Sistema ainda não configurado |
 | 422 | Validação (`ModuleSchema::Error`, `Usuarios::Erro`) |
-| 429 | Limite de tentativas |
+| 413 | Corpo acima de 64 MB (`LimiteCorpo`, pelo `Content-Length`) |
+| 429 | Limite de tentativas (login, links e a senha atual em `PUT /api/eu/senha`) |
 | 400 | JSON inválido, ou corpo que não é um objeto |
 | 500 | Motor ou migração (com a causa); erro inesperado responde "Erro interno" e o detalhe vai só para o log |
 | 502 | SMTP |
@@ -267,7 +269,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 | Topologia | Como | Servidor HTTP | Dados |
 |---|---|---|---|
-| Windows local | `scripts/rodar.ps1`: confere Ruby, faz `bundle check/install`, compila o motor se faltar ou se o código for mais novo, sobe `ruby -rbundler/setup app.rb` oculto e espera `/api/status` (30 s) | WEBrick | `data/`; logs em `log/` (`dashzon.log` = stderr, `bundle.log`, `motor.log`) |
+| Windows local | `scripts/rodar.ps1`: confere Ruby, faz `bundle check/install`, compila o motor se faltar ou se o código for mais novo, sobe `ruby -rbundler/setup app.rb` oculto e espera `/api/status` (30 s). `-Banco` relativo vale a partir da raiz. Só para processos `ruby` na porta (outro programa: avisa e sai); porta ocupada sem `/api/status` 200 (ex.: migração que falhou): mostra o log em vez de subir outro | WEBrick | `data/`; logs em `log/` (`dashzon.log` = stderr, `bundle.log`, `motor.log`) |
 | Docker | Multi-stage: `build` (cmake Release + gems sem teste), `teste` (`docker build --target teste .` roda a suíte), `final` (`ruby:3.4-slim`, usuário uid 1000, `VOLUME /dados`, healthcheck em `/api/status` a cada 30 s com início em 20 s) | Puma | volume `dashzon_dashzon-dados` |
 | Docker + domínio | `--profile https`: serviço `caddy:2` nas portas 80/443, proxy para `dashzon:4567`, certificado Let's Encrypt | Puma | volumes `caddy-dados` e `caddy-config` |
 | Windows + DuckDNS | `deploy/instalar.ps1` (Caddy com plugin `dns.providers.duckdns`, firewall, tarefa de IP a cada 5 min); `iniciar-publico.ps1` (app em 127.0.0.1:4567, Caddy em 0.0.0.0:2444); `parar-publico.ps1` | WEBrick | `data/` |
@@ -281,7 +283,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`. São 100 testes; os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`. São 105 testes; os do motor dão `skip` se o binário não existir.
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:
   - dados, ids e datas;

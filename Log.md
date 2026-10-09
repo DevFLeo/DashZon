@@ -6,6 +6,26 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-09 · `desenvolvimento` · Revisão, parte 2: tempo máximo do motor, limites e scripts que não derrubam outros programas
+
+**O que:**
+- **Motor:** cada chamada tem tempo máximo (`DASHZON_ENGINE_TIMEOUT`, padrão 60 s). Passou disso, o processo é encerrado e a requisição recebe 500. A saída do motor não muda; só a forma de chamá-lo (`EngineClient.executar`, com entrada e saídas em threads).
+- **Corpo da requisição:** até 64 MB (`LimiteCorpo`, 413 acima disso).
+- **`PUT /api/eu/senha`:** senha atual errada conta no mesmo limite de tentativas do login.
+- **Variáveis:** `DASHZON_SMTP_*` e `DASHZON_COOKIE_SEGURO` lidas por `Ambiente[...]` (só espaços = não definida); `DASHZON_SESSION_SECRET` curta demais gera aviso no log. O valor da chave continua sendo usado exatamente como veio.
+- **Scripts:**
+  - `rodar.ps1` e `deploy/_comum.ps1` só param processos do DashZon (`ruby`, e `caddy` no deploy); outro programa na porta gera um aviso, sem ser derrubado;
+  - `rodar.ps1` com a porta ocupada por um servidor que responde erro (ex.: migração que falhou) mostra o log, em vez de tentar subir um segundo processo.
+
+**Por quê:** restos dos itens 19, 23 e 25 do `desenvolvimento.md`. `Stop-Process -Force` em qualquer dono da porta podia fechar um programa da pessoa.
+
+**Validação:**
+- `rake test` 105/105 (5 testes novos: limite na troca de senha, 413, motor travado encerrado, pipes com 4 MB sem travar, SMTP só com espaços);
+- ponta a ponta na instância separada, 47/47 em duas rodadas com banco zerado;
+- `rodar.ps1` conferido em quatro casos: já no ar, `-Reiniciar`, `-Parar` com outro programa na porta (avisa e não derruba) e subir com a porta ocupada.
+
+---
+
 ## 2026-10-09 · `desenvolvimento` · Correções da revisão geral (validação, erros, links e docs)
 
 **O que:**
