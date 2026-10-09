@@ -16,8 +16,23 @@ module ModuleSchema
   MOVIMENTO = %w[entrada saida].freeze
   RESERVADOS = %w[id _criado_em _atualizado_em].freeze
   ID_RE = /\A[a-z][a-z0-9_]{0,39}\z/
+  # Limites da definição de módulo (os templates padrão usam bem menos).
+  NOME_MAX = 80
+  DESCRICAO_MAX = 500
+  ICONE_MAX = 40
+  AJUDA_MAX = 500
+  CAMPOS_MAX = 100
+  OPCOES_MAX = 200
+  OPCAO_MAX = 100
+  # Número simples, já sem separador de milhar: recusa o que o Float() do Ruby
+  # também aceitaria, como "0x1A" (26) ou "1_000".
+  NUMERO_RE = /\A[+-]?(\d+(\.\d+)?|\.\d+)([eE][+-]?\d+)?\z/
 
   module_function
+
+  def limite!(texto, maximo, contexto)
+    raise Error, "#{contexto}: texto muito longo (máximo #{maximo} caracteres)" if texto.length > maximo
+  end
 
   # --- definição de módulo ---------------------------------------------------
 
@@ -35,6 +50,11 @@ module ModuleSchema
     raise Error, "O módulo '#{slug}' precisa de um nome" if nome.empty?
 
     raise Error, "O módulo '#{slug}' precisa de uma lista 'campos'" unless defn["campos"].is_a?(Array) && defn["campos"].any?
+
+    limite!(nome, NOME_MAX, "Nome do módulo '#{slug}'")
+    limite!(defn["descricao"].to_s.strip, DESCRICAO_MAX, "Descrição do módulo '#{slug}'")
+    limite!(defn["icone"].to_s.strip, ICONE_MAX, "Ícone do módulo '#{slug}'")
+    raise Error, "O módulo '#{slug}' tem campos demais (máximo #{CAMPOS_MAX})" if defn["campos"].size > CAMPOS_MAX
 
     vistos = []
     campos = defn["campos"].map { |c| normalize_campo!(c, slug, vistos) }
@@ -98,6 +118,8 @@ module ModuleSchema
     end
 
     nome = c["nome"].to_s.strip
+    limite!(nome, NOME_MAX, "Nome do campo '#{id}' do módulo '#{slug}'")
+    limite!(c["ajuda"].to_s.strip, AJUDA_MAX, "Ajuda do campo '#{id}' do módulo '#{slug}'")
     out = {
       "id" => id,
       "nome" => nome.empty? ? id : nome,
@@ -109,13 +131,28 @@ module ModuleSchema
     if tipo == "selecao"
       opcoes = Array(c["opcoes"]).map { |o| o.to_s.strip }.reject(&:empty?).uniq
       raise Error, "Campo '#{id}' do módulo '#{slug}': seleção precisa de 'opcoes'" if opcoes.empty?
+      raise Error, "Campo '#{id}' do módulo '#{slug}': opções demais (máximo #{OPCOES_MAX})" if opcoes.size > OPCOES_MAX
+      opcoes.each { |o| limite!(o, OPCAO_MAX, "Opção do campo '#{id}' do módulo '#{slug}'") }
 
       out["opcoes"] = opcoes
     end
     out["opcoes"] = MOVIMENTO if tipo == "movimento"
-    out["padrao"] = c["padrao"] if c.key?("padrao")
+    if c.key?("padrao")
+      validar_padrao!(out, c["padrao"], slug)
+      out["padrao"] = c["padrao"]
+    end
     out["ajuda"] = c["ajuda"].to_s.strip if c["ajuda"]
     out
+  end
+
+  # O padrão é usado quando o registro não traz o campo. Um padrão inválido
+  # (ex.: opção que não existe) faria todo cadastro sem o campo dar 422, longe
+  # da causa; aqui o erro aparece ao salvar a estrutura. Fica gravado como veio
+  # ("$hoje" continua relativo).
+  def validar_padrao!(campo, padrao, slug)
+    coerce_valor(campo, resolve_token(padrao))
+  rescue Error => e
+    raise Error, "Campo '#{campo['id']}' do módulo '#{slug}': padrão inválido (#{e.message})"
   end
 
   def normalize_resumo!(r, slug, campos)
@@ -279,6 +316,8 @@ module ModuleSchema
   def parse_number(s)
     s = s.strip
     s = s.delete(".").tr(",", ".") if s.include?(",")
+    return nil unless s.match?(NUMERO_RE)
+
     Float(s)
   rescue ArgumentError
     nil

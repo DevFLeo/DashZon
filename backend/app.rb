@@ -69,11 +69,29 @@ helpers do
     JSON.generate(obj)
   end
 
+  # Toda rota espera um objeto: um array ou valor solto viraria TypeError (500)
+  # no primeiro body_json["campo"].
   def body_json
     raw = request.body.read
-    raw.empty? ? {} : JSON.parse(raw)
+    d = raw.empty? ? {} : JSON.parse(raw)
+    halt json({ error: "O corpo deve ser um objeto JSON" }, 400) unless d.is_a?(Hash)
+
+    d
   rescue JSON::ParserError
     halt json({ error: "JSON inválido" }, 400)
+  end
+
+  # Nome de dashboard: obrigatório e com limite (entrada do usuário).
+  def nome_dashboard!(d)
+    nome = d["nome"].to_s.strip
+    halt json({ error: "Informe o nome do dashboard" }, 422) if nome.empty?
+    halt json({ error: "Nome do dashboard muito longo (máximo #{NOME_DASHBOARD_MAX})" }, 422) if nome.length > NOME_DASHBOARD_MAX
+
+    nome
+  end
+
+  def dashboard!(id)
+    Database.row("SELECT * FROM dashboards WHERE id = ?", [id.to_i]) || halt(json({ error: "Dashboard não encontrado" }, 404))
   end
 
   def modulo!(slug)
@@ -101,8 +119,18 @@ error Correio::Falha do
   json({ error: env["sinatra.error"].message }, 502)
 end
 
+# Migração que falhou: a mensagem é para o usuário (causa e caminho da cópia de
+# segurança; ver lib/migracao.rb), então vai inteira na resposta.
+error Migracao::Falha do
+  json({ error: env["sinatra.error"].message }, 500)
+end
+
+# Erro inesperado: o detalhe vai para o log, nunca para o navegador (pode
+# conter SQL, caminhos ou mensagens do SQLite).
 error do
-  json({ error: "Erro interno: #{env['sinatra.error'].message}" }, 500)
+  e = env["sinatra.error"]
+  warn "[DashZon] #{request.request_method} #{request.path_info}: #{e.class}: #{e.message}\n  #{Array(e.backtrace).first(5).join("\n  ")}"
+  json({ error: "Erro interno. Veja o log do servidor." }, 500)
 end
 
 # Rotas abertas (sem login): status, login/logout e os links de e-mail. Setup e
@@ -113,6 +141,10 @@ ROTAS_ABERTAS = %w[/api/status /api/login /api/logout /api/usuarios/primeiro
 
 # Quem está com senha temporária só pode trocar a senha (e sair).
 ROTAS_COM_SENHA_TEMPORARIA = %w[/api/status /api/logout /api/eu /api/eu/senha].freeze
+
+# Moedas aceitas no setup e no painel do adm (o frontend tem o símbolo de cada uma).
+MOEDAS = %w[BRL USD EUR].freeze
+NOME_DASHBOARD_MAX = 80
 
 helpers do
   # Usuário da sessão, conferido a cada requisição: se foi desativado, excluído
@@ -186,6 +218,8 @@ post "/api/setup" do
   senha = d["senha"].to_s
   halt json({ error: "Login deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou _" }, 422) unless login.match?(Usuarios::LOGIN_RE)
   Usuarios.validar_senha!(senha)
+  moeda = (d["moeda"] || "BRL").to_s
+  halt json({ error: "Moeda inválida" }, 422) unless MOEDAS.include?(moeda)
 
   escolhidos = Array(d["templates"]).map do |id|
     TemplateRegistry.find(id) || halt(json({ error: "Template '#{id}' não existe" }, 422))
@@ -193,7 +227,7 @@ post "/api/setup" do
   pacotes = (escolhidos + Array(d["importados"])).map { |t| TemplateRegistry.normalize!(t) }
 
   Database.arquivar_versao_antiga!
-  Database.create_schema!(org_name: org, moeda: (d["moeda"] || "BRL").to_s)
+  Database.create_schema!(org_name: org, moeda: moeda)
   # Quem faz o setup é o primeiro administrador.
   uid = Usuarios.criar!({ "login" => login, "nome" => d["nome"].to_s.strip.empty? ? login : d["nome"], "perfil" => "admin" },
                         senha: senha)
@@ -248,7 +282,11 @@ delete "/api/templates/:id" do
   id = params[:id].to_s
   halt json({ error: "Templates padrão não podem ser removidos" }, 422) unless id.start_with?(TemplateRegistry::PREFIXO_SALVO)
 
-  Database.excluir_json!(id.delete_prefix(TemplateRegistry::PREFIXO_SALVO))
+  # Confere o tipo: o id é da tabela `jsons`, que também guarda as exportações.
+  num = id.delete_prefix(TemplateRegistry::PREFIXO_SALVO)
+  halt json({ error: "Template não encontrado" }, 404) unless Database.json_salvo(num, "template")
+
+  Database.excluir_json!(num)
   json ok: true
 end
 
@@ -397,25 +435,20 @@ get "/api/dashboards" do
 end
 
 post "/api/dashboards" do
-  nome = body_json["nome"].to_s.strip
-  halt json({ error: "Informe o nome do dashboard" }, 422) if nome.empty?
-
+  nome = nome_dashboard!(body_json)
   id = Database.insert("INSERT INTO dashboards (nome, criado_em, atualizado_em) VALUES (?, ?, ?)", [nome, Database.now, Database.now])
   json({ id: id }, 201)
 end
 
 get "/api/dashboards/:id" do
-  dash = Database.row("SELECT * FROM dashboards WHERE id = ?", [params[:id].to_i])
-  halt json({ error: "Dashboard não encontrado" }, 404) unless dash
-
+  dash = dashboard!(params[:id])
   dash["widgets"] = Database.rows("SELECT * FROM widgets WHERE dashboard_id = ?", [dash["id"]]).map { |w| widget_json(w) }
   json dash
 end
 
 put "/api/dashboards/:id" do
-  nome = body_json["nome"].to_s.strip
-  halt json({ error: "Informe o nome do dashboard" }, 422) if nome.empty?
-
+  nome = nome_dashboard!(body_json)
+  dashboard!(params[:id])
   Database.execute("UPDATE dashboards SET nome = ?, atualizado_em = ? WHERE id = ?", [nome, Database.now, params[:id].to_i])
   json ok: true
 end
@@ -428,14 +461,16 @@ end
 # --------------------------------------------------------------- widgets ---
 post "/api/dashboards/:id/widgets" do
   d = body_json
+  dash = dashboard!(params[:id])
   m = modulo!(d["modulo"].to_s)
   w = ModuleSchema.normalize_widget!(d, m["schema"]).merge("modulo" => m["slug"])
-  id = TemplateRegistry.insert_widget(params[:id].to_i, w)
+  id = TemplateRegistry.insert_widget(dash["id"], w)
   json widget_json(Database.row("SELECT * FROM widgets WHERE id = ?", [id])), 201
 end
 
 put "/api/widgets/:id" do
   d = body_json
+  halt json({ error: "Widget não encontrado" }, 404) unless Database.row("SELECT id FROM widgets WHERE id = ?", [params[:id].to_i])
   m = modulo!(d["modulo"].to_s)
   w = ModuleSchema.normalize_widget!(d, m["schema"])
   Database.execute(

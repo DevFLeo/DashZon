@@ -388,7 +388,11 @@ module Usuarios
     # Link de verificação vale só para o e-mail para o qual foi gerado.
     raise Erro, invalido if tipo == "verificar_email" && t["dado"] != u["email"]
 
-    Database.execute("UPDATE tokens SET usado_em = ? WHERE id = ?", [Database.now, t["id"]])
+    # Marca como usado só se ainda não estava: de duas requisições simultâneas
+    # com o mesmo link, só uma passa.
+    usado = Database.alterar("UPDATE tokens SET usado_em = ? WHERE id = ? AND usado_em IS NULL", [Database.now, t["id"]])
+    raise Erro, invalido unless usado.positive?
+
     u
   end
 end

@@ -14,8 +14,12 @@ FALHAS_LOCK = Mutex.new
 
 def falhas_recentes(ip)
   FALHAS_LOCK.synchronize do
+    return 0 unless FALHAS.key?(ip)
+
     FALHAS[ip].reject! { |t| t < Time.now - JANELA_BLOQUEIO }
-    FALHAS[ip].size
+    # IP sem falhas na janela sai do mapa: senão ele cresce um item por IP, para sempre.
+    FALHAS.delete(ip) if FALHAS[ip].empty?
+    FALHAS.fetch(ip, []).size
   end
 end
 
@@ -223,7 +227,7 @@ end
 put "/api/admin/config" do
   d = body_json
   moeda = d["moeda"].to_s
-  halt json({ error: "Moeda inválida" }, 422) unless %w[BRL USD EUR].include?(moeda)
+  halt json({ error: "Moeda inválida" }, 422) unless MOEDAS.include?(moeda)
 
   Database.atualizar_config!(org_name: d["org_name"].to_s.strip[0, 80], moeda: moeda)
   json ok: true
