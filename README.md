@@ -197,6 +197,11 @@ backend/
   app.rb                 rotas da API (Sinatra)
   config.ru              entrada para rackup/puma em servidor
   lib/database.rb        SQLite: schema, conexão, módulos, registros, usuários e JSON guardados
+  lib/record_codec.rb    formato compacto dos registros (array posicional)
+  lib/migracao.rb        migração automática do banco (versão 2 para 3)
+  lib/json_guardado.rb   compressão do JSON guardado no banco
+  lib/desempenho.rb      cache das respostas do motor e dos arquivos estáticos
+  lib/ambiente.rb        leitura das variáveis de ambiente
   lib/module_schema.rb   validação de módulos, widgets e registros
   lib/template_registry.rb  listar/validar/instalar/exportar templates
   lib/engine_client.rb   ponte com o binário C++
@@ -222,6 +227,7 @@ frontend/
   js/modulos.js          tela genérica de módulo e editor JSON
   js/dashboards.js       canvas de dashboards, criador de card e "Lançar"
   js/ajuda.js            ícones (?) com prévia em imagem
+  js/responsivo.js       dashboard empilhado no celular (só lê o layout)
   preview/               prints de cada módulo e tipo de card (dados fictícios)
   js/util.js, js/api.js  formatação, cores e cliente HTTP
   vendor/                Chart.js e GridStack (offline)
