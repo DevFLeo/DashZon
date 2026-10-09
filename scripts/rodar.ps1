@@ -28,9 +28,19 @@ function Falhar([string]$msg, [string]$log) {
 function Respondendo {
     try { return (Invoke-WebRequest "$url/api/status" -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200 } catch { return $false }
 }
+# Para só o Ruby que escuta na porta: outro programa que esteja nela não é
+# derrubado (avisa e sai; use -Porta para escolher outra).
 function Parar-Servidor {
     Get-NetTCPConnection -LocalPort $Porta -State Listen -ErrorAction SilentlyContinue |
-        ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+        Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {
+            $p = Get-Process -Id $_ -ErrorAction SilentlyContinue
+            if (-not $p) { return }
+            if ($p.ProcessName -in @("ruby", "rubyw")) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            else { Falhar "A porta $Porta está com outro programa ($($p.ProcessName), PID $($p.Id)); não foi parado. Use -Porta." }
+        }
+}
+function Porta-Ocupada {
+    [bool](Get-NetTCPConnection -LocalPort $Porta -State Listen -ErrorAction SilentlyContinue)
 }
 # Programas nativos que escrevem na saída de erro não podem derrubar o script.
 function Rodar-Quieto([string]$exe, [string[]]$argumentos, [string]$log) {
@@ -44,6 +54,11 @@ function Rodar-Quieto([string]$exe, [string[]]$argumentos, [string]$log) {
 if ($Parar) { Parar-Servidor; Write-Host "DashZon parado."; exit 0 }
 if ($Reiniciar) { Parar-Servidor; Start-Sleep 1 }
 elseif (Respondendo) { Write-Host "DashZon já está no ar: $url"; exit 0 }
+elseif (Porta-Ocupada) {
+    # Algo escuta na porta mas /api/status não deu 200: pode ser o DashZon com
+    # erro (ex.: migração do banco que falhou). Subir outro só daria "porta em uso".
+    Falhar "A porta $Porta já está em uso, mas $url/api/status não respondeu 200. Veja o log abaixo; depois use -Reiniciar (ou -Porta)." (Join-Path $Logs "dashzon.log")
+}
 
 # 1. Ruby (PATH ou o local padrão do RubyInstaller).
 $ruby = (Get-Command ruby -ErrorAction SilentlyContinue).Source

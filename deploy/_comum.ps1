@@ -42,9 +42,16 @@ function Ler-Config([string]$Arquivo = (Join-Path $PSScriptRoot "publico.env")) 
 
 function Caminho-Caddy { Join-Path $PSScriptRoot "bin\caddy.exe" }
 
+# Para só o que é do DashZon (Ruby ou Caddy) escutando na porta. Outro programa
+# não é derrubado: o script avisa e para, para a pessoa decidir.
 function Parar-Porta([int]$Porta) {
     Get-NetTCPConnection -LocalPort $Porta -State Listen -ErrorAction SilentlyContinue |
-        ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+        Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {
+            $p = Get-Process -Id $_ -ErrorAction SilentlyContinue
+            if (-not $p) { return }
+            if ($p.ProcessName -in @("ruby", "rubyw", "caddy")) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            else { throw "A porta $Porta está com outro programa ($($p.ProcessName), PID $($p.Id)); feche-o ou troque a porta." }
+        }
 }
 
 function Esperar-Porta([int]$Porta, [int]$Segundos = 30) {
