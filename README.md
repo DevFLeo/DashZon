@@ -82,6 +82,7 @@ Num servidor, o caminho recomendado é o Docker com o Caddy (HTTPS automático):
 | `PORT` | `4567` | Porta HTTP |
 | `DASHZON_DB_PATH` | `data/dashzon.db` | Caminho do banco SQLite |
 | `DASHZON_ENGINE` | `engine-cpp/build/...` | Caminho do binário do motor |
+| `DASHZON_ENGINE_TIMEOUT` | `60` | Segundos que uma conta do motor pode levar antes de ser interrompida |
 | `DASHZON_SESSION_SECRET` | arquivo `data/segredo.key` | Chave do servidor (64+ caracteres): assina o login e protege o hash do CPF/CNPJ. Sem a variável, é criada no arquivo na primeira vez. **Não apague nem troque** |
 | `DASHZON_HOSTS` | só localhost e IPs | Domínios aceitos, separados por vírgula (ex.: `meupainel.duckdns.org`) |
 | `DASHZON_COOKIE_SEGURO` | desligado | `1` no uso público: requisições por HTTPS (via Caddy) recebem o cookie de login marcado como Secure. O acesso local por `http://127.0.0.1` continua funcionando |
