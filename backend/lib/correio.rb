@@ -20,8 +20,10 @@ module Correio
 
   module_function
 
+  # Ambiente[...]: um valor só com espaços (ou vazio, como o Docker Compose
+  # passa as opcionais) conta como não definido.
   def configurado?
-    !ENV["DASHZON_SMTP_HOST"].to_s.empty?
+    !Ambiente["DASHZON_SMTP_HOST"].nil?
   end
 
   def enviar(para, assunto, texto)
@@ -41,11 +43,11 @@ module Correio
       #{texto}
     MSG
 
-    smtp = Net::SMTP.new(ENV["DASHZON_SMTP_HOST"], Ambiente["DASHZON_SMTP_PORTA", "587"].to_i)
+    smtp = Net::SMTP.new(Ambiente["DASHZON_SMTP_HOST"], Ambiente["DASHZON_SMTP_PORTA", "587"].to_i)
     smtp.enable_starttls_auto
     smtp.open_timeout = 10
     smtp.read_timeout = 15
-    smtp.start("dashzon", ENV["DASHZON_SMTP_USUARIO"], ENV["DASHZON_SMTP_SENHA"], :login) do |s|
+    smtp.start("dashzon", Ambiente["DASHZON_SMTP_USUARIO"], Ambiente["DASHZON_SMTP_SENHA"], :login) do |s|
       s.send_message(msg, remetente, para)
     end
     true

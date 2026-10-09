@@ -18,9 +18,17 @@ module Segredo
     File.join(File.dirname(Database::DB_PATH), "segredo.key")
   end
 
+  # O valor da variável é usado exatamente como veio (sem strip): mudar a chave
+  # de quem já usa derrubaria as sessões e os HMAC de CPF/CNPJ gravados.
   def chave
     @chave ||= ENV["DASHZON_SESSION_SECRET"].to_s.then do |env|
-      env.length >= 64 ? env : ler_ou_criar
+      next env if env.length >= 64
+
+      unless env.strip.empty?
+        warn "[DashZon] DASHZON_SESSION_SECRET tem #{env.length} caracteres (mínimo 64) e foi ignorada; " \
+             "usando #{arquivo}."
+      end
+      ler_ou_criar
     end
   end
 

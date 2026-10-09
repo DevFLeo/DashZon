@@ -182,9 +182,15 @@ put "/api/eu" do
 end
 
 put "/api/eu/senha" do
+  # Mesmo limite do login: com uma sessão roubada, a senha atual não pode ser
+  # descoberta por tentativa e erro.
+  barrar_se_muitas_tentativas!
   d = body_json
   u = usuario_atual
-  halt json({ error: "Senha atual incorreta" }, 422) unless Usuarios.senha_confere?(u, d["senha_atual"].to_s)
+  unless Usuarios.senha_confere?(u, d["senha_atual"].to_s)
+    registrar_falha(request.ip)
+    halt json({ error: "Senha atual incorreta" }, 422)
+  end
   halt json({ error: "A senha nova precisa ser diferente da atual" }, 422) if d["senha_atual"].to_s == d["senha_nova"].to_s
 
   novo = Usuarios.definir_senha!(u["id"], d["senha_nova"].to_s)

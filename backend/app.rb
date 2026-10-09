@@ -36,6 +36,27 @@ set :raise_errors, false
 use Rack::Deflater
 use CacheEstaticos
 
+# Teto para o corpo das requisições: sem ele, um JSON gigante (template
+# importado, que também fica guardado em `jsons`) ocuparia memória e banco.
+# 64 MB cobrem com folga um backup com dados (50 mil registros ~ 10 MB).
+class LimiteCorpo
+  MAXIMO = 64 * 1024 * 1024
+
+  def initialize(app)
+    @app = app
+  end
+
+  def call(env)
+    tamanho = env["CONTENT_LENGTH"].to_i
+    if tamanho > MAXIMO
+      corpo = JSON.generate(error: "Envio grande demais (máximo #{MAXIMO / 1024 / 1024} MB)")
+      return [413, { "content-type" => "application/json" }, [corpo]]
+    end
+    @app.call(env)
+  end
+end
+use LimiteCorpo
+
 # Sessão por cookie assinado. A chave vem de DASHZON_SESSION_SECRET ou do
 # arquivo segredo.key ao lado do banco (ver lib/segredo.rb), então reiniciar o
 # servidor não derruba ninguém.
@@ -48,7 +69,7 @@ set :sessions, same_site: :strict, httponly: true
 # Rack não grava cookie Secure numa requisição HTTP simples, e o acesso local
 # (http://127.0.0.1:4567, que não sai da máquina) pararia de funcionar.
 # O DashZon escuta só em 127.0.0.1, então quem chega por HTTP é a própria máquina.
-COOKIE_SEGURO = ENV["DASHZON_COOKIE_SEGURO"] == "1"
+COOKIE_SEGURO = Ambiente["DASHZON_COOKIE_SEGURO"] == "1"
 
 before do
   request.session_options[:secure] = request.ssl? if COOKIE_SEGURO
