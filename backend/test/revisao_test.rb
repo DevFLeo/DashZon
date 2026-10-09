@@ -98,6 +98,47 @@ class RevisaoTest < Minitest::Test
     assert_raises(Usuarios::Erro) { Usuarios.consumir_token!("redefinir_senha", token) }
   end
 
+  def test_troca_de_senha_tem_limite_de_tentativas
+    configurar!
+    TENTATIVAS_MAX.times do
+      put_json "/api/eu/senha", { "senha_atual" => "errada-000", "senha_nova" => "outra-senha-1" }
+      assert_equal 422, last_response.status
+    end
+    put_json "/api/eu/senha", { "senha_atual" => "senha-forte-1", "senha_nova" => "outra-senha-1" }
+    assert_equal 429, last_response.status
+  end
+
+  def test_corpo_grande_demais_da_413
+    app_interno = ->(_env) { [200, {}, ["ok"]] }
+    status, _, corpo = LimiteCorpo.new(app_interno).call("CONTENT_LENGTH" => (LimiteCorpo::MAXIMO + 1).to_s)
+    assert_equal 413, status
+    assert_match(/grande demais/, corpo.join)
+    assert_equal 200, LimiteCorpo.new(app_interno).call("CONTENT_LENGTH" => "100").first
+  end
+
+  def test_motor_travado_e_encerrado_pelo_tempo_maximo
+    inicio = Time.now
+    erro = assert_raises(EngineClient::EngineError) do
+      EngineClient.executar([RbConfig.ruby, "-e", "sleep 30"], "", tempo_maximo: 1)
+    end
+    assert_match(/não respondeu/, erro.message)
+    assert_operator Time.now - inicio, :<, 15
+  end
+
+  def test_executar_le_e_escreve_volumes_grandes_sem_travar
+    entrada = "abc\n" * 1_000_000 # ~4 MB, maior que qualquer buffer de pipe
+    out, _err, status = EngineClient.executar([RbConfig.ruby, "-e", "STDOUT.binmode; print STDIN.binmode.read.upcase"], entrada, tempo_maximo: 30)
+    assert status.success?
+    assert_equal entrada.upcase, out
+  end
+
+  def test_smtp_so_com_espacos_conta_como_nao_configurado
+    ENV["DASHZON_SMTP_HOST"] = "   "
+    refute Correio.configurado?
+  ensure
+    ENV.delete("DASHZON_SMTP_HOST")
+  end
+
   def test_ip_sem_falhas_recentes_sai_do_mapa
     registrar_falha("10.0.0.9")
     FALHAS_LOCK.synchronize { FALHAS["10.0.0.9"] = [Time.now - JANELA_BLOQUEIO - 1] }
