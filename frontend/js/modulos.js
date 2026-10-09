@@ -81,11 +81,17 @@ const Modulos = (() => {
     }));
   }
 
+  // Cada busca ganha um número; uma resposta que chega depois de outra mais
+  // nova (busca digitada rápido) é descartada em vez de sobrescrever a tabela.
+  let ultimaBusca = 0;
+
   async function carregarRegistros() {
     const qs = new URLSearchParams();
     if (busca) qs.set("q", busca);
     Object.entries(filtros).forEach(([k, v]) => { if (v) qs.set(`f[${k}]`, v); });
+    const minha = ++ultimaBusca;
     const res = await Api.get(`/api/modulos/${atual.slug}/registros?${qs}`);
+    if (minha !== ultimaBusca) return;
     registros = res.result;
     $("mod-contagem").textContent = `${res.count} registro(s)`;
     renderTabela();
@@ -141,8 +147,13 @@ const Modulos = (() => {
       case "selecao":
       case "movimento": {
         const vazio = c.obrigatorio && valor ? "" : '<option value="">—</option>';
-        const opts = Util.opcoesDe(c).map((o) => `<option value="${esc(o.v)}" ${o.v === valor ? "selected" : ""}>${esc(o.l)}</option>`).join("");
-        return `<div class="field">${label}<select id="${id}" ${req}>${vazio}${opts}</select>${ajuda}</div>`;
+        const opcoes = Util.opcoesDe(c);
+        // Valor gravado com uma opção que saiu da estrutura: continua na lista
+        // (e selecionado), senão o navegador trocaria ou apagaria o valor ao salvar.
+        const removida = valor && !opcoes.some((o) => o.v === valor)
+          ? `<option value="${esc(valor)}" selected>${esc(valor)} (opção removida)</option>` : "";
+        const opts = opcoes.map((o) => `<option value="${esc(o.v)}" ${o.v === valor ? "selected" : ""}>${esc(o.l)}</option>`).join("");
+        return `<div class="field">${label}<select id="${id}" ${req}>${vazio}${removida}${opts}</select>${ajuda}</div>`;
       }
       default: {
         const tipo = { numero: "number", moeda: "number", data: "date" }[c.tipo] || "text";
@@ -284,7 +295,7 @@ const Modulos = (() => {
     })).join("");
     $("add-galeria").querySelectorAll(".tpl-card").forEach((card) => card.addEventListener("click", async () => {
       const t = templates.find((x) => x.id === card.dataset.id);
-      if (!confirm(`Instalar "${t.nome}"? Módulos com o mesmo identificador de um já existente ganham um sufixo (_2).`)) return;
+      if (!confirm(`Instalar "${t.nome}"? Um módulo com o mesmo nome de um já existente é reaproveitado (sem repetir os dados de exemplo).`)) return;
       try { await instalar({ template_id: t.id }); } catch (e) { erroAdicionar(e.message); }
     }));
     $("add-previa").textContent = "";
