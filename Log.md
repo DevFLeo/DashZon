@@ -6,6 +6,44 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-09 · `desenvolvimento` · Correções da revisão geral (validação, erros, links e docs)
+
+**O que:**
+- **API:**
+  - corpo que não é objeto JSON dá 400, e não 500;
+  - dashboard ou card inexistente dá 404 (`PUT /api/dashboards/:id`, `POST /api/dashboards/:id/widgets`, `PUT /api/widgets/:id`);
+  - erro inesperado responde "Erro interno" e o detalhe vai só para o log (a falha de migração continua mostrando a causa e a cópia).
+- **"Remover template"** confere o tipo: não apaga mais uma exportação do histórico.
+- **Validação:**
+  - `padrao` de campo validado ao salvar a estrutura;
+  - números em formato simples (`0x1A` e `1_000` recusados);
+  - moeda conferida também no setup;
+  - limites de tamanho no módulo (nome, descrição, ícone, campos, opções, ajuda) e no nome do dashboard.
+- **Links de uso único:** marcados como usados de forma atômica (duas requisições com o mesmo link: só uma passa).
+- **Limite de tentativas:** IP sem falhas na janela sai da memória.
+- **Formulário de registro:**
+  - um valor de seleção cuja opção saiu da estrutura aparece como "(opção removida)", em vez de ser trocado ou apagado sem aviso;
+  - a busca descarta respostas fora de ordem.
+- **`-Banco` relativo** no `rodar.ps1` e no `iniciar-publico.ps1`: resolvido a partir da raiz do projeto (antes caía em `backend\`).
+- **Docs:**
+  - rota `#/verificar-email`;
+  - limites e códigos no Sistema.md;
+  - estrutura do README;
+  - aviso de fazer o setup antes de publicar (servidor.md e DuckDNS);
+  - `admin/admin` removido do passo 0.
+
+**Por quê:** revisão geral dos .md e do código (itens 12 a 25 do `desenvolvimento.md`). Ficaram fora, à espera de decisão:
+- o arredondamento de números no motor (item 12, **crítico**) e a busca com acento (13), ambos em código protegido pela REGRA;
+- a paginação (14);
+- o fechamento do setup (15).
+
+**Validação:**
+- `rake test` 100/100 (10 testes novos em `revisao_test.rb`; o teste de falha de migração passou a conferir a mensagem);
+- ponta a ponta numa instância separada (porta 4570, banco temporário), 47/47 em duas rodadas com banco zerado, incluindo "layout salvo intacto";
+- auditoria de responsividade: 74 telas, 0 erros e 0 avisos.
+
+---
+
 ## 2026-10-08 · `desenvolvimento` · Interface responsiva (celular, tablet e telas grandes)
 
 **O que:**

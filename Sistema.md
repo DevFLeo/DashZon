@@ -192,7 +192,8 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 | 409 | Sistema ainda não configurado |
 | 422 | Validação (`ModuleSchema::Error`, `Usuarios::Erro`) |
 | 429 | Limite de tentativas |
-| 500 | Motor ou migração |
+| 400 | JSON inválido, ou corpo que não é um objeto |
+| 500 | Motor ou migração (com a causa); erro inesperado responde "Erro interno" e o detalhe vai só para o log |
 | 502 | SMTP |
 
 **Filtro `before "/api/*"`:**
@@ -223,7 +224,9 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 | `GET /api/widgets/:id/data` | Dados do card (`aggregate`, revalidado contra o schema atual, projetado, com cache) |
 | `POST /api/widgets/preview` | Prévia sobre 72 registros fictícios (nada gravado) |
 
-**Validação de valores:** `texto` ≤ 500, `texto_longo` ≤ 5000 caracteres; números finitos (aceita `1.234,56`); datas existentes no calendário; `selecao`/`movimento` restritos às opções; `padrao` aceita `$hoje`, `$hoje±N`.
+**Validação de valores:** `texto` ≤ 500, `texto_longo` ≤ 5000 caracteres; números finitos e em formato simples (aceita `1.234,56`, `1234.56`, `1.5e3`; recusa `0x1A` e `1_000`); datas existentes no calendário; `selecao`/`movimento` restritos às opções; `padrao` aceita `$hoje`, `$hoje±N` e é validado ao salvar a estrutura.
+
+**Limites de cadastro:** nome de módulo, de campo e de dashboard ≤ 80; descrição de módulo ≤ 500; ícone ≤ 40; ajuda ≤ 500; até 100 campos por módulo e 200 opções por seleção (≤ 100 caracteres cada). Moeda: `BRL`, `USD` ou `EUR` (setup e painel do adm).
 
 ## 8. Autenticação e segurança
 
@@ -255,7 +258,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 - **Ferramentas do card:** com mouse ficam em `position: absolute`, sem reservar largura (aparecem no hover); com `hover: none` ficam sempre visíveis.
 - **Fechar modal:** um "×" (`.modal-fechar`, sticky no topo) é injetado pelo `app.js` em todo `.modal-overlay` sem `data-fixo`.
 
-- **Rotas por hash:** `#/d/<id>` (dashboard), `#/m/<slug>` (módulo), `#/admin`, `#/inicio`, `#/redefinir/<token>`.
+- **Rotas por hash:** `#/d/<id>` (dashboard), `#/m/<slug>` (módulo), `#/admin`, `#/inicio`, `#/redefinir/<token>`, `#/verificar-email/<token>`.
 - **Boot:** `GET /api/status` decide entre setup, login (ou "crie seu usuário") e o app; troca de senha obrigatória antes de qualquer outra tela.
 - **`Api`:** `fetch` + JSON. Um 401 fora de `/api/login` e `/api/usuarios/primeiro` volta para `/`.
 - **Temas:** sistema, claro, suave e escuro, por tokens CSS (`--series-*`, `--text-*`). Modo privacidade pela classe `sensivel`.
@@ -278,7 +281,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`. São 90 testes; os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`. São 100 testes; os do motor dão `skip` se o binário não existir.
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:
   - dados, ids e datas;

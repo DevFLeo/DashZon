@@ -178,7 +178,7 @@ docker compose --profile https up -d --build
 docker compose --profile https ps
 ```
 
-6. Abra **https://painel.suaempresa.com.br**. O certificado leva de alguns segundos a 1 minuto na primeira vez (`docker compose logs -f caddy` mostra quando sai).
+6. Abra **https://painel.suaempresa.com.br**. O certificado leva de alguns segundos a 1 minuto na primeira vez (`docker compose logs -f caddy` mostra quando sai). **Faça o primeiro acesso logo em seguida:** até o setup ser concluído, quem abrir o endereço primeiro cria o administrador. (Para fazer o setup antes de publicar, suba sem o perfil `https` e abra pelo túnel `ssh -L 4567:127.0.0.1:4567 usuario@servidor`, em http://127.0.0.1:4567.)
 
 Para atualizar: `git pull` e `docker compose --profile https up -d --build`.
 

@@ -36,7 +36,7 @@ Tudo o que precisa já está na pasta `deploy/`:
 
 ## Passo 0: antes de tudo (5 min)
 
-1. **Troque a senha do administrador.** Com o sistema na internet, qualquer pessoa pode tentar entrar. Se o seu usuário ainda é `admin` com senha `admin`, entre no DashZon, vá em **Minha conta → Trocar senha** e use uma senha forte (frase longa é ótimo: `cafe-com-pao-na-padaria-2026`).
+1. **Senha forte no administrador.** Com o sistema na internet, qualquer pessoa pode tentar entrar. Se a sua senha é fraca (ou se o seu usuário ainda é o `admin` de uma versão antiga), entre no DashZon, vá em **Minha conta → Trocar senha** e use uma senha forte (frase longa é ótimo: `cafe-com-pao-na-padaria-2026`). Faça também o **primeiro acesso (setup) antes** de publicar: enquanto ele não é concluído, quem abrir o endereço primeiro cria o administrador.
 2. **Faça um backup:** no DashZon, "Backup com dados (JSON)". Ou copie o arquivo `data\dashzon.db` para outro lugar com o servidor parado.
 3. Confira que o DashZon roda normalmente em `http://127.0.0.1:4567` (veja o README).
 
