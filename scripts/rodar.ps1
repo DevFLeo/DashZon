@@ -80,7 +80,12 @@ if (-not (Test-Path $motor) -or $fonte.LastWriteTime -gt (Get-Item $motor).LastW
 }
 
 # 4. Sobe o servidor (ruby direto com o bundler: ~0,5 s mais rápido que bundle exec).
-if ($Banco) { $env:DASHZON_DB_PATH = $Banco }
+# Caminho relativo vale a partir da raiz do projeto (o servidor roda em backend\,
+# e lá "data\x.db" viraria backend\data\x.db).
+if ($Banco) {
+    if (-not [IO.Path]::IsPathRooted($Banco)) { $Banco = Join-Path $Raiz $Banco }
+    $env:DASHZON_DB_PATH = $Banco
+}
 $env:PORT = "$Porta"
 $erros = Join-Path $Logs "dashzon.log"
 Start-Process -FilePath $ruby -ArgumentList "-rbundler/setup", "app.rb" -WorkingDirectory $Backend -WindowStyle Hidden `

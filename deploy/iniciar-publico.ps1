@@ -39,7 +39,11 @@ $env:PORT = "$PortaInterna"
 $env:DASHZON_HOSTS = $cfg.Host                  # aceita o domínio (além de localhost)
 $env:DASHZON_COOKIE_SEGURO = "1"                # cookie de login só por HTTPS
 $env:DASHZON_URL_PUBLICA = $cfg.Url             # links de e-mail/redefinição
-if ($Banco) { $env:DASHZON_DB_PATH = $Banco }
+if ($Banco) {
+    # Relativo à raiz do projeto (o servidor roda em backend\).
+    if (-not [IO.Path]::IsPathRooted($Banco)) { $Banco = Join-Path $Raiz $Banco }
+    $env:DASHZON_DB_PATH = $Banco
+}
 Start-Process -FilePath $bundle -ArgumentList "exec", "ruby", "app.rb" -WorkingDirectory (Join-Path $Raiz "backend") `
     -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Logs "dashzon-saida.log") -RedirectStandardError (Join-Path $Logs "dashzon.log")
 if (-not (Esperar-Porta $PortaInterna 40)) { throw "O DashZon não subiu. Veja deploy\logs\dashzon.log" }
