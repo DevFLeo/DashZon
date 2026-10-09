@@ -243,6 +243,8 @@ class MigracaoTest < Minitest::Test
     get "/api/status"
     assert_equal 500, last_response.status
     refute_includes last_response.body, '"configured":false'
+    # A resposta diz a causa e onde está a cópia (não o "Erro interno" genérico).
+    assert_match(/migrar o banco.*\.bak/, JSON.parse(last_response.body)["error"])
   end
 
   # Conta quantas vezes a migração de fato é tentada (cada tentativa grava uma
