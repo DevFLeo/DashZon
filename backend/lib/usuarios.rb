@@ -5,6 +5,7 @@ require "time"
 require_relative "database"
 require_relative "segredo"
 require_relative "documento"
+require_relative "seguranca"
 
 # Contas de acesso: cadastro, perfis, senhas, links de uso único e os ajustes
 # do painel do administrador. Toda regra de usuário mora aqui; as rotas em
@@ -186,11 +187,16 @@ module Usuarios
 
   # --- validação de cadastro -----------------------------------------------------
 
-  def validar_senha!(senha)
+  # `login`: recusa a senha igual ao próprio login. Também recusa as senhas
+  # mais comuns e sequências (Seguranca.motivo_senha_fraca).
+  def validar_senha!(senha, login: nil)
     s = senha.to_s
     raise Erro, "A senha precisa ter ao menos #{SENHA_MINIMA} caracteres" if s.length < SENHA_MINIMA
     raise Erro, "A senha pode ter no máximo #{SENHA_MAXIMA} caracteres" if s.length > SENHA_MAXIMA
     raise Erro, "A senha não pode ser só espaços" if s.strip.empty?
+
+    motivo = Seguranca.motivo_senha_fraca(s, login)
+    raise Erro, motivo if motivo
 
     s
   end
@@ -271,7 +277,7 @@ module Usuarios
   def criar!(d, senha:, deve_trocar: false)
     tabelas!
     dados = validar_dados!(d)
-    validar_senha!(senha)
+    validar_senha!(senha, login: dados["login"])
     sal = SecureRandom.hex(16)
     now = Database.now
     Database.insert(
@@ -306,7 +312,7 @@ module Usuarios
 
   # Troca a senha e derruba as outras sessões desse usuário (sessao_versao+1).
   def definir_senha!(id, nova, deve_trocar: false)
-    validar_senha!(nova)
+    validar_senha!(nova, login: por_id(id)&.dig("login"))
     sal = SecureRandom.hex(16)
     Database.execute(
       "UPDATE usuarios SET senha_hash = ?, sal = ?, deve_trocar_senha = ?, sessao_versao = sessao_versao + 1, atualizado_em = ?

@@ -124,6 +124,21 @@ module Database
       criado_em TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_jsons_tipo ON jsons(tipo);
+
+    -- Diário de segurança (lib/seguranca.rb): logins, falhas, bloqueios.
+    -- `conta` é o HMAC do login digitado, nunca o texto.
+    CREATE TABLE IF NOT EXISTS eventos_seguranca (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quando INTEGER NOT NULL,
+      tipo TEXT NOT NULL,
+      ip TEXT,
+      conta TEXT,
+      usuario_id INTEGER,
+      detalhe TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_eventos_ip ON eventos_seguranca(ip, quando);
+    CREATE INDEX IF NOT EXISTS idx_eventos_conta ON eventos_seguranca(conta, quando);
+    CREATE INDEX IF NOT EXISTS idx_eventos_quando ON eventos_seguranca(quando);
   SQL
 
   # Uma única conexão para o processo, serializada por um Monitor (reentrante,

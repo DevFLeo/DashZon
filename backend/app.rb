@@ -11,6 +11,7 @@ require_relative "lib/segredo"
 require_relative "lib/correio"
 require_relative "lib/usuarios"
 require_relative "lib/desempenho"
+require_relative "lib/seguranca"
 
 # Um banco de versão anterior é migrado já na partida (lib/migracao.rb), antes de
 # o servidor aceitar requisições: o primeiro acesso não paga a espera e um banco
@@ -33,6 +34,10 @@ set :raise_errors, false
 
 # Velocidade (lib/desempenho.rb): gzip nas respostas (os ~375 KB de JS/CSS/JSON
 # caem para ~1/4, o que pesa muito pela internet) e cache de arquivos estáticos.
+# Segurança (lib/seguranca.rb): cabeçalhos (CSP, nosniff, frame-ancestors...),
+# escrita só do próprio site (Origin) e limite de requisições por IP. Fica por
+# fora de tudo, para valer também nas respostas de erro e nos arquivos.
+use Seguranca::Protecao
 use Rack::Deflater
 use CacheEstaticos
 
@@ -163,6 +168,10 @@ ROTAS_ABERTAS = %w[/api/status /api/login /api/logout /api/usuarios/primeiro
 # Quem está com senha temporária só pode trocar a senha (e sair).
 ROTAS_COM_SENHA_TEMPORARIA = %w[/api/status /api/logout /api/eu /api/eu/senha].freeze
 
+# Validade da sessão (ver usuario_atual): parada (horas) e total (dias).
+SESSAO_OCIOSA = Ambiente["DASHZON_SESSAO_HORAS", "12"].to_f * 3600
+SESSAO_MAXIMA = Ambiente["DASHZON_SESSAO_DIAS", "30"].to_f * 86_400
+
 # Moedas aceitas no setup e no painel do adm (o frontend tem o símbolo de cada uma).
 MOEDAS = %w[BRL USD EUR].freeze
 NOME_DASHBOARD_MAX = 80
@@ -174,9 +183,27 @@ helpers do
     return @usuario_atual if defined?(@usuario_atual)
 
     u = session[:uid] && Usuarios.por_id(session[:uid])
-    valido = u && u["ativo"].to_i == 1 && u["sessao_versao"].to_i == session[:sv].to_i
+    valido = u && u["ativo"].to_i == 1 && u["sessao_versao"].to_i == session[:sv].to_i && !sessao_vencida?
     session.clear if session[:uid] && !valido
+    marcar_atividade if valido
     @usuario_atual = valido ? u : nil
+  end
+
+  # Sessão parada há mais de SESSAO_OCIOSA (padrão 12 h) ou aberta há mais de
+  # SESSAO_MAXIMA (padrão 30 dias) cai: num computador esquecido aberto, a
+  # conta não fica acessível para sempre. Sessões antigas (sem as marcas)
+  # ganham as marcas agora, em vez de cair.
+  def sessao_vencida?
+    agora = Time.now.to_i
+    (session[:visto] && agora - session[:visto].to_i > SESSAO_OCIOSA) ||
+      (session[:inicio] && agora - session[:inicio].to_i > SESSAO_MAXIMA)
+  end
+
+  # Regrava a marca no máximo uma vez por minuto (cada mudança reenvia o cookie).
+  def marcar_atividade
+    agora = Time.now.to_i
+    session[:inicio] ||= agora
+    session[:visto] = agora if agora - session[:visto].to_i > 60
   end
 end
 
@@ -238,7 +265,7 @@ post "/api/setup" do
   login = d["usuario"].to_s.strip
   senha = d["senha"].to_s
   halt json({ error: "Login deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou _" }, 422) unless login.match?(Usuarios::LOGIN_RE)
-  Usuarios.validar_senha!(senha)
+  Usuarios.validar_senha!(senha, login: login)
   moeda = (d["moeda"] || "BRL").to_s
   halt json({ error: "Moeda inválida" }, 422) unless MOEDAS.include?(moeda)
 

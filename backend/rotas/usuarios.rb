@@ -3,41 +3,32 @@
 # fica em lib/usuarios.rb; aqui só entra e sai HTTP.
 
 # --------------------------------------------------- limite de tentativas ---
-# Contra tentativa e erro (o sistema pode estar na internet): depois de
-# TENTATIVAS_MAX falhas de um mesmo IP em JANELA_BLOQUEIO segundos, login e
-# pedidos de redefinição ficam bloqueados para esse IP até a janela passar.
-# Fica em memória: reiniciar o servidor zera a contagem.
-TENTATIVAS_MAX = 8
-JANELA_BLOQUEIO = 15 * 60
-FALHAS = Hash.new { |h, k| h[k] = [] }
-FALHAS_LOCK = Mutex.new
-
-def falhas_recentes(ip)
-  FALHAS_LOCK.synchronize do
-    return 0 unless FALHAS.key?(ip)
-
-    FALHAS[ip].reject! { |t| t < Time.now - JANELA_BLOQUEIO }
-    # IP sem falhas na janela sai do mapa: senão ele cresce um item por IP, para sempre.
-    FALHAS.delete(ip) if FALHAS[ip].empty?
-    FALHAS.fetch(ip, []).size
-  end
-end
-
-def registrar_falha(ip)
-  FALHAS_LOCK.synchronize { FALHAS[ip] << Time.now }
-end
+# Contra tentativa e erro (o sistema pode estar na internet), em lib/seguranca.rb:
+# falhas contadas por IP (8 em 15 min) e por conta (10 em 15 min, vindas de
+# qualquer IP), gravadas no diário de segurança (sobrevivem a um reinício).
 
 helpers do
-  def barrar_se_muitas_tentativas!
-    return if falhas_recentes(request.ip) < TENTATIVAS_MAX
+  # `login`: também barra a conta atacada a partir de muitos IPs. A mensagem é
+  # a mesma nos dois casos e para login inexistente (não revela quem existe).
+  def barrar_se_muitas_tentativas!(login = nil)
+    return unless Seguranca.bloqueio(ip: request.ip, login: login)
 
     halt json({ error: "Muitas tentativas. Espere alguns minutos e tente de novo." }, 429)
   end
 
+  def falhou!(tipo, login: nil, usuario_id: nil)
+    Seguranca.falhou!(tipo, ip: request.ip, login: login, usuario_id: usuario_id)
+  end
+
+  def diario!(tipo, usuario_id: nil, detalhe: nil)
+    Seguranca.registrar!(tipo, ip: request.ip, usuario_id: usuario_id, detalhe: detalhe)
+  end
+
   def iniciar_sessao(u)
-    session.clear
+    session.clear # sessão nova a cada login (nada da anterior é reaproveitado)
     session[:uid] = u["id"]
     session[:sv] = u["sessao_versao"].to_i
+    session[:inicio] = session[:visto] = Time.now.to_i
     Usuarios.registrar_login!(u["id"])
   end
 
@@ -80,23 +71,26 @@ end
 # --------------------------------------------------------------- sessão ---
 post "/api/login" do
   halt json({ error: "O sistema ainda não foi configurado" }, 409) unless Database.configured?
-  barrar_se_muitas_tentativas!
-
   d = body_json
-  u = Usuarios.autenticar(d["usuario"], d["senha"].to_s)
+  login = d["usuario"].to_s[0, 200]
+  barrar_se_muitas_tentativas!(login)
+
+  u = Usuarios.autenticar(login, d["senha"].to_s)
   unless u
-    registrar_falha(request.ip)
+    # O id só vai para o diário quando o login existe (para o adm saber quem foi atacado).
+    falhou!("login_falhou", login: login, usuario_id: Usuarios.por_login_ou_email(login)&.dig("id"))
     sleep 0.5 # deixa a tentativa e erro mais lenta
     halt json({ error: "Usuário ou senha inválidos" }, 401)
   end
 
   Usuarios.pode_entrar!(u)
-  FALHAS_LOCK.synchronize { FALHAS.delete(request.ip) }
+  Seguranca.registrar!("login_ok", ip: request.ip, login: login, usuario_id: u["id"])
   iniciar_sessao(u)
   json ok: true, usuario: Usuarios.publico(u)
 end
 
 post "/api/logout" do
+  diario!("logout", usuario_id: usuario_atual&.dig("id")) if session[:uid]
   session.clear
   json ok: true
 end
@@ -120,7 +114,7 @@ end
 # tem conta. Sem SMTP configurado, orienta a falar com o administrador.
 post "/api/senha/esqueci" do
   barrar_se_muitas_tentativas!
-  registrar_falha(request.ip) # conta como tentativa: evita disparar e-mails em massa
+  falhou!("pedido_link") # conta como tentativa: evita disparar e-mails em massa
 
   unless Correio.configurado?
     halt json({ ok: true, mensagem: "O envio de e-mail não está configurado. Peça ao administrador um link ou uma senha temporária." })
@@ -151,10 +145,11 @@ post "/api/senha/redefinir" do
   begin
     u = Usuarios.consumir_token!("redefinir_senha", d["token"])
   rescue Usuarios::Erro
-    registrar_falha(request.ip)
+    falhou!("link_invalido")
     raise
   end
   Usuarios.definir_senha!(u["id"], d["senha"])
+  diario!("senha_redefinida", usuario_id: u["id"], detalhe: "pelo link")
   json ok: true, mensagem: "Senha redefinida. Entre com a senha nova."
 end
 
@@ -163,7 +158,7 @@ post "/api/email/verificar" do
   begin
     u = Usuarios.consumir_token!("verificar_email", body_json["token"])
   rescue Usuarios::Erro
-    registrar_falha(request.ip)
+    falhou!("link_invalido")
     raise
   end
   Usuarios.marcar_email_verificado!(u["id"], true)
@@ -184,16 +179,17 @@ end
 put "/api/eu/senha" do
   # Mesmo limite do login: com uma sessão roubada, a senha atual não pode ser
   # descoberta por tentativa e erro.
-  barrar_se_muitas_tentativas!
-  d = body_json
   u = usuario_atual
+  barrar_se_muitas_tentativas!(u["login"])
+  d = body_json
   unless Usuarios.senha_confere?(u, d["senha_atual"].to_s)
-    registrar_falha(request.ip)
+    falhou!("senha_atual_errada", login: u["login"], usuario_id: u["id"])
     halt json({ error: "Senha atual incorreta" }, 422)
   end
   halt json({ error: "A senha nova precisa ser diferente da atual" }, 422) if d["senha_atual"].to_s == d["senha_nova"].to_s
 
   novo = Usuarios.definir_senha!(u["id"], d["senha_nova"].to_s)
+  diario!("senha_trocada", usuario_id: u["id"])
   session[:sv] = novo["sessao_versao"].to_i # continua logado nesta sessão; as outras caem
   json ok: true
 end
@@ -205,6 +201,7 @@ end
 # Derruba as sessões abertas em outros navegadores; esta continua.
 post "/api/eu/sair-outros" do
   u = Usuarios.encerrar_outras_sessoes!(usuario_atual["id"])
+  diario!("sessoes_encerradas", usuario_id: u["id"])
   session[:sv] = u["sessao_versao"].to_i
   json ok: true, mensagem: "Pronto: os outros dispositivos foram desconectados."
 end
@@ -219,6 +216,50 @@ end
 
 # ------------------------------------------------------- painel do adm ---
 # O filtro em app.rb já barra quem não é administrador em /api/admin/*.
+
+# Segurança: checagem da instalação, bloqueios em vigor e o diário recente.
+get "/api/admin/seguranca" do
+  json checagens: checagens_de_seguranca, bloqueios: Seguranca.bloqueios_ativos, eventos: Seguranca.eventos(100),
+       limites: { janela_minutos: Seguranca::JANELA / 60, por_ip: Seguranca::MAX_POR_IP, por_conta: Seguranca::MAX_POR_CONTA }
+end
+
+# Desbloqueia um IP ou uma conta (a contagem de falhas recomeça).
+post "/api/admin/seguranca/desbloquear" do
+  d = body_json
+  ip = d["ip"].to_s.strip
+  conta = d["conta"].to_s.strip
+  halt json({ error: "Informe o IP ou a conta" }, 422) if ip.empty? && conta.empty?
+  halt json({ error: "Conta inválida" }, 422) unless conta.empty? || conta.match?(/\A[0-9a-f]{32}\z/)
+
+  Seguranca.desbloquear!(ip: ip.empty? ? nil : ip[0, 64], conta_hash: conta.empty? ? nil : conta, por: usuario_atual["login"])
+  json ok: true
+end
+
+helpers do
+  # Cada item: { id, ok (true/false/nil = só informação), titulo, detalhe }.
+  def checagens_de_seguranca
+    publico = !%w[127.0.0.1 localhost ::1].include?(request.host)
+    admins = Usuarios.admins_ativos
+    temporarias = Database.row("SELECT COUNT(*) AS n FROM usuarios WHERE deve_trocar_senha = 1 AND ativo = 1")["n"].to_i
+    falhas24 = Database.row("SELECT COUNT(*) AS n FROM eventos_seguranca WHERE tipo = 'login_falhou' AND quando > ?",
+                            [Time.now.to_i - 86_400])["n"].to_i
+    [
+      { "id" => "https", "ok" => publico ? request.ssl? : nil, "titulo" => "Acesso por HTTPS",
+        "detalhe" => if publico then request.ssl? ? "A conexão é criptografada." : "Acesso pela rede sem HTTPS: use o Caddy (servidor.md)."
+                     else "Acesso local (http://127.0.0.1): só esta máquina." end },
+      { "id" => "cookie", "ok" => publico ? COOKIE_SEGURO : nil, "titulo" => "Cookie de login só por HTTPS",
+        "detalhe" => COOKIE_SEGURO ? "DASHZON_COOKIE_SEGURO=1." : "Para uso pela internet, ligue DASHZON_COOKIE_SEGURO=1." },
+      { "id" => "admins", "ok" => admins >= 2, "titulo" => "Administradores ativos: #{admins}",
+        "detalhe" => admins >= 2 ? "Se um esquecer a senha, o outro resolve." : "Recomendado: pelo menos dois administradores." },
+      { "id" => "temporarias", "ok" => temporarias.zero?, "titulo" => "Senhas temporárias pendentes: #{temporarias}",
+        "detalhe" => temporarias.zero? ? "Ninguém está com senha temporária." : "Quem ainda não entrou para criar a própria senha." },
+      { "id" => "falhas", "ok" => falhas24 < 20, "titulo" => "Logins errados nas últimas 24 h: #{falhas24}",
+        "detalhe" => "Bloqueio automático: #{Seguranca::MAX_POR_IP} falhas por IP ou #{Seguranca::MAX_POR_CONTA} por conta em #{Seguranca::JANELA / 60} min." },
+      { "id" => "sessao", "ok" => true, "titulo" => "Sessão expira",
+        "detalhe" => "Depois de #{(SESSAO_OCIOSA / 3600).round} h sem uso e, no máximo, em #{(SESSAO_MAXIMA / 86_400).round} dias." }
+    ]
+  end
+end
 get "/api/admin/ajustes" do
   cfg = Database.config
   json Usuarios.ajustes.merge("email_configurado" => Correio.configurado?, "org_name" => cfg["org_name"], "moeda" => cfg["moeda"],
