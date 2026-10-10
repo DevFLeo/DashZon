@@ -6,6 +6,51 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-09 · `desenvolvimento` · Configurações com abas, módulos ligáveis e Anotações em Markdown (estilo Obsidian)
+
+**O que:**
+- **Configurações** viraram uma página com abas (`#/config/<aba>`): Conta, Aparência, Segurança e **Módulos**, no lugar do modal "Minha conta". Os formulários são os mesmos.
+- **Aba Módulos:**
+  - cada pessoa liga ou desliga os módulos (preferência `modulos_ocultos`). Desligado, o módulo sai do menu dela; os dados, os cards e os outros usuários não mudam;
+  - as **opções de um módulo** só aparecem quando ele está ligado, a partir do que o módulo declara em `configuracoes`. No Cronograma: matérias, atividades (uma por linha, com a que já vem marcada), duração e horário padrão;
+  - "Adicionar módulos" instala da galeria o que ainda falta.
+- **Anotações em Markdown (template `anotacoes`, também incluído no "Cronograma de estudos"):**
+  - tipo de campo `markdown` (até 100 mil caracteres);
+  - declaração `visao: notas`: a tela do módulo vira um caderno com pastas e subpastas, tags, busca, editor com prévia (Ler, Editar, Lado a lado), gravação automática, `[[links]]` (que criam a nota se ela não existir), tarefas clicáveis, "Mencionada em", importar `.md` ou uma pasta (cofre do Obsidian) e baixar `.md` ou `.zip`;
+  - Markdown renderizado por `js/markdown.js`, sem biblioteca: escapa tudo antes de formatar e só aceita links seguros.
+- **Ligação sessão → nota:** declaração `nota` no Cronograma. Cada sessão tem o botão **Nota**, que abre a anotação do assunto ou cria uma na pasta da matéria. Com as Anotações desligadas, o botão some.
+- **Editor de estrutura (JSON)** genérico: mostra tudo o que o módulo declara (antes, chaves novas se perderiam ao salvar).
+- **Auditoria de responsividade:**
+  - passa pelas 4 abas de Configurações e pela tela de notas (109 telas);
+  - links dentro de texto Markdown ficam fora da medida de alvo de toque (exceção "inline" da WCAG 2.5.8).
+
+**Por quê:**
+- **Pedido:** "melhore as configurações", um módulo específico para estudo e anotações separadas em Markdown como no Obsidian, e o cronograma aparecer nas configurações só quando o módulo estiver selecionado.
+- **Escolhas confirmadas com o usuário:** página com abas; ligar módulos nas configurações; notas tipo Obsidian **e** ligação nota ↔ sessão.
+- **Por que genérico:** tudo é declarado no JSON do módulo (`visao`, `nota`, `configuracoes`), sem código específico de template (Sistema.md 12.5).
+
+**Validação:**
+- `rake test` 127/127 (8 testes novos em `anotacoes_test.rb`, entre eles um que garante o módulo Anotações idêntico nos dois templates);
+- `unittest` do importador 13/13;
+- auditoria: 109 telas, 0 erros e 0 avisos;
+- Edge, 43 checagens:
+  - abas de Configurações;
+  - desligar e religar um módulo (some e volta no menu e nas opções, e continua desligado depois de recarregar);
+  - editar as opções do Cronograma e conferir no banco;
+  - árvore de pastas, tags, prévia com tabela e tarefas, "Mencionada em";
+  - Markdown sem executar HTML nem `javascript:`;
+  - tarefa clicada e texto editado gravados sozinhos;
+  - link que cria a nota, voltar do navegador, filtro por tag, busca;
+  - criar, renomear e excluir nota;
+  - importar `.md` duas vezes (atualiza, não duplica);
+  - `.zip` aberto pelo `zipfile` do Python;
+  - botão Nota abrindo a nota existente, criando a nova e sumindo com as Anotações desligadas;
+  - celular (lista, nota em tela cheia, "← Notas");
+- 15 checagens de fonte (agora na aba Aparência);
+- ponta a ponta, 47/47 em duas rodadas com banco zerado.
+
+---
+
 ## 2026-10-09 · `desenvolvimento` · Fonte nas configurações, curvas mais suaves e cantos arredondados
 
 **O que:**

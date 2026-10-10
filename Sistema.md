@@ -22,7 +22,16 @@ Motor C++17 (dashzon_engine): busca e agregação, sem estado, sem acesso a disc
 | Motor C++ | `aggregate`, `multi`, `search` sobre registros recebidos | Abrir o SQLite, conhecer módulos ou templates |
 | Frontend | Telas genéricas montadas a partir do schema JSON dos módulos | Regras de negócio, persistência (só `localStorage` para preferência de navegador) |
 
-O domínio é dirigido por dados: módulos (campos, resumo) e dashboards vêm de templates JSON. O código só conhece tipos de campo genéricos: `texto`, `texto_longo`, `numero`, `moeda`, `data`, `hora`, `selecao`, `booleano` e `movimento`. Um módulo pode definir a `ordenacao` da sua lista (até 3 critérios `{campo, direcao}`), e todo campo `booleano` aparece na tabela como caixa de marcar (checklist).
+O domínio é dirigido por dados: módulos (campos, resumo) e dashboards vêm de templates JSON. O código só conhece tipos de campo genéricos: `texto`, `texto_longo`, `markdown`, `numero`, `moeda`, `data`, `hora`, `selecao`, `booleano` e `movimento`. Todo campo `booleano` aparece na tabela como caixa de marcar (checklist).
+
+Declarações opcionais do módulo (validadas em `ModuleSchema.normalize_modulo!`; o código não sabe que módulo é qual):
+
+| Chave | Formato | Efeito |
+|---|---|---|
+| `ordenacao` | até 3 `{campo, direcao}` | Ordem da lista do módulo |
+| `visao` | `{tipo: "notas", titulo, conteudo, pasta?}` (texto, markdown/texto_longo, texto/seleção) | A tela do módulo vira um caderno de notas (`js/notas.js`) em vez da tabela |
+| `nota` | `{modulo, titulo, pasta?}` | Cada registro ganha o botão "Nota", que abre ou cria no módulo de notas `modulo` a nota de mesmo título (pasta = valor do campo `pasta`). Sem o módulo instalado e ligado, o botão não aparece |
+| `configuracoes` | lista de ids de campo (até 20) | Campos ajustáveis em Configurações > Módulos (opções de seleção e valores padrão), visíveis só com o módulo ligado |
 
 ## 2. Stack e versões
 
@@ -61,7 +70,7 @@ backend/
   lib/documento.rb         CPF/CNPJ: validação, máscara, HMAC
   lib/correio.rb           SMTP opcional
   lib/dados_ficticios.rb   registros fictícios para a prévia de card
-  templates/*.json         5 templates padrão (únicos JSON versionados; cada um liberado no .gitignore)
+  templates/*.json         6 templates padrão (únicos JSON versionados; cada um liberado no .gitignore)
   test/*_test.rb           Minitest + Rack::Test em banco temporário
 engine-cpp/                CMakeLists.txt, src/main.cpp, src/json.hpp
 frontend/                  index.html, css/, js/, vendor/, preview/
@@ -131,7 +140,7 @@ Array JSON posicional; a posição de cada campo vem de `modulos.schema.slots` (
 | `movimento` | `0` / `1` | `"entrada"` / `"saida"` |
 | `hora` | inteiro: minutos desde 00:00 | `"HH:MM"` |
 | `numero`, `moeda` | número; inteiro se não tem casas (abaixo de 2^53) | número |
-| `texto`, `texto_longo`, `selecao` | texto | texto |
+| `texto`, `texto_longo`, `markdown`, `selecao` | texto | texto |
 
 `null`s finais são omitidos. O `decode` nunca levanta erro: um valor incompatível com o tipo vira `nil`. Na troca de tipo de um campo existente, `Database.reconverter_registros!` converte os valores via `ModuleSchema.coerce_valor` na mesma transação do `PUT`.
 
@@ -217,7 +226,7 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 | `POST /api/setup` | Cria o banco, o primeiro admin (`usuario`, `senha`, `nome`) e instala `templates`/`importados`; abre a sessão |
 | `POST /api/login`, `/api/logout`, `/api/usuarios/primeiro` | Sessão; criação do primeiro usuário quando não há nenhum |
 | `POST /api/senha/esqueci`, `/api/senha/redefinir`, `/api/email/verificar` | Links por token (limite por IP) |
-| `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Minha conta |
+| `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Configurações da pessoa. Preferências: `tema`, `fonte`, `pagina_inicial`, `privacidade` e `modulos_ocultos` (slugs desligados no menu dela, até 100) |
 | `GET/PUT /api/admin/ajustes`, `PUT /api/admin/config` | Regras de cadastro; organização e moeda |
 | `GET/POST /api/admin/usuarios`, `PUT/DELETE /api/admin/usuarios/:id`, `POST .../:id/ativo`, `.../senha-temporaria`, `.../link-redefinicao`, `.../email-verificado`, `.../enviar-verificacao` | Gestão de usuários |
 | `GET /api/templates`, `GET /api/templates/:id`, `POST /api/templates/validar`, `POST /api/templates/instalar`, `DELETE /api/templates/:id` (só `salvo-*`) | Galeria |
@@ -233,7 +242,7 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 | `GET /api/widgets/:id/data` | Dados do card (`aggregate`, revalidado contra o schema atual, projetado, com cache) |
 | `POST /api/widgets/preview` | Prévia sobre 72 registros fictícios (nada gravado) |
 
-**Validação de valores:** `texto` ≤ 500, `texto_longo` ≤ 5000 caracteres; números finitos e em formato simples (aceita `1.234,56`, `1234.56`, `1.5e3`; recusa `0x1A` e `1_000`); datas existentes no calendário; `hora` em `HH:MM` (aceita `8:05` e `08:05:00`); `selecao`/`movimento` restritos às opções; `padrao` aceita `$hoje`, `$hoje±N` e é validado ao salvar a estrutura.
+**Validação de valores:** `texto` ≤ 500, `texto_longo` ≤ 5000, `markdown` ≤ 100.000 caracteres (guarda o recuo; só o fim é aparado e `\r\n` vira `\n`); números finitos e em formato simples (aceita `1.234,56`, `1234.56`, `1.5e3`; recusa `0x1A` e `1_000`); datas existentes no calendário; `hora` em `HH:MM` (aceita `8:05` e `08:05:00`); `selecao`/`movimento` restritos às opções; `padrao` aceita `$hoje`, `$hoje±N` e é validado ao salvar a estrutura.
 
 **Limites de cadastro:** nome de módulo, de campo e de dashboard ≤ 80; descrição de módulo ≤ 500; ícone ≤ 40; ajuda ≤ 500; até 100 campos por módulo e 200 opções por seleção (≤ 100 caracteres cada). Moeda: `BRL`, `USD` ou `EUR` (setup e painel do adm).
 
@@ -247,11 +256,11 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 - **Contas:** sem usuário padrão. Sempre resta pelo menos um admin ativo; ninguém se exclui, se desativa ou remove o próprio perfil de admin.
 - **Host:** `host_authorization` aceita localhost, `.localhost`, qualquer IP e `DASHZON_HOSTS`; o resto recebe 403.
 - **Rede:** o app escuta em 127.0.0.1 (no Docker, a porta é publicada só em 127.0.0.1). Para a internet, só via Caddy com HTTPS. `Caddyfile.servidor` aplica HSTS, `nosniff`, `X-Frame-Options DENY`, `Referrer-Policy same-origin` e compressão zstd/gzip.
-- **Segredos fora do git:** `.env`, `deploy/publico.env`, `data/`, `*.db`, `*.bak` e `*.json` (exceto os 5 templates padrão e `.vscode`).
+- **Segredos fora do git:** `.env`, `deploy/publico.env`, `data/`, `*.db`, `*.bak` e `*.json` (exceto os 6 templates padrão e `.vscode`).
 
 ## 9. Frontend
 
-SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `fonte`, `api`, `setup`, `login`, `conta`, `admin`, `modulos`, `dashboards`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
+SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `fonte`, `api`, `markdown`, `setup`, `login`, `conta`, `config`, `admin`, `modulos`, `notas`, `dashboards`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
 
 **Responsividade** (bloco no fim do `style.css`, para ter precedência):
 
@@ -267,14 +276,25 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 - **Ferramentas do card:** com mouse ficam em `position: absolute`, sem reservar largura (aparecem no hover); com `hover: none` ficam sempre visíveis.
 - **Fechar modal:** um "×" (`.modal-fechar`, sticky no topo) é injetado pelo `app.js` em todo `.modal-overlay` sem `data-fixo`.
 
-- **Rotas por hash:** `#/d/<id>` (dashboard), `#/m/<slug>` (módulo), `#/admin`, `#/inicio`, `#/redefinir/<token>`, `#/verificar-email/<token>`.
+- **Rotas por hash:** `#/d/<id>` (dashboard), `#/m/<slug>` (módulo; tabela ou caderno de notas, conforme a `visao`), `#/m/<slug>/<id>` (uma nota), `#/config/<aba>` (`conta`, `aparencia`, `seguranca`, `modulos`), `#/admin`, `#/inicio`, `#/redefinir/<token>`, `#/verificar-email/<token>`.
+- **Configurações** (`js/config.js` + formulários do `js/conta.js`): página com abas no lugar do antigo modal "Minha conta".
+  - Na aba Módulos, cada pessoa liga ou desliga um módulo: ele sai do menu dela, dos atalhos e da página inicial, mas os dados e os cards continuam.
+  - Com o módulo ligado, aparecem as opções declaradas em `configuracoes`; salvar faz um `PUT /api/modulos/:slug` com o schema inteiro.
+  - A aba também lista os templates da galeria cujos módulos ainda não estão instalados.
+- **Notas** (`js/notas.js`, módulos com `visao: notas`), no estilo do Obsidian:
+  - lista em árvore por pasta (`A/B` = subpasta), tags com contagem e busca sem acento;
+  - editor Markdown com prévia (Ler, Editar ou Lado a lado) e gravação automática (`PATCH` 700 ms depois da última tecla; `Ctrl+S` grava na hora);
+  - `[[link]]` abre a nota ou cria uma que não existe; tarefas `- [ ]` clicáveis na prévia; "Mencionada em";
+  - importar `.md` (arquivos soltos ou uma pasta, como um cofre do Obsidian; mesmo título na mesma pasta é atualizado) e baixar uma nota `.md` ou todas num `.zip` (`Util.zip`, sem compressão, nomes em UTF-8);
+  - lê até 1000 notas por módulo.
+- **Markdown** (`js/markdown.js`, sem biblioteca): o texto é escapado antes da marcação, então HTML da nota nunca é interpretado; links só com `http(s)`, `mailto` ou endereço relativo. A auditoria isenta da medida de alvo de toque os links dentro do Markdown (exceção "inline" da WCAG 2.5.8).
 - **Boot:** `GET /api/status` decide entre setup, login (ou "crie seu usuário") e o app; troca de senha obrigatória antes de qualquer outra tela.
 - **`Api`:** `fetch` + JSON. Um 401 fora de `/api/login` e `/api/usuarios/primeiro` volta para `/`.
 - **Temas:** sistema, claro, suave e escuro, por tokens CSS (`--series-*`, `--text-*`). Modo privacidade pela classe `sensivel`.
 - **Fonte:** preferência da conta `fonte` (`inter` padrão, `sistema`, `nunito`, `atkinson`; validada por `Usuarios::FONTES`).
   - `js/fonte.js` põe `data-fonte` no `<html>` (que troca `--font-sans`) e guarda a escolha no `localStorage`, para a tela de login já abrir com ela.
   - O Chart.js desenha em `<canvas>` e não herda o CSS: `Fonte.aplicar` define `Chart.defaults.font.family` e redesenha os gráficos depois que o arquivo da fonte carrega.
-  - Em Minha conta, a amostra mostra a fonte antes de salvar.
+  - Em Configurações > Aparência, a amostra mostra a fonte antes de salvar.
   - Números com `tabular-nums` (KPIs e colunas alinhados).
 - **Cantos:** `--radius-sm` 8px (botões, campos), `--radius-md` 14px (cartões), `--radius-lg` 20px (janelas). Nos gráficos (a pedido, sem mudar dados nem ordem): linhas com `cubicInterpolationMode: "monotone"` (suaves sem passar dos pontos), barras com `borderRadius` 6, legenda e tooltip arredondados.
 
@@ -296,7 +316,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`. São 119 testes; os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`. São 127 testes; os do motor dão `skip` se o binário não existir.
 - **Importador (Python):** `python -m unittest discover -s scripts -p "test_*.py"` (13 testes: conversão por tipo, leitura de `.xlsx`/`.csv` e as planilhas de `exemplos/`).
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:

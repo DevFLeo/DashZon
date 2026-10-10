@@ -20,7 +20,7 @@ Sumário:
 
 ## 1. A ideia em uma frase
 
-Nada no sistema sabe o que é "gasto", "demanda" ou "fluxo de caixa". Tudo isso vem de **templates JSON**. Um template descreve **módulos** (quais campos cada cadastro tem), **resumos** (os KPIs do módulo) e **dashboards** (quais gráficos mostrar). O código só sabe lidar com *tipos de campo* genéricos: texto, número, moeda, data, hora, seleção, booleano e movimento.
+Nada no sistema sabe o que é "gasto", "demanda" ou "fluxo de caixa". Tudo isso vem de **templates JSON**. Um template descreve **módulos** (quais campos cada cadastro tem), **resumos** (os KPIs do módulo) e **dashboards** (quais gráficos mostrar). O código só sabe lidar com *tipos de campo* genéricos: texto, texto longo, Markdown, número, moeda, data, hora, seleção, booleano e movimento.
 
 Por isso o mesmo sistema serve para finanças pessoais, caixa de empresa, demandas ou inventário de dados: muda o JSON, não o código.
 
@@ -221,6 +221,9 @@ Os arquivos `dashzon.db.v2-*.bak` ficam na pasta do banco (no Docker, no volume 
 - `ordenacao` (opcional) é a ordem da lista na tela do módulo, com até 3 critérios: `[{ "campo": "data", "direcao": "asc" }, { "campo": "hora" }]` (`direcao` padrão `asc`; vazios ficam por último). Sem ela, a lista vai do mais novo para o mais antigo. Não muda cards nem resumos.
 - `seed` são os dados de exemplo, instalados só se o usuário marcar essa opção.
 - Campos `booleano` aparecem na tabela do módulo como **caixas de marcar** (checklist): o clique grava só aquele campo (`PATCH`).
+- `visao` (opcional) troca a tabela por outra tela. Hoje existe `{"tipo": "notas", "titulo": "titulo", "conteudo": "conteudo", "pasta": "pasta"}`: o módulo vira um caderno de notas em Markdown (veja o template `anotacoes.json`).
+- `nota` (opcional), por exemplo `{"modulo": "anotacoes", "titulo": "assunto", "pasta": "materia"}`: cada registro ganha o botão **Nota**, que abre (ou cria) no módulo de notas a nota cujo título é o valor do campo `titulo`.
+- `configuracoes` (opcional), por exemplo `["materia", "atividade", "duracao"]`: esses campos aparecem em **Configurações → Módulos** (opções de seleção e valores padrão), só enquanto o módulo está ligado.
 
 ### Tipos de campo
 
@@ -232,6 +235,7 @@ Os arquivos `dashzon.db.v2-*.bak` ficam na pasta do banco (no Docker, no volume 
 | `moeda` | número com 2 casas | não | não | **sim** |
 | `data` | `AAAA-MM-DD` | sim (por mês) | não | não |
 | `hora` | `HH:MM` (aceita `8:05` e `08:05:00`) | não | não | não |
+| `markdown` | texto em Markdown, até 100 mil caracteres (formatado na visão de notas) | não | não | não |
 | `selecao` | uma das `opcoes` | sim | sim | não |
 | `booleano` | `true`/`false` | sim | sim | não |
 | `movimento` | `entrada` ou `saida` | sim | sim | não, mas habilita o **saldo** |
@@ -488,7 +492,7 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 
 ### `js/conta.js` (`Conta`)
 
-"Minha conta" (nome, e-mail com situação de confirmação, CPF/CNPJ e troca de senha), `trocaObrigatoria(usuario)` (modal que não fecha até a pessoa criar a senha própria, depois de uma senha temporária) e `paginaLink()`, que trata `#/redefinir/<token>` e `#/verificar-email/<token>` e depois tira o token da barra de endereço.
+As abas Conta, Aparência e Segurança da página de Configurações (nome, e-mail com situação de confirmação, CPF/CNPJ, preferências e troca de senha; `abrir()` preenche tudo e devolve a conta), `trocaObrigatoria(usuario)` (modal que não fecha até a pessoa criar a senha própria, depois de uma senha temporária) e `paginaLink()`, que trata `#/redefinir/<token>` e `#/verificar-email/<token>` e depois tira o token da barra de endereço.
 
 ### `js/tema.js` (`Tema`)
 
@@ -496,7 +500,7 @@ Botão de tema (`.tema-btn`: na barra lateral e, antes do login, flutuando no ca
 
 ### `js/fonte.js` (`Fonte`)
 
-Fonte da interface, escolhida em **Minha conta → Preferências → Fonte**:
+Fonte da interface, escolhida em **Configurações → Aparência → Fonte**:
 
 | Opção | Fonte |
 |---|---|
@@ -512,6 +516,33 @@ Fonte da interface, escolhida em **Minha conta → Preferências → Fonte**:
   - ajusta `Chart.defaults.font.family`, porque os gráficos são `<canvas>` e não herdam o CSS, e redesenha os gráficos quando o arquivo da fonte termina de carregar.
 - Ao entrar vale a fonte da conta (`preferencias.fonte`).
 - Fonte nova: o arquivo em `vendor/fonts/` (com a versão no nome), o `@font-face`, a regra `:root[data-fonte="x"]` e a `.amostra-fonte[data-fonte="x"]` no CSS, a entrada em `Fonte.FONTES` e em `Usuarios::FONTES`. O teste `test_cada_fonte_tem_arquivo_e_regra_no_css` confere que nada ficou faltando.
+
+### `js/config.js` (`Config`)
+
+Página de Configurações (`#/config/<aba>`).
+
+- `abrir(aba)` mostra a aba e preenche os formulários pelo `Conta.abrir()`.
+- Na aba **Módulos**:
+  - cada módulo tem um interruptor; desligar grava `preferencias.modulos_ocultos` e o `App` tira o módulo do menu (`App.modulosVisiveis`);
+  - com o módulo ligado e `configuracoes` declaradas, aparece um formulário gerado pelo tipo de cada campo (seleção: opções uma por linha e qual já vem marcada; número, hora, data e sim/não: o padrão). Salvar faz `PUT /api/modulos/:slug` com o schema inteiro;
+  - "Adicionar módulos" lista os templates com módulo ainda não instalado e instala com `POST /api/templates/instalar`.
+
+### `js/markdown.js` (`Markdown`)
+
+`render(texto, {existeNota})` devolve HTML **seguro**: escapa tudo antes de aplicar a marcação, então nenhum HTML da nota é interpretado, e links só aceitam `http(s)`, `mailto` ou endereço relativo. Também tem `alternarTarefa(texto, linha)`, `tags(texto)` e `links(texto)`, usados pela tela de notas.
+
+### `js/notas.js` (`Notas`)
+
+Tela dos módulos com `visao: notas`.
+
+| Função | O que faz |
+|---|---|
+| `abrir(slug, id, jaNaTela)` | Carrega as notas (até 1000) ao entrar na tela; navegar entre notas do mesmo caderno não recarrega |
+| `renderLista` | Árvore por pasta (`A/B` = subpasta; pastas fechadas lembradas no navegador), tags com contagem, busca sem acento |
+| `agendar` / `gravarAgora` | Gravação automática (`PATCH` só dos campos mudados, 700 ms depois da última tecla; `Ctrl+S` grava na hora; o `App` grava antes de trocar de tela) |
+| `abrirLink` | `[[título]]`: abre a nota ou, se não existir, cria na mesma pasta |
+| `importar` / `baixarTudo` | `.md` soltos ou uma pasta (cofre do Obsidian; mesmo título na mesma pasta é atualizado) e `.zip` de todas, com as pastas |
+| `abrirOuCriar(slug, titulo, pasta)` | Botão "Nota" de outro módulo (declaração `nota`) |
 
 ### `js/admin.js` (`Admin`)
 
@@ -686,7 +717,7 @@ Para testar a publicação sem o domínio real: um `.env` de teste, uma cópia d
 
 ### Refazer os prints de prévia (?)
 
-Quando a tela mudar, gere os prints de novo numa instância **separada** (banco próprio, dados de exemplo fictícios), para não expor nem mexer nos seus dados. O passo a passo completo está no topo de `scripts/gerar-previews.js`; em resumo: suba o backend com `DASHZON_DB_PATH` apontando para um banco temporário e `PORT=4600`, faça o setup com os 5 templates e `com_exemplos: true`, e rode `npm i --no-save puppeteer` e `node scripts/gerar-previews.js http://127.0.0.1:4600 demo demo`. Os PNG vão para `frontend/preview/`.
+Quando a tela mudar, gere os prints de novo numa instância **separada** (banco próprio, dados de exemplo fictícios), para não expor nem mexer nos seus dados. O passo a passo completo está no topo de `scripts/gerar-previews.js`; em resumo: suba o backend com `DASHZON_DB_PATH` apontando para um banco temporário e `PORT=4600`, faça o setup com os 6 templates e `com_exemplos: true`, e rode `npm i --no-save puppeteer` e `node scripts/gerar-previews.js http://127.0.0.1:4600 demo demo`. Os PNG vão para `frontend/preview/`.
 
 ### Criar o seu próprio template
 
