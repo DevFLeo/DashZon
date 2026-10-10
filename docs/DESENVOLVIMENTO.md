@@ -20,7 +20,7 @@ Sumário:
 
 ## 1. A ideia em uma frase
 
-Nada no sistema sabe o que é "gasto", "demanda" ou "fluxo de caixa". Tudo isso vem de **templates JSON**. Um template descreve **módulos** (quais campos cada cadastro tem), **resumos** (os KPIs do módulo) e **dashboards** (quais gráficos mostrar). O código só sabe lidar com *tipos de campo* genéricos: texto, número, moeda, data, seleção, booleano e movimento.
+Nada no sistema sabe o que é "gasto", "demanda" ou "fluxo de caixa". Tudo isso vem de **templates JSON**. Um template descreve **módulos** (quais campos cada cadastro tem), **resumos** (os KPIs do módulo) e **dashboards** (quais gráficos mostrar). O código só sabe lidar com *tipos de campo* genéricos: texto, número, moeda, data, hora, seleção, booleano e movimento.
 
 Por isso o mesmo sistema serve para finanças pessoais, caixa de empresa, demandas ou inventário de dados: muda o JSON, não o código.
 
@@ -133,6 +133,7 @@ Um objeto JSON por registro repetia o nome de todos os campos em todas as linhas
 | Tipo | Como é gravado |
 |---|---|
 | `data` | dias desde 1970-01-01 (`20412` = 2025-11-20) |
+| `hora` | minutos desde 00:00 (`510` = 08:30) |
 | `booleano` | `1` / `0` |
 | `movimento` | `0` = entrada, `1` = saída |
 | `numero`, `moeda` | número; inteiro quando não tem casas decimais |
@@ -216,8 +217,10 @@ Os arquivos `dashzon.db.v2-*.bak` ficam na pasta do banco (no Docker, no volume 
 - `slug` e `id` dos campos aceitam letras minúsculas, números e `_`, começando por letra. `id`, `_criado_em` e `_atualizado_em` são reservados.
 - `rotulo` é o campo usado como "título" do registro. Se faltar, vale o primeiro campo texto.
 - `lista: false` esconde o campo da tabela (ele continua no formulário).
-- `padrao` é o valor inicial. Em campos de data, aceita `"$hoje"`, `"$hoje-30"` e `"$hoje+7"`.
+- `padrao` é o valor inicial. Em campos de data, aceita `"$hoje"`, `"$hoje-30"` e `"$hoje+7"`. Um padrão inválido (ex.: opção que não existe) é recusado ao salvar a estrutura.
+- `ordenacao` (opcional) é a ordem da lista na tela do módulo, com até 3 critérios: `[{ "campo": "data", "direcao": "asc" }, { "campo": "hora" }]` (`direcao` padrão `asc`; vazios ficam por último). Sem ela, a lista vai do mais novo para o mais antigo. Não muda cards nem resumos.
 - `seed` são os dados de exemplo, instalados só se o usuário marcar essa opção.
+- Campos `booleano` aparecem na tabela do módulo como **caixas de marcar** (checklist): o clique grava só aquele campo (`PATCH`).
 
 ### Tipos de campo
 
@@ -228,6 +231,7 @@ Os arquivos `dashzon.db.v2-*.bak` ficam na pasta do banco (no Docker, no volume 
 | `numero` | número (aceita `1.234,56`) | não | não | **sim** |
 | `moeda` | número com 2 casas | não | não | **sim** |
 | `data` | `AAAA-MM-DD` | sim (por mês) | não | não |
+| `hora` | `HH:MM` (aceita `8:05` e `08:05:00`) | não | não | não |
 | `selecao` | uma das `opcoes` | sim | sim | não |
 | `booleano` | `true`/`false` | sim | sim | não |
 | `movimento` | `entrada` ou `saida` | sim | sim | não, mas habilita o **saldo** |
@@ -377,7 +381,9 @@ Toda regra de conta. Erros levantam `Usuarios::Erro` com o status HTTP (422, 403
 | `GET /api/exportacoes`, `GET/DELETE /api/exportacoes/:id` | Histórico de exportações guardadas: listar, baixar de novo, remover |
 | `GET/POST /api/modulos`, `GET/PUT/DELETE /api/modulos/:slug` | CRUD de módulos. O slug não muda no PUT |
 | `GET /api/modulos/:slug/resumo` | KPIs do módulo (um único processo C++ com `multi`) |
-| `GET /api/modulos/:slug/registros?q=texto&f[campo]=valor` | Lista com busca e filtros (C++ `search`) |
+| `GET /api/modulos/:slug/registros?q=texto&f[campo]=valor&inicio=0&limite=200` | Lista com busca e filtros (C++ `search`), na `ordenacao` do módulo, paginada (`limite` até 1000; `count` = total encontrado) |
+| `GET /api/modulos/:slug/registros/:id` | Um registro, lido direto do banco (base do formulário de edição) |
+| `PATCH /api/modulos/:slug/registros/:id` | Altera só os campos enviados (o checklist usa para marcar sim/não) |
 | `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD de registros, validado pelo schema |
 | `GET/POST/PUT/DELETE /api/dashboards[/:id]` | Dashboards (GET com id traz os widgets) |
 | `POST /api/dashboards/:id/widgets`, `PUT/DELETE /api/widgets/:id` | Widgets |
@@ -498,12 +504,14 @@ O Painel do adm (`#/admin`, link no canto inferior esquerdo, só para administra
 |---|---|
 | `abrir(slug)` | Carrega o módulo e desenha resumo, filtros e tabela |
 | `renderFiltros` | Um `<select>` para até 4 campos de movimento, sim/não ou seleção |
-| `renderTabela` / `celula` | Colunas = campos com `lista` diferente de `false` (até 7), formatadas pelo tipo |
+| `carregarRegistros(mais)` | Busca a lista em páginas de 200 (`inicio`/`limite`); "Carregar mais" acrescenta a próxima. Respostas fora de ordem são descartadas |
+| `renderTabela` / `celula` | Colunas = campos com `lista` diferente de `false` (até 7), formatadas pelo tipo. Sim/não vira caixa de marcar |
+| `marcar` | Checklist: `PATCH` só do campo sim/não clicado; atualiza o resumo e desfaz a marcação se der erro |
 | `inputHtml` | **Onde cada tipo de campo vira um input** (checkbox, date, number, select...) |
 | `coletar` | Lê o formulário e converte números e booleanos antes de enviar |
 | `abrirEstrutura` / `salvarEstrutura` | Editor JSON do módulo (`PUT /api/modulos/:slug`) |
 | `abrirAdicionar` / `comoTemplate` / `instalar` | Galeria e importação. Um módulo solto é embrulhado num template antes de validar e instalar |
-| `abrirFormulario(registro, modulo, depois)` | Formulário de registro de qualquer módulo; `depois` roda após salvar (na tela do módulo, recarrega a tabela) |
+| `abrirFormulario(registro, modulo, depois)` | Formulário de registro de qualquer módulo; `depois` roda após salvar (na tela do módulo, recarrega a tabela). "Editar" lê o registro de `GET /registros/:id` (do banco), não da lista |
 | `lancar(slug, depois)` | Novo registro sem sair da tela atual: é o que o "+ Lançar" do dashboard usa |
 
 ### `js/dashboards.js` (`Dashboards`)
@@ -659,20 +667,47 @@ Para testar a publicação sem o domínio real: um `.env` de teste, uma cópia d
 
 ### Refazer os prints de prévia (?)
 
-Quando a tela mudar, gere os prints de novo numa instância **separada** (banco próprio, dados de exemplo fictícios), para não expor nem mexer nos seus dados. O passo a passo completo está no topo de `scripts/gerar-previews.js`; em resumo: suba o backend com `DASHZON_DB_PATH` apontando para um banco temporário e `PORT=4600`, faça o setup com os 4 templates e `com_exemplos: true`, e rode `npm i --no-save puppeteer` e `node scripts/gerar-previews.js http://127.0.0.1:4600 demo demo`. Os PNG vão para `frontend/preview/`.
+Quando a tela mudar, gere os prints de novo numa instância **separada** (banco próprio, dados de exemplo fictícios), para não expor nem mexer nos seus dados. O passo a passo completo está no topo de `scripts/gerar-previews.js`; em resumo: suba o backend com `DASHZON_DB_PATH` apontando para um banco temporário e `PORT=4600`, faça o setup com os 5 templates e `com_exemplos: true`, e rode `npm i --no-save puppeteer` e `node scripts/gerar-previews.js http://127.0.0.1:4600 demo demo`. Os PNG vão para `frontend/preview/`.
 
 ### Criar o seu próprio template
 
 1. Copie um arquivo de `backend/templates/` e troque `id`, `nome` e os módulos.
 2. Valide sem instalar: `POST /api/templates/validar` com `{"template": {...}}`. A resposta aponta exatamente o campo errado.
-3. Para ele aparecer na galeria, salve em `backend/templates/`. Para usar uma vez só, importe pelo setup ou mande em `POST /api/templates/instalar` com `{"template": {...}}`.
+3. Para ele aparecer na galeria, salve em `backend/templates/` **e** libere o arquivo no `.gitignore` (lá só os templates padrão escapam do `*.json`). Para usar uma vez só, importe pelo setup ou mande em `POST /api/templates/instalar` com `{"template": {...}}`.
+
+### Importar uma planilha (Excel ou CSV) com Python
+
+`scripts/importar_planilha.py` lê um `.xlsx` ou `.csv` e grava cada linha como um registro de um módulo, **pela API** (mesma validação da tela; o banco não é tocado diretamente). Só usa a biblioteca padrão do Python 3.8+: não precisa de `pip install`.
+
+```powershell
+winget install Python.Python.3.12                     # se ainda não tiver Python (abra um terminal novo depois)
+$env:DASHZON_SENHA = "sua-senha"                      # ou deixe sem, e ele pergunta
+python scripts\importar_planilha.py exemplos\cronograma-estudos.xlsx --modulo cronograma_estudos --usuario SEU_LOGIN --simular
+python scripts\importar_planilha.py exemplos\cronograma-estudos.xlsx --modulo cronograma_estudos --usuario SEU_LOGIN
+```
+
+- **Cabeçalho:** a primeira linha (ou `--linha-cabecalho N`). Cada coluna casa com um campo pelo **nome ou id**, sem diferenciar maiúsculas, acentos e espaços ("Duração (horas)", "duracao", "DURACAO (HORAS)"). Colunas sem campo são ignoradas com aviso; faltar uma obrigatória sem `padrao` é erro antes de enviar.
+- **Conversão pelo tipo do campo:**
+  - data: célula de data do Excel, `DD/MM/AAAA` ou `AAAA-MM-DD`;
+  - hora: célula de hora, `8:05`, `19h30`;
+  - sim/não: `Sim`/`Não`, `x`, `✓`, `verdadeiro`, `1`/`0`;
+  - número: `1,5`, `R$ 1.234,56`;
+  - seleção: sem diferenciar acento ou maiúsculas, e vira a opção exata.
+- **Erros:** a linha com problema é pulada e aparece no fim com o número da linha do arquivo e o motivo; as outras são gravadas. Código de saída: 0 tudo certo, 1 alguma linha recusada, 2 erro de arquivo, login ou módulo.
+- **Opções:** `--url` (padrão `http://127.0.0.1:4567`), `--aba` (nome ou número da aba do .xlsx), `--simular` (só confere e mostra as primeiras linhas convertidas).
+- **Limites:** `.xls` (Excel antigo) e `.ods` não são lidos (salve como `.xlsx` ou `.csv`). Importar duas vezes o mesmo arquivo duplica os registros.
+- **Exemplo pronto:** `exemplos/cronograma-estudos.xlsx` e `.csv` (as mesmas 14 linhas), gerados por `exemplos/gerar_exemplos.py`. O cabeçalho é o modelo de planilha que o módulo "Cronograma de estudos" espera.
+- **Testes:** `python -m unittest discover -s scripts -p "test_*.py"`.
 
 ### Adicionar um novo tipo de campo (exemplo: `percentual`)
 
 1. `module_schema.rb`: inclua em `TIPOS` e, se puder ser somado, em `NUMERICOS` (ou em `DIMENSOES`/`SERIES`, se for categoria).
 2. `module_schema.rb`, `coerce_valor`: diga como converter e validar o valor.
-3. Frontend: em `js/util.js`, como mostrar o valor (`fmtValor`); em `js/modulos.js`, qual `<input>` usar (`inputHtml`) e como ler o valor (`coletar`).
-4. O motor C++ normalmente não muda: ele só vê números e textos.
+3. `record_codec.rb`: como o valor fica no array compacto (`encode`/`decode`; o `decode` nunca levanta erro). Sem formato especial, ele passa como veio. Veja o `hora` (minutos desde 00:00) como exemplo.
+4. `dados_ficticios.rb`: um valor inventado para a prévia do criador de card.
+5. Frontend: em `js/util.js`, como mostrar o valor (`fmtValor`); em `js/modulos.js`, qual `<input>` usar (`inputHtml`) e como ler o valor (`coletar`).
+6. `scripts/importar_planilha.py` (`converter`): como a célula da planilha vira o valor do tipo.
+7. O motor C++ normalmente não muda: ele só vê números e textos.
 
 ### Adicionar um comando novo no motor C++
 

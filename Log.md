@@ -6,6 +6,50 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-09 · `desenvolvimento` · Cronograma de estudos, checklist, tipo `hora`, paginação e importador de planilhas (Python)
+
+**O que:**
+- **Template "Cronograma de estudos"** (`backend/templates/cronograma-estudos.json`):
+  - campos: data, horário, matéria, assunto, atividade, duração, **Estudado** e anotações;
+  - KPIs: sessões, estudadas, pendentes, horas planejadas e horas estudadas;
+  - dashboard "Estudos": horas por matéria e por mês (estudadas × pendentes), sessões por atividade, pendentes por matéria;
+  - 12 sessões de exemplo, relativas a hoje.
+- **Tipo de campo `hora`** (`HH:MM`; guardado como minutos desde 00:00): `<input type="time">` no formulário. Não agrupa nem filtra cards: a REGRA dos gráficos não mudou.
+- **`ordenacao` do módulo** (até 3 critérios): a lista do cronograma segue a ordem do calendário, por data e horário. Sem ela, nada muda (mais novo primeiro).
+- **Checklist:** todo campo sim/não aparece na tabela como caixa de marcar. O clique grava só aquele campo (`PATCH /api/modulos/:slug/registros/:id`), atualiza os KPIs e se desfaz em caso de erro.
+- **Editar lê do banco** (`GET /api/modulos/:slug/registros/:id`): antes o formulário partia da lista devolvida pelo motor.
+  - Isso **tira o risco de corromper dados do item 12** do `desenvolvimento.md` (o motor arredonda números para 6 algarismos).
+  - A exibição arredondada na lista continua até o motor ser corrigido.
+- **Paginação (item 14):** a lista vem de 200 em 200 (`inicio`/`limite`), com "Carregar mais", e o cache guarda só a página.
+- **Importador de planilhas em Python** (`scripts/importar_planilha.py`, só biblioteca padrão):
+  - lê `.xlsx` (zip + XML) ou `.csv` (`;`/`,`, UTF-8 ou cp1252);
+  - casa as colunas com os campos pelo nome ou id, sem diferenciar acentos e maiúsculas;
+  - converte pelo tipo do campo (data e hora do Excel, `DD/MM/AAAA`, `19h30`, `Sim`/`x`/`✓`, `1,5`, `R$ 1.234,56`);
+  - grava pela API, com a mesma validação da tela;
+  - relata cada linha recusada com o número e o motivo; tem `--simular`.
+- **Planilha de exemplo:** `exemplos/cronograma-estudos.xlsx` e `.csv` (14 linhas), geradas por `exemplos/gerar_exemplos.py`. O cabeçalho é o modelo que o módulo espera.
+
+**Por quê:** pedido de uma opção em Python para ler tabelas de Excel/CSV, com uma tabela de exemplo, e de um módulo de cronograma de estudos com tabela, ligado a data e hora, e com acesso ao que foi estudado como checklist.
+- O importador fala com a API em vez de abrir o banco, porque o Ruby é o dono do banco e das regras (Sistema.md §1).
+- Usar só a biblioteca padrão evita exigir `pip install` de quem só quer importar uma planilha.
+
+**Validação:**
+- `rake test` 117/117 (11 testes novos em `cronograma_test.rb`, 1 de paginação);
+- `unittest` do importador 13/13 (com Python 3.12);
+- ponta a ponta na instância separada, 47/47 em duas rodadas com banco zerado;
+- navegador (Edge, instância zerada), 26 checagens:
+  - "Carregar mais" até o fim, sem linhas repetidas;
+  - ordem de calendário;
+  - marcar e desmarcar atualizando o KPI e gravando no banco;
+  - filtro Estudado;
+  - horário no formulário de edição;
+  - registro novo com horário entrando no lugar certo;
+- auditoria de responsividade: 74 telas, mais o cronograma e o "Carregar mais" em 390 e 1366px, 0 erros e 0 avisos;
+- importador contra o servidor: `.xlsx` e `.csv` com 14/14 cada, CSV com 4 linhas ruins (recusadas com o motivo, as boas gravadas), módulo inexistente, senha errada e servidor fora do ar;
+- o `.xlsx` gerado abre no Excel (data, hora, `1,5` e VERDADEIRO/FALSO).
+
+---
+
 ## 2026-10-09 · `desenvolvimento` · Revisão, parte 2: tempo máximo do motor, limites e scripts que não derrubam outros programas
 
 **O que:**

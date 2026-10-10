@@ -22,7 +22,7 @@ Motor C++17 (dashzon_engine): busca e agregação, sem estado, sem acesso a disc
 | Motor C++ | `aggregate`, `multi`, `search` sobre registros recebidos | Abrir o SQLite, conhecer módulos ou templates |
 | Frontend | Telas genéricas montadas a partir do schema JSON dos módulos | Regras de negócio, persistência (só `localStorage` para preferência de navegador) |
 
-O domínio é dirigido por dados: módulos (campos, resumo) e dashboards vêm de templates JSON. O código só conhece tipos de campo genéricos: `texto`, `texto_longo`, `numero`, `moeda`, `data`, `selecao`, `booleano` e `movimento`.
+O domínio é dirigido por dados: módulos (campos, resumo) e dashboards vêm de templates JSON. O código só conhece tipos de campo genéricos: `texto`, `texto_longo`, `numero`, `moeda`, `data`, `hora`, `selecao`, `booleano` e `movimento`. Um módulo pode definir a `ordenacao` da sua lista (até 3 critérios `{campo, direcao}`), e todo campo `booleano` aparece na tabela como caixa de marcar (checklist).
 
 ## 2. Stack e versões
 
@@ -34,6 +34,7 @@ O domínio é dirigido por dados: módulos (campos, resumo) e dashboards vêm de
 | SQLite | gem `sqlite3` 2.9.6, com o SQLite embutido (pré-compilada para x86_64/aarch64 Linux e x64 Windows) |
 | Outras gems | `csv` 3.3.6 (importação de extratos), `net-smtp` 0.5.1 (e-mail) |
 | Testes | Minitest 5.27, rack-test 2.2, rake 13.4 (grupo `:test`) |
+| Importador de planilhas | Python 3.8+, só biblioteca padrão (`scripts/importar_planilha.py`); ferramenta opcional, fora do servidor |
 | Motor | C++17, CMake ≥ 3.15, sem dependências; JSON próprio em `src/json.hpp`; Release por padrão |
 | Frontend | Chart.js 4.5.1 e GridStack, em `frontend/vendor/` (offline, sem CDN) |
 | Proxy HTTPS | Caddy 2 (Let's Encrypt, ou plugin DuckDNS no Windows) |
@@ -59,12 +60,14 @@ backend/
   lib/documento.rb         CPF/CNPJ: validação, máscara, HMAC
   lib/correio.rb           SMTP opcional
   lib/dados_ficticios.rb   registros fictícios para a prévia de card
-  templates/*.json         4 templates padrão (únicos JSON versionados)
+  templates/*.json         5 templates padrão (únicos JSON versionados; cada um liberado no .gitignore)
   test/*_test.rb           Minitest + Rack::Test em banco temporário
 engine-cpp/                CMakeLists.txt, src/main.cpp, src/json.hpp
 frontend/                  index.html, css/, js/, vendor/, preview/
 deploy/                    Caddyfile (DuckDNS), Caddyfile.servidor (Docker), scripts PowerShell
-scripts/                   rodar.ps1 (Windows), auditar-responsivo.ps1/.js (responsividade), gerar-previews.js
+scripts/                   rodar.ps1 (Windows), auditar-responsivo.ps1/.js (responsividade), gerar-previews.js,
+                           importar_planilha.py (+ test_importar_planilha.py)
+exemplos/                  cronograma-estudos.xlsx/.csv (planilha modelo) e gerar_exemplos.py
 Dockerfile, docker-compose.yml, .env.example
 data/                      (fora do git) dashzon.db, segredo.key, cópias *.bak
 log/                       (fora do git) logs do rodar.ps1
@@ -125,6 +128,7 @@ Array JSON posicional; a posição de cada campo vem de `modulos.schema.slots` (
 | `data` | inteiro: dias desde 1970-01-01 | `"AAAA-MM-DD"` |
 | `booleano` | `1` / `0` | `true` / `false` |
 | `movimento` | `0` / `1` | `"entrada"` / `"saida"` |
+| `hora` | inteiro: minutos desde 00:00 | `"HH:MM"` |
 | `numero`, `moeda` | número; inteiro se não tem casas (abaixo de 2^53) | número |
 | `texto`, `texto_longo`, `selecao` | texto | texto |
 
@@ -219,14 +223,16 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 | `GET /api/export[?dados=1]`, `GET /api/exportacoes`, `GET/DELETE /api/exportacoes/:id` | Exportação e histórico (guardado em `jsons`) |
 | `GET/POST /api/modulos`, `GET/PUT/DELETE /api/modulos/:slug` | Módulos (o `PUT` preserva slots e reconverte tipos; o `DELETE` remove widgets e registros e compacta) |
 | `GET /api/modulos/:slug/resumo` | KPIs (`multi`, projetado, com cache) |
-| `GET /api/modulos/:slug/registros?q=&f[campo]=` | Busca (`search`, com cache) |
+| `GET /api/modulos/:slug/registros?q=&f[campo]=&inicio=&limite=` | Busca (`search`), ordenada pela `ordenacao` do módulo (`ModuleSchema.ordenar_registros`) e paginada (`limite` padrão 200, máx. 1000; `count` = total). O cache guarda só a página |
+| `GET /api/modulos/:slug/registros/:id` | Um registro lido do banco (base do formulário de edição: a lista vem do motor) |
+| `PATCH /api/modulos/:slug/registros/:id` | Altera só os campos enviados; o resto vem do banco, e o registro inteiro passa por `coerce_registro!` (checklist) |
 | `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD validado por `coerce_registro!` |
 | `GET/POST /api/dashboards`, `GET/PUT/DELETE /api/dashboards/:id` | Dashboards (o `GET :id` traz os widgets) |
 | `POST /api/dashboards/:id/widgets`, `PUT/DELETE /api/widgets/:id`, `PUT /api/widgets/:id/layout` | Widgets (o `layout` altera só x/y/w/h) |
 | `GET /api/widgets/:id/data` | Dados do card (`aggregate`, revalidado contra o schema atual, projetado, com cache) |
 | `POST /api/widgets/preview` | Prévia sobre 72 registros fictícios (nada gravado) |
 
-**Validação de valores:** `texto` ≤ 500, `texto_longo` ≤ 5000 caracteres; números finitos e em formato simples (aceita `1.234,56`, `1234.56`, `1.5e3`; recusa `0x1A` e `1_000`); datas existentes no calendário; `selecao`/`movimento` restritos às opções; `padrao` aceita `$hoje`, `$hoje±N` e é validado ao salvar a estrutura.
+**Validação de valores:** `texto` ≤ 500, `texto_longo` ≤ 5000 caracteres; números finitos e em formato simples (aceita `1.234,56`, `1234.56`, `1.5e3`; recusa `0x1A` e `1_000`); datas existentes no calendário; `hora` em `HH:MM` (aceita `8:05` e `08:05:00`); `selecao`/`movimento` restritos às opções; `padrao` aceita `$hoje`, `$hoje±N` e é validado ao salvar a estrutura.
 
 **Limites de cadastro:** nome de módulo, de campo e de dashboard ≤ 80; descrição de módulo ≤ 500; ícone ≤ 40; ajuda ≤ 500; até 100 campos por módulo e 200 opções por seleção (≤ 100 caracteres cada). Moeda: `BRL`, `USD` ou `EUR` (setup e painel do adm).
 
@@ -240,7 +246,7 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 - **Contas:** sem usuário padrão. Sempre resta pelo menos um admin ativo; ninguém se exclui, se desativa ou remove o próprio perfil de admin.
 - **Host:** `host_authorization` aceita localhost, `.localhost`, qualquer IP e `DASHZON_HOSTS`; o resto recebe 403.
 - **Rede:** o app escuta em 127.0.0.1 (no Docker, a porta é publicada só em 127.0.0.1). Para a internet, só via Caddy com HTTPS. `Caddyfile.servidor` aplica HSTS, `nosniff`, `X-Frame-Options DENY`, `Referrer-Policy same-origin` e compressão zstd/gzip.
-- **Segredos fora do git:** `.env`, `deploy/publico.env`, `data/`, `*.db`, `*.bak` e `*.json` (exceto os 4 templates padrão e `.vscode`).
+- **Segredos fora do git:** `.env`, `deploy/publico.env`, `data/`, `*.db`, `*.bak` e `*.json` (exceto os 5 templates padrão e `.vscode`).
 
 ## 9. Frontend
 
@@ -283,7 +289,8 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`. São 105 testes; os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`. São 117 testes; os do motor dão `skip` se o binário não existir.
+- **Importador (Python):** `python -m unittest discover -s scripts -p "test_*.py"` (13 testes: conversão por tipo, leitura de `.xlsx`/`.csv` e as planilhas de `exemplos/`).
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:
   - dados, ids e datas;
