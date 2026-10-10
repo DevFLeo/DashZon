@@ -34,9 +34,11 @@ module Usuarios
   CARGOS_SUGERIDOS = ["Sócio", "Líder de produção", "Funcionário"].freeze
   EXIGIR_DOCUMENTO = %w[nao cpf cnpj qualquer].freeze
   TEMAS = %w[sistema claro suave escuro].freeze
+  # Fontes da interface (arquivos em frontend/vendor/fonts; ver js/fonte.js).
+  FONTES = %w[inter sistema nunito atkinson].freeze
   # "" (padrão), "#/d/<id>" (dashboard), "#/m/<slug>" (módulo) ou "#/admin".
   PAGINA_INICIAL_RE = %r{\A(|#/d/\d{1,9}|#/m/[a-z][a-z0-9_]{0,39}|#/admin)\z}
-  PREFERENCIAS_PADRAO = { "tema" => "sistema", "pagina_inicial" => "", "privacidade" => false }.freeze
+  PREFERENCIAS_PADRAO = { "tema" => "sistema", "fonte" => "inter", "pagina_inicial" => "", "privacidade" => false }.freeze
   AJUSTES_PADRAO = {
     "exigir_documento" => "nao",      # nao | cpf | cnpj | qualquer
     "exigir_email" => "0",            # e-mail obrigatório no cadastro
@@ -118,6 +120,11 @@ module Usuarios
       raise Erro, "Tema inválido" unless TEMAS.include?(d["tema"])
 
       prefs["tema"] = d["tema"]
+    end
+    if d.key?("fonte")
+      raise Erro, "Fonte inválida" unless FONTES.include?(d["fonte"])
+
+      prefs["fonte"] = d["fonte"]
     end
     if d.key?("pagina_inicial")
       pagina = d["pagina_inicial"].to_s
