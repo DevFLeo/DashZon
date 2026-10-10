@@ -10,6 +10,14 @@ A inspiração veio de projetos open source de finanças como o [OpenMonetis](ht
 
 - **Primeiro acesso guiado:** nome, moeda, usuário e senha, e galeria de templates (dá para escolher vários ou importar um JSON). O banco só é criado no final.
 - **Contas de usuário de verdade:** login por usuário ou e-mail, **Configurações** (nome, e-mail, CPF/CNPJ, aparência, senha e módulos), "Esqueci minha senha" e botão **Sair**. Senhas, CPF/CNPJ e links ficam guardados só em **hash**.
+- **Segurança em camadas:**
+  - **SQL injection:** todo SQL é parametrizado, e um teste falha se alguém montar SQL com texto;
+  - **força bruta:** bloqueio por IP e por conta (mesmo com o ataque vindo de muitos IPs). A contagem fica no banco e não zera ao reiniciar;
+  - **escrita vinda de outro site** é recusada, e há **limite de requisições** por IP;
+  - **cabeçalhos:** CSP, que barra script injetado;
+  - **senhas:** as fracas e comuns são recusadas;
+  - **sessão** expira se ficar parada;
+  - **diário de segurança** e checagem da instalação no Painel do adm, com botão de desbloquear.
 - **Painel do adm** (canto inferior esquerdo, só para administradores): criar gente nova com cargo (sócio, líder de produção, funcionário...) e perfil (administrador ou usuário), gerar senha temporária ou link de redefinição, confirmar e-mail, desativar e excluir. Também define as regras: CPF/CNPJ obrigatório ou não, e-mail obrigatório e "só entra quem confirmou o e-mail".
 - **Novo dashboard a partir de um template:** em branco ou escolhendo outro template da galeria, que instala os módulos dele e abre o dashboard pronto. Módulos com o mesmo nome **não se duplicam**: o existente é reaproveitado.
 - **Módulos gerados pelo JSON:** resumo (KPIs), busca, filtros, tabela e formulário montados a partir dos campos, com validação. A tabela carrega de 200 em 200 ("Carregar mais") e pode seguir uma ordem própria (ex.: por data e horário).
@@ -100,6 +108,8 @@ Num servidor, o caminho recomendado é o Docker com o Caddy (HTTPS automático):
 | `DASHZON_HOSTS` | só localhost e IPs | Domínios aceitos, separados por vírgula (ex.: `meupainel.duckdns.org`) |
 | `DASHZON_COOKIE_SEGURO` | desligado | `1` no uso público: requisições por HTTPS (via Caddy) recebem o cookie de login marcado como Secure. O acesso local por `http://127.0.0.1` continua funcionando |
 | `DASHZON_URL_PUBLICA` | o endereço da requisição | Endereço usado nos links de e-mail (ex.: `https://meupainel.duckdns.org:2444`) |
+| `DASHZON_LIMITE_POR_MINUTO` | `1200` | Requisições à API por IP por minuto |
+| `DASHZON_SESSAO_HORAS` / `DASHZON_SESSAO_DIAS` | `12` / `30` | A sessão cai depois de tantas horas parada ou tantos dias no total |
 | `DASHZON_SMTP_HOST`, `_PORTA`, `_USUARIO`, `_SENHA`, `_REMETENTE` | sem e-mail | Servidor de e-mail para confirmação e "esqueci a senha". Sem isso, o admin manda os links por outro canal |
 
 ## Perguntas e respostas (os perrengues até aqui)
@@ -161,7 +171,7 @@ Antes isso acontecia a cada reinício do servidor (a chave da sessão era sortea
 O Sinatra só aceita localhost e IPs. Para acessar por um domínio (DuckDNS, por exemplo), coloque-o em `DASHZON_HOSTS`. Isso apareceu até nos testes automáticos, que usam o host `example.org`.
 
 **"Deu 429: 'Muitas tentativas'."**
-Foram 8 erros de senha (ou pedidos de link) do mesmo IP em 15 minutos. Espere, ou reinicie o servidor, que zera a contagem.
+Foram 8 erros (senha, link ou pedido de link) do mesmo IP em 15 minutos, ou 10 erros de senha contra a mesma conta, de qualquer lugar. Espere 15 minutos, ou peça a **outro administrador** para desbloquear em **Painel do adm → Segurança**. Reiniciar o servidor **não** zera mais a contagem: ela fica no banco, para um atacante não se aproveitar de um reinício.
 
 **"Depois de atualizar, tudo responde erro 500 e o log diz que não foi possível migrar o banco."**
 A conversão para o formato compacto falhou e, por segurança, **nada foi alterado** (a migração é uma transação). A mensagem do log traz a causa e o caminho da cópia de segurança (`dashzon.db.v2-....bak`). O sistema não cai no assistente de primeiro acesso de propósito: isso arquivaria o seu banco. Volte para a versão anterior do código, que lê o mesmo arquivo sem problema, e avise o motivo.
