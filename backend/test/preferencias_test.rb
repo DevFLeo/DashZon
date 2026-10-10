@@ -7,7 +7,31 @@ class PreferenciasTest < Minitest::Test
   def test_padrao
     configurar!
     get "/api/eu"
-    assert_equal({ "tema" => "sistema", "pagina_inicial" => "", "privacidade" => false }, resposta["preferencias"])
+    assert_equal({ "tema" => "sistema", "fonte" => "inter", "pagina_inicial" => "", "privacidade" => false }, resposta["preferencias"])
+  end
+
+  def test_fonte_salva_na_conta
+    configurar!
+    put_json "/api/eu/preferencias", { "fonte" => "atkinson" }
+    assert_equal 200, last_response.status, last_response.body
+    put_json "/api/eu/preferencias", { "tema" => "escuro" } # mudar outra coisa não troca a fonte
+    assert_equal "atkinson", resposta["preferencias"]["fonte"]
+    get "/api/eu"
+    assert_equal "atkinson", resposta["preferencias"]["fonte"]
+
+    put_json "/api/eu/preferencias", { "fonte" => "comic-sans" }
+    assert_equal 422, last_response.status
+    assert_match(/Fonte inválida/, resposta["error"])
+  end
+
+  def test_cada_fonte_tem_arquivo_e_regra_no_css
+    css = File.read(File.expand_path("../../frontend/css/style.css", __dir__), encoding: "UTF-8")
+    js = File.read(File.expand_path("../../frontend/js/fonte.js", __dir__), encoding: "UTF-8")
+    Usuarios::FONTES.each { |f| assert_includes js, "#{f}:", "fonte.js não oferece '#{f}'" }
+    (Usuarios::FONTES - %w[inter]).each { |f| assert_includes css, %(:root[data-fonte="#{f}"]), "CSS sem a regra de '#{f}'" }
+    css.scan(%r{url\("/vendor/fonts/([^"]+)"\)}).flatten.uniq.each do |arquivo|
+      assert File.exist?(File.expand_path("../../frontend/vendor/fonts/#{arquivo}", __dir__)), "falta vendor/fonts/#{arquivo}"
+    end
   end
 
   def test_salvar_e_manter
