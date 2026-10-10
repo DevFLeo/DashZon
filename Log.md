@@ -6,6 +6,42 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-09 · `desenvolvimento` · Módulo de segurança: força bruta, SQL injection, CSP, origem, sessão e diário
+
+**O que** (`backend/lib/seguranca.rb` + Painel do adm):
+- **Força bruta:**
+  - contagem por IP (8 em 15 min) e, agora, **por conta** (10 em 15 min, de qualquer IP), o que pega ataques distribuídos;
+  - as falhas ficam no banco (`eventos_seguranca`), então reiniciar o servidor não zera mais;
+  - login inexistente conta igual e com a mesma mensagem;
+  - o login digitado é gravado só como HMAC.
+- **SQL injection:**
+  - continua tudo parametrizado;
+  - o teste novo `test_nenhum_sql_monta_texto_com_dado` varre o backend e falha se aparecer SQL com texto interpolado;
+  - outro teste manda ataques clássicos pela API.
+- **Middleware `Seguranca::Protecao`:**
+  - CSP (`script-src 'self'`, sem inline nem eval; o script do `<head>` virou `js/antes.js`), `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, HSTS em HTTPS e `Server` sem versão;
+  - escrita vinda de outro site (`Origin`) recusada;
+  - limite de requisições por IP (`DASHZON_LIMITE_POR_MINUTO`, 1200).
+- **Senhas fracas** recusadas: comuns, sequências, repetidas, igual ao login.
+- **Sessão** expira depois de 12 h sem uso e, no máximo, em 30 dias (`DASHZON_SESSAO_HORAS`/`_DIAS`).
+- **Painel do adm → Segurança:** checagem da instalação (HTTPS, cookie seguro, admins, senhas temporárias, logins errados em 24 h, sessão), bloqueios em vigor com **Desbloquear**, e o diário (logins, falhas, bloqueios, trocas de senha, origem recusada, excesso).
+
+**Por quê:** pedido de "módulos de segurança para impedir SQL injection, brute force e afins".
+- O SQL já era parametrizado. O que faltava era uma trava contra regressão: um filtro de texto que bloqueasse `' OR 1=1` quebraria notas legítimas sobre SQL sem proteger nada a mais.
+- A força bruta só era contada por IP e em memória: um ataque de muitos IPs, ou um reinício, passava.
+- Não havia CSP.
+
+**Bug achado pelos testes:** o hash da conta (hexdigest do OpenSSL) tem codificação binária, e o driver do SQLite o gravava como BLOB. Como BLOB nunca é igual a TEXT, o desbloqueio pelo adm não zerava a contagem. Agora tudo vai como texto UTF-8 (`Seguranca.texto`), com teste próprio. O IP vindo do WEBrick tinha o mesmo risco.
+
+**Validação:**
+- `rake test` 142/142 (15 testes novos em `seguranca_test.rb`; os testes de limite antigos passaram para o banco);
+- auditoria de responsividade: 109 telas, 0 erros e 0 avisos;
+- Edge: 46 checagens de notas, configurações e painel de segurança, com **nenhuma violação de CSP** em todo o roteiro (gráficos, notas, importação, `.zip`), mais 15 de fonte;
+- ponta a ponta, 47/47 em duas rodadas com banco zerado;
+- o importador Python (sem `Origin`) segue funcionando.
+
+---
+
 ## 2026-10-09 · `desenvolvimento` · Configurações com abas, módulos ligáveis e Anotações em Markdown (estilo Obsidian)
 
 **O que:**

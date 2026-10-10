@@ -94,6 +94,9 @@ Lidas por `Ambiente["NOME", padrao]`: valor vazio ou só espaços conta como nã
 | `DASHZON_DB_PATH` | `data/dashzon.db` | Arquivo do banco; `segredo.key` e as cópias `.bak` ficam na mesma pasta |
 | `DASHZON_ENGINE` | busca em `engine-cpp/build/{Release,Debug,}/dashzon_engine[.exe]` | Caminho do motor |
 | `DASHZON_ENGINE_TIMEOUT` | `60` | Segundos por chamada ao motor; passou disso, o processo é encerrado (HTTP 500) |
+| `DASHZON_LIMITE_POR_MINUTO` | `1200` | Requisições à API por IP por minuto (acima: 429 com `Retry-After: 60`) |
+| `DASHZON_SESSAO_HORAS` | `12` | Sessão parada por mais tempo que isso cai |
+| `DASHZON_SESSAO_DIAS` | `30` | Validade máxima de uma sessão, mesmo em uso |
 | `DASHZON_HOSTS` | vazio | Domínios aceitos no `Host`, além de localhost e IPs |
 | `DASHZON_COOKIE_SEGURO` | `0` | `1`: cookie `Secure` em toda requisição que chega por HTTPS |
 | `DASHZON_SESSION_SECRET` | vazio | Chave do servidor; sem ela, usa `segredo.key` ao lado do banco (criado com 64+ bytes, modo 600) |
@@ -125,9 +128,10 @@ Docker Compose (`.env`): `DASHZON_DOMINIO` vira `DASHZON_HOSTS` e o domínio do 
 | `usuarios` | `id`, `login` UNIQUE, `senha_hash`, `sal`, `nome`, `email`, `email_verificado_em`, `documento_tipo`, `documento_hash`, `documento_mascara`, `cargo`, `perfil` (`admin`/`usuario`), `ativo`, `deve_trocar_senha`, `sessao_versao`, `ultimo_login_em`, `criado_em`, `atualizado_em`, `preferencias` (JSON) | Criada sob demanda; colunas novas por `ALTER TABLE` (`migrar_usuarios!`) |
 | `tokens` | `id`, `usuario_id` → usuarios CASCADE, `tipo` (`redefinir_senha` 24 h, `verificar_email` 7 dias), `token_hash` UNIQUE (SHA-256), `dado`, `expira_em`, `usado_em`, `criado_em` | Uso único |
 | `ajustes` | `chave` PK, `valor` | `exigir_documento` (nao/cpf/cnpj/qualquer), `exigir_email`, `exigir_email_verificado` |
+| `eventos_seguranca` | `id`, `quando` INTEGER (epoch), `tipo`, `ip`, `conta` (HMAC do login digitado, 32 hex), `usuario_id`, `detalhe` | Diário de segurança e base da contagem de falhas (§8). Índices por `(ip, quando)`, `(conta, quando)` e `quando`. Guardado por 180 dias |
 | `jsons` | `id`, `tipo` (`template`/`exportacao`), `nome`, `conteudo` (BLOB zlib), `criado_em` | Índice `idx_jsons_tipo` |
 
-`usuarios`, `tokens`, `ajustes` e `jsons` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
+`usuarios`, `tokens`, `ajustes`, `jsons` e `eventos_seguranca` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
 
 ### 5.3 Formato de `registros.dados` (`RecordCodec`)
 
@@ -202,7 +206,7 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 | Status | Quando |
 |---|---|
 | 401 | Sem sessão |
-| 403 | Não é admin em `/api/admin/*`, ou senha temporária pendente (`trocar_senha: true`) |
+| 403 | Não é admin em `/api/admin/*`, senha temporária pendente (`trocar_senha: true`) ou escrita com `Origin` de outro site |
 | 404 | Recurso inexistente |
 | 409 | Sistema ainda não configurado |
 | 422 | Validação (`ModuleSchema::Error`, `Usuarios::Erro`) |
@@ -228,6 +232,7 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 | `POST /api/senha/esqueci`, `/api/senha/redefinir`, `/api/email/verificar` | Links por token (limite por IP) |
 | `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Configurações da pessoa. Preferências: `tema`, `fonte`, `pagina_inicial`, `privacidade` e `modulos_ocultos` (slugs desligados no menu dela, até 100) |
 | `GET/PUT /api/admin/ajustes`, `PUT /api/admin/config` | Regras de cadastro; organização e moeda |
+| `GET /api/admin/seguranca`, `POST /api/admin/seguranca/desbloquear` | Checagem da instalação, bloqueios em vigor e os últimos 100 eventos; desbloqueio de um IP (`ip`) ou conta (`conta` = hash) |
 | `GET/POST /api/admin/usuarios`, `PUT/DELETE /api/admin/usuarios/:id`, `POST .../:id/ativo`, `.../senha-temporaria`, `.../link-redefinicao`, `.../email-verificado`, `.../enviar-verificacao` | Gestão de usuários |
 | `GET /api/templates`, `GET /api/templates/:id`, `POST /api/templates/validar`, `POST /api/templates/instalar`, `DELETE /api/templates/:id` (só `salvo-*`) | Galeria |
 | `GET /api/export[?dados=1]`, `GET /api/exportacoes`, `GET/DELETE /api/exportacoes/:id` | Exportação e histórico (guardado em `jsons`) |
@@ -252,7 +257,27 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 - **Senha:** PBKDF2-HMAC-SHA256, 100.000 iterações, sal de 16 bytes por usuário, 32 bytes de saída. `ITERACOES` é imutável (as senhas gravadas dependem dele). Tamanho de 8 a 200. Login: `[A-Za-z0-9._-]{3,40}`.
 - **CPF/CNPJ:** validado; só ficam gravados o HMAC-SHA256 com a chave do servidor e uma máscara para exibição.
 - **Tokens de link:** só o SHA-256 é gravado; uso único; validade de 24 h (redefinição) ou 7 dias (e-mail).
-- **Anti-força-bruta:** 8 falhas por IP em 15 minutos bloqueiam login, "esqueci", "redefinir" e "verificar" para esse IP (contagem em memória, zera ao reiniciar). Login falho espera 0,5 s. As respostas não revelam se um usuário existe.
+- **Anti-força-bruta** (`lib/seguranca.rb`):
+  - as falhas ficam em `eventos_seguranca`, então **sobrevivem a um reinício**;
+  - **por IP:** 8 falhas em 15 min (login errado, senha atual errada, link inválido ou pedido de link) bloqueiam login, "esqueci", "redefinir", "verificar" e a troca de senha para esse IP;
+  - **por conta:** 10 falhas contra o mesmo login em 15 min, **vindas de qualquer IP**, bloqueiam essa conta. Login inexistente conta igual, com a mesma mensagem, para não revelar quem existe;
+  - um login certo, ou o desbloqueio pelo adm, zera a contagem daquele IP ou conta;
+  - login errado espera 0,5 s;
+  - o login digitado é gravado só como HMAC (alguém pode digitar a senha no campo errado);
+  - IP e conta vão ao SQLite sempre como TEXT (`Seguranca.texto`): o driver grava texto binário como BLOB, e BLOB nunca é igual a TEXT.
+- **Diário de segurança:** login, saída, falhas, bloqueios, desbloqueios, trocas e redefinições de senha, "sair dos outros", escrita de outro site e excesso de requisições (os dois últimos no máximo 1 vez por minuto por IP). Aparece no Painel do adm, junto da checagem da instalação: HTTPS, cookie seguro, quantidade de admins, senhas temporárias, logins errados em 24 h e validade da sessão.
+- **Senhas fracas:** além de 8 a 200 caracteres, são recusadas a senha igual ao login, as ~60 mais comuns (`12345678`, `senha123`, nomes de time...), um caractere repetido e as sequências (`abcdefgh`, `87654321`). Vale para setup, cadastro, troca e redefinição.
+- **Sessão:** cai depois de `DASHZON_SESSAO_HORAS` (12) sem uso e, no máximo, em `DASHZON_SESSAO_DIAS` (30); cada login começa uma sessão nova.
+- **`Seguranca::Protecao`** (middleware, por fora do app):
+  - cabeçalhos em toda resposta:
+    - CSP: `script-src 'self'` (sem script inline nem `eval`; o tema e a fonte do `<head>` estão em `js/antes.js`), `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'none'`; estilos inline e imagens `https:` (notas) são aceitos;
+    - `nosniff`, `X-Frame-Options DENY`, `Referrer-Policy same-origin`, `Permissions-Policy` e `COOP same-origin`;
+    - HSTS só em HTTPS;
+    - `Server: DashZon`, sem a versão do Ruby ou do servidor;
+  - escrita (`POST/PUT/PATCH/DELETE` em `/api`) com `Origin` de outro site ou `null` recebe 403. Sem `Origin` (curl, importador) segue, e a sessão continua exigida;
+  - limite de requisições à API por IP (`DASHZON_LIMITE_POR_MINUTO`).
+- **SQL injection:** todo SQL usa parâmetros (`?`). O teste `test_nenhum_sql_monta_texto_com_dado` varre o backend e falha se aparecer SQL com texto interpolado fora de uma lista curta, onde só entram constantes do código. Outro teste manda ataques clássicos pela API (login, busca, filtros, slug, valores), e eles viram texto comum.
+- **XSS:** todo texto do usuário passa por `Util.escapeHtml`; o Markdown escapa antes de formatar; a CSP barra script injetado mesmo se escapar algo.
 - **Contas:** sem usuário padrão. Sempre resta pelo menos um admin ativo; ninguém se exclui, se desativa ou remove o próprio perfil de admin.
 - **Host:** `host_authorization` aceita localhost, `.localhost`, qualquer IP e `DASHZON_HOSTS`; o resto recebe 403.
 - **Rede:** o app escuta em 127.0.0.1 (no Docker, a porta é publicada só em 127.0.0.1). Para a internet, só via Caddy com HTTPS. `Caddyfile.servidor` aplica HSTS, `nosniff`, `X-Frame-Options DENY`, `Referrer-Policy same-origin` e compressão zstd/gzip.
@@ -316,7 +341,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`. São 127 testes; os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 142 testes; os do motor dão `skip` se o binário não existir.
 - **Importador (Python):** `python -m unittest discover -s scripts -p "test_*.py"` (13 testes: conversão por tipo, leitura de `.xlsx`/`.csv` e as planilhas de `exemplos/`).
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:

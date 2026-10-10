@@ -40,6 +40,7 @@ A saída do `rodar.ps1` já traz o fim do log. Se precisar, leia só a cauda de 
 | Ruby ou CMake não encontrado | Instale (acima) e abra um terminal novo |
 | Porta ocupada | `-Porta 4568` ou `DASHZON_PORTA` no `.env` |
 | `Host not permitted` | Domínio em `DASHZON_HOSTS` (no Docker: `DASHZON_DOMINIO`) |
+| 429 "Muitas tentativas" no login | Bloqueio por força bruta (15 min). Outro administrador desbloqueia em Painel do adm > Segurança |
 | 1ª partida após atualizar demora | Normal: migração automática do banco (cópia em `dashzon.db.v2-*.bak`) |
 | Tudo 500 e o log fala em "migrar o banco" | A migração falhou e **nada foi alterado**. Não apague nada; mostre a mensagem do log ao usuário |
 | Esqueceu a senha do único admin | `cd backend; bundle exec ruby -e 'require_relative "lib/usuarios"; id = Usuarios.por_login_ou_email("LOGIN")["id"]; Usuarios.definir_senha!(id, "senha-temporaria-123", deve_trocar: true)'` (Docker: prefixe com `docker compose exec dashzon`) |

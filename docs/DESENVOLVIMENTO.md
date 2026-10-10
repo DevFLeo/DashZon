@@ -548,6 +548,21 @@ Tela dos módulos com `visao: notas`.
 
 O Painel do adm (`#/admin`, link no canto inferior esquerdo, só para administradores): regras de cadastro, organização, lista de usuários com "Editar" e o menu "Mais…" (senha temporária, link de redefinição, confirmar e-mail, enviar confirmação, desativar/reativar, excluir). Senha temporária e link aparecem **uma única vez** no `#modal-segredo`, com botão de copiar.
 
+A seção **Segurança** (`carregarSeguranca`, `GET /api/admin/seguranca`) mostra a checagem da instalação, os bloqueios em vigor (com "Desbloquear") e os últimos 100 eventos do diário.
+
+### `backend/lib/seguranca.rb` (módulo `Seguranca`)
+
+| Função | O que faz |
+|---|---|
+| `registrar!(tipo, ip:, login:, usuario_id:, detalhe:)` | Grava um evento no diário (`eventos_seguranca`). O login vira HMAC (`conta`) |
+| `falhou!(tipo, ...)` | Registra uma falha e, se ela fechou um bloqueio, registra também o `bloqueio` |
+| `bloqueio(ip:, login:)` | `:ip`, `:conta` ou `nil`, contando as falhas da janela de 15 min desde o último `login_ok`/`desbloqueio` |
+| `desbloquear!`, `bloqueios_ativos`, `eventos` | Painel do adm |
+| `motivo_senha_fraca(senha, login)` | `nil` ou o motivo (comum, sequência, repetida, igual ao login). Usado por `Usuarios.validar_senha!` |
+| `Protecao` (middleware) | Cabeçalhos (CSP...), recusa escrita de outro `Origin` e limita requisições por IP (`Protecao.limite`) |
+
+Nas rotas, use `barrar_se_muitas_tentativas!(login)` antes de conferir uma senha ou token, `falhou!(tipo, login:)` quando falhar e `diario!(tipo)` para eventos de auditoria. Um tipo de falha novo entra em `FALHAS_IP` e/ou `FALHAS_CONTA`. Toda tela nova precisa caber na CSP: nada de `<script>` inline, `onclick=` ou `eval`.
+
 ### `js/modulos.js` (`Modulos`)
 
 | Função | O que faz |

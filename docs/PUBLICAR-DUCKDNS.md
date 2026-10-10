@@ -174,7 +174,7 @@ Pronto: agora é só criar as contas das pessoas no **Painel do adm** e mandar o
 - [ ] Não apague `data\segredo.key`: ele derruba todas as sessões e o sistema deixa de reconhecer CPF/CNPJ repetidos.
 - [ ] Faça backup de vez em quando ("Backup com dados (JSON)" ou cópia do `data\dashzon.db`).
 - [ ] Quem sair da empresa: **Desativar** no Painel do adm (a pessoa cai na hora).
-- O que já vem pronto: HTTPS com cadeado, cookie de login só por HTTPS, limite de tentativas de senha (8 erros em 15 min bloqueiam aquele IP), cabeçalhos de segurança, e o DashZon aceita só o seu domínio (qualquer outro nome recebe "Host not permitted").
+- O que já vem pronto: HTTPS com cadeado, cookie de login só por HTTPS, limite de tentativas de senha (8 erros em 15 min bloqueiam aquele IP; 10 contra a mesma conta bloqueiam a conta, de qualquer IP), cabeçalhos de segurança (CSP), escrita só a partir do próprio site, senhas fracas recusadas, sessão que expira e um diário de segurança no Painel do adm, e o DashZon aceita só o seu domínio (qualquer outro nome recebe "Host not permitted").
 
 ## Deu problema?
 
