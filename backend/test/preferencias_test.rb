@@ -7,7 +7,8 @@ class PreferenciasTest < Minitest::Test
   def test_padrao
     configurar!
     get "/api/eu"
-    assert_equal({ "tema" => "sistema", "fonte" => "inter", "pagina_inicial" => "", "privacidade" => false }, resposta["preferencias"])
+    assert_equal({ "tema" => "sistema", "fonte" => "inter", "pagina_inicial" => "", "privacidade" => false, "modulos_ocultos" => [] },
+                 resposta["preferencias"])
   end
 
   def test_fonte_salva_na_conta
