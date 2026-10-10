@@ -167,7 +167,7 @@
       <button class="btn btn-ghost btn-sm" id="btn-privacidade" aria-pressed="false">Ocultar valores</button>
       <a class="btn btn-ghost btn-sm" href="/api/export">Exportar configuração (JSON)</a>
       <a class="btn btn-ghost btn-sm" href="/api/export?dados=1">Backup com dados (JSON)</a>
-      <button class="btn btn-ghost btn-sm" id="btn-conta">Minha conta</button>
+      <a class="btn btn-ghost btn-sm" id="link-config" href="#/config">Configurações</a>
       <a class="btn btn-ghost btn-sm link-admin" id="link-admin" href="#/admin" hidden>Painel do adm</a>
       <div class="usuario-atual">
         <span>Conectado como <strong id="usuario-nome"></strong></span>
@@ -222,6 +222,185 @@
         <span class="hint" id="mod-contagem"></span>
       </div>
       <div id="mod-tabela"></div>
+    </section>
+
+    <!-- Configurações (#/config/<aba>) -->
+    <section class="view" id="view-config">
+      <header class="page-header">
+        <div>
+          <h1>Configurações</h1>
+          <p class="hint">Valem para a sua conta, em qualquer computador.</p>
+        </div>
+      </header>
+      <nav class="abas" aria-label="Seções das configurações">
+        <a class="aba" data-aba="conta" href="#/config/conta">Conta</a>
+        <a class="aba" data-aba="aparencia" href="#/config/aparencia">Aparência</a>
+        <a class="aba" data-aba="seguranca" href="#/config/seguranca">Segurança</a>
+        <a class="aba" data-aba="modulos" href="#/config/modulos">Módulos</a>
+      </nav>
+
+      <div class="aba-painel" data-painel="conta">
+        <section class="config-bloco">
+          <h2>Seus dados</h2>
+          <form id="form-conta">
+            <div class="field">
+              <label for="conta-nome" class="obrigatorio">Nome</label>
+              <input id="conta-nome" type="text" maxlength="80" required>
+            </div>
+            <div class="field">
+              <label for="conta-email">E-mail <span class="selo" id="conta-email-selo"></span></label>
+              <input id="conta-email" type="email" maxlength="120" autocomplete="email">
+            </div>
+            <div class="field">
+              <label for="conta-documento">CPF ou CNPJ</label>
+              <input id="conta-documento" type="text" maxlength="18" inputmode="numeric" autocomplete="off">
+              <div class="ajuda" id="conta-documento-atual"></div>
+            </div>
+            <p class="hint" id="conta-info"></p>
+            <div class="form-erro" id="conta-erro" hidden></div>
+            <div class="modal-actions">
+              <button type="button" class="btn" id="conta-verificar" hidden>Enviar confirmação de e-mail</button>
+              <button type="submit" class="btn btn-primary">Salvar meus dados</button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <div class="aba-painel" data-painel="aparencia">
+        <section class="config-bloco">
+          <h2>Aparência e preferências</h2>
+          <form id="form-preferencias">
+            <div class="field-row">
+              <div class="field">
+                <label for="pref-tema">Tema</label>
+                <select id="pref-tema">
+                  <option value="sistema">Seguir o sistema</option>
+                  <option value="claro">Claro (sol)</option>
+                  <option value="suave">Suave (pôr do sol, mais leve para os olhos)</option>
+                  <option value="escuro">Escuro (lua)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="pref-inicial">Ao entrar, abrir</label>
+                <select id="pref-inicial"></select>
+              </div>
+            </div>
+            <div class="field">
+              <label for="pref-fonte">Fonte</label>
+              <select id="pref-fonte"></select>
+              <p class="amostra-fonte" id="pref-fonte-amostra" aria-hidden="true">Cronograma de estudos · Saldo R$ 1.234,56 · 09/10/2026 19:30</p>
+            </div>
+            <label class="field-check"><input type="checkbox" id="pref-privacidade"> Começar com os valores em moeda ocultos</label>
+            <div class="form-erro" id="pref-erro" hidden></div>
+            <div class="modal-actions"><button type="submit" class="btn btn-primary">Salvar aparência</button></div>
+          </form>
+        </section>
+      </div>
+
+      <div class="aba-painel" data-painel="seguranca">
+        <section class="config-bloco">
+          <h2>Trocar senha</h2>
+          <form id="form-senha">
+            <input type="text" autocomplete="username" id="senha-usuario" hidden>
+            <div class="field">
+              <label for="senha-atual">Senha atual</label>
+              <input id="senha-atual" type="password" autocomplete="current-password" required>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="senha-nova">Nova senha (mínimo 8)</label>
+                <input id="senha-nova" type="password" autocomplete="new-password" minlength="8" required>
+              </div>
+              <div class="field">
+                <label for="senha-confirmar">Repita a nova senha</label>
+                <input id="senha-confirmar" type="password" autocomplete="new-password" minlength="8" required>
+              </div>
+            </div>
+            <div class="form-erro" id="senha-erro" hidden></div>
+            <div class="modal-actions"><button type="submit" class="btn btn-primary">Trocar senha</button></div>
+          </form>
+        </section>
+        <section class="config-bloco">
+          <h2>Sessões</h2>
+          <p class="hint" id="conta-acessos"></p>
+          <div class="modal-actions modal-actions-esquerda">
+            <button type="button" class="btn" id="conta-sair-outros">Sair dos outros dispositivos</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="aba-painel" data-painel="modulos">
+        <section class="config-bloco">
+          <h2>Seus módulos</h2>
+          <p class="hint">Desligue o que você não usa: o módulo sai do seu menu (os dados e os cards continuam, e os outros usuários não são afetados). As opções de cada módulo aparecem quando ele está ligado.</p>
+          <div id="cfg-modulos" class="cfg-modulos"></div>
+        </section>
+        <section class="config-bloco">
+          <h2>Adicionar módulos</h2>
+          <p class="hint">Módulos prontos da galeria. Um módulo com o mesmo nome de um que você já tem é reaproveitado, sem duplicar.</p>
+          <label class="field-check"><input type="checkbox" id="cfg-exemplos" checked> Instalar com dados de exemplo</label>
+          <div id="cfg-disponiveis" class="cfg-disponiveis"></div>
+          <div class="modal-actions modal-actions-esquerda"><button type="button" class="btn" data-acao="add-modulo">Criar ou importar em JSON…</button></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- Notas (módulo com "visao": {"tipo": "notas"}) -->
+    <section class="view" id="view-notas">
+      <header class="page-header">
+        <div>
+          <h1 id="notas-modulo"></h1>
+          <p class="hint" id="notas-descricao"></p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-sm" id="notas-btn-importar">Importar .md</button>
+          <button class="btn btn-sm" id="notas-btn-importar-pasta">Importar pasta</button>
+          <button class="btn btn-sm" id="notas-baixar-tudo">Baixar tudo (.zip)</button>
+          <button class="btn btn-sm" id="notas-estrutura">Estrutura (JSON)</button>
+          <button class="btn btn-sm btn-primary" id="notas-nova">+ Nova nota</button>
+          <input type="file" id="notas-importar" accept=".md,.markdown,.txt,text/markdown" multiple hidden>
+          <input type="file" id="notas-importar-pasta" webkitdirectory multiple hidden>
+        </div>
+      </header>
+      <div class="notas" id="notas">
+        <aside class="notas-lista" aria-label="Lista de notas">
+          <input type="search" id="notas-busca" placeholder="Buscar nas notas..." aria-label="Buscar nas notas">
+          <div class="notas-tags" id="notas-tags" aria-label="Tags"></div>
+          <nav class="notas-arvore" id="notas-arvore" aria-label="Notas por pasta"></nav>
+          <p class="hint" id="notas-contagem"></p>
+        </aside>
+        <article class="notas-nota">
+          <div class="empty-state" id="nota-vazia">
+            <h2>Escolha uma nota</h2>
+            <div>Ou crie uma nova. Use [[título]] para ligar notas e #tags para agrupar.</div>
+            <button class="btn btn-primary" id="notas-vazia-nova">+ Nova nota</button>
+          </div>
+          <div id="nota-painel" hidden>
+            <button type="button" class="btn btn-sm btn-ghost notas-voltar" id="notas-voltar">← Notas</button>
+            <input class="nota-titulo" id="nota-titulo" type="text" maxlength="500" aria-label="Título da nota" placeholder="Título">
+            <div class="nota-barra">
+              <span id="nota-pasta-campo" class="nota-pasta-campo">
+                <input id="nota-pasta" type="text" maxlength="500" list="notas-pastas" placeholder="Pasta (ex.: Matemática/Funções)" aria-label="Pasta">
+                <datalist id="notas-pastas"></datalist>
+              </span>
+              <span class="nota-status" id="nota-status" role="status" aria-live="polite"></span>
+              <span class="spacer"></span>
+              <span class="segmentado" id="nota-modos" role="group" aria-label="Modo de exibição">
+                <button type="button" data-modo="ler">Ler</button>
+                <button type="button" data-modo="editar">Editar</button>
+                <button type="button" data-modo="dividir">Lado a lado</button>
+              </span>
+              <button type="button" class="btn btn-sm" id="nota-baixar">Baixar .md</button>
+              <button type="button" class="btn btn-sm btn-danger" id="nota-excluir">Excluir</button>
+            </div>
+            <div class="nota-corpo modo-dividir" id="nota-corpo">
+              <textarea class="nota-editor code" id="nota-editor" aria-label="Texto da nota em Markdown" spellcheck="true"></textarea>
+              <div class="md nota-previa" id="nota-previa"></div>
+            </div>
+            <div class="nota-backlinks" id="nota-backlinks"></div>
+          </div>
+        </article>
+      </div>
     </section>
 
     <!-- Sem nada ainda -->
@@ -473,90 +652,6 @@
   </div>
 </div>
 
-<!-- ============ Modal: minha conta ============ -->
-<div class="modal-overlay" id="modal-conta">
-  <div class="modal">
-    <h2>Minha conta</h2>
-    <form id="form-conta">
-      <div class="field">
-        <label for="conta-nome" class="obrigatorio">Nome</label>
-        <input id="conta-nome" type="text" maxlength="80" required>
-      </div>
-      <div class="field">
-        <label for="conta-email">E-mail <span class="selo" id="conta-email-selo"></span></label>
-        <input id="conta-email" type="email" maxlength="120" autocomplete="email">
-      </div>
-      <div class="field">
-        <label for="conta-documento">CPF ou CNPJ</label>
-        <input id="conta-documento" type="text" maxlength="18" inputmode="numeric" autocomplete="off">
-        <div class="ajuda" id="conta-documento-atual"></div>
-      </div>
-      <p class="hint" id="conta-info"></p>
-      <div class="form-erro" id="conta-erro" hidden></div>
-      <div class="modal-actions">
-        <button type="button" class="btn" id="conta-verificar" hidden>Enviar confirmação de e-mail</button>
-        <button type="submit" class="btn btn-primary">Salvar meus dados</button>
-      </div>
-    </form>
-
-    <h2 class="secao-modal">Preferências</h2>
-    <form id="form-preferencias">
-      <div class="field-row">
-        <div class="field">
-          <label for="pref-tema">Tema</label>
-          <select id="pref-tema">
-            <option value="sistema">Seguir o sistema</option>
-            <option value="claro">Claro (sol)</option>
-            <option value="suave">Suave (pôr do sol, mais leve para os olhos)</option>
-            <option value="escuro">Escuro (lua)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="pref-inicial">Ao entrar, abrir</label>
-          <select id="pref-inicial"></select>
-        </div>
-      </div>
-      <div class="field">
-        <label for="pref-fonte">Fonte</label>
-        <select id="pref-fonte"></select>
-        <p class="amostra-fonte" id="pref-fonte-amostra" aria-hidden="true">Cronograma de estudos · Saldo R$ 1.234,56 · 09/10/2026 19:30</p>
-      </div>
-      <label class="field-check"><input type="checkbox" id="pref-privacidade"> Começar com os valores em moeda ocultos</label>
-      <p class="hint">Suas preferências ficam na sua conta e valem em qualquer computador.</p>
-      <div class="form-erro" id="pref-erro" hidden></div>
-      <div class="modal-actions"><button type="submit" class="btn btn-primary">Salvar preferências</button></div>
-    </form>
-
-    <h2 class="secao-modal">Segurança</h2>
-    <p class="hint" id="conta-acessos"></p>
-    <div class="modal-actions modal-actions-esquerda">
-      <button type="button" class="btn" id="conta-sair-outros">Sair dos outros dispositivos</button>
-    </div>
-
-    <h2 class="secao-modal">Trocar senha</h2>
-    <form id="form-senha">
-      <input type="text" autocomplete="username" id="senha-usuario" hidden>
-      <div class="field">
-        <label for="senha-atual">Senha atual</label>
-        <input id="senha-atual" type="password" autocomplete="current-password" required>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="senha-nova">Nova senha (mínimo 8)</label>
-          <input id="senha-nova" type="password" autocomplete="new-password" minlength="8" required>
-        </div>
-        <div class="field">
-          <label for="senha-confirmar">Repita a nova senha</label>
-          <input id="senha-confirmar" type="password" autocomplete="new-password" minlength="8" required>
-        </div>
-      </div>
-      <div class="form-erro" id="senha-erro" hidden></div>
-      <div class="modal-actions"><button type="submit" class="btn btn-primary">Trocar senha</button></div>
-    </form>
-    <div class="modal-actions"><button type="button" class="btn" data-fechar="modal-conta">Fechar</button></div>
-  </div>
-</div>
-
 <!-- ============ Troca de senha obrigatória (senha temporária) ============ -->
 <div class="modal-overlay" id="modal-troca-obrigatoria" data-fixo>
   <form class="modal" id="form-troca-obrigatoria">
@@ -688,11 +783,14 @@
 <script src="/js/tema.js"></script>
 <script src="/js/fonte.js"></script>
 <script src="/js/api.js"></script>
+<script src="/js/markdown.js"></script>
 <script src="/js/setup.js"></script>
 <script src="/js/login.js"></script>
 <script src="/js/conta.js"></script>
+<script src="/js/config.js"></script>
 <script src="/js/admin.js"></script>
 <script src="/js/modulos.js"></script>
+<script src="/js/notas.js"></script>
 <script src="/js/dashboards.js"></script>
 <script src="/js/responsivo.js"></script>
 <script src="/js/app.js"></script>

@@ -539,6 +539,149 @@ body.logado .tema-flutuante { display: none; }
 }
 .modal-actions-esquerda { justify-content: flex-start; margin-top: 6px; }
 
+/* ================= Configurações (#/config/<aba>) ================= */
+.abas { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.aba {
+  padding: 10px 14px; color: var(--text-secondary); text-decoration: none; font-weight: 600; white-space: nowrap;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.aba:hover { color: var(--text-primary); background: var(--hover); }
+.aba.active { color: var(--accent); border-bottom-color: var(--accent); }
+.aba:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.aba-painel { display: grid; gap: 16px; max-width: 820px; }
+.config-bloco { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px 20px; }
+.config-bloco > h2 { font-size: 16px; margin-bottom: 12px; }
+.config-bloco > .hint { margin: -6px 0 12px; }
+.config-bloco .modal-actions { margin-top: 12px; }
+
+.cfg-modulos, .cfg-disponiveis { display: grid; gap: 10px; }
+.cfg-disponiveis { margin-top: 10px; }
+.cfg-modulo { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; }
+.cfg-modulo.desligado { background: var(--hover); }
+.cfg-modulo.desligado .cfg-modulo-info strong { color: var(--text-secondary); }
+.cfg-modulo-topo { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.cfg-modulo-info { min-width: 0; }
+.cfg-opcoes { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
+.cfg-opcoes h3 { font-size: 14px; margin: 0 0 10px; }
+.cfg-opcoes-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.cfg-opcoes-campos textarea { min-height: 112px; resize: vertical; }
+.cfg-disponivel {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-md); padding: 12px 14px;
+}
+
+/* Interruptor (liga/desliga): é um checkbox de verdade, com a área de toque no rótulo. */
+.interruptor { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; min-height: 36px; flex-shrink: 0; font-weight: 600; font-size: 13px; }
+.interruptor input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.interruptor-trilho {
+  width: 40px; height: 22px; border-radius: 999px; background: var(--border-strong); position: relative; transition: background .15s;
+}
+.interruptor-trilho::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .15s;
+}
+.interruptor input:checked + .interruptor-trilho { background: var(--accent); }
+.interruptor input:checked + .interruptor-trilho::after { transform: translateX(18px); }
+.interruptor input:focus-visible + .interruptor-trilho { outline: 2px solid var(--accent); outline-offset: 2px; }
+.interruptor input:disabled + .interruptor-trilho { opacity: .5; }
+.interruptor-rotulo { color: var(--text-secondary); min-width: 64px; }
+
+/* ================= Notas (visão "notas", estilo Obsidian) ================= */
+.notas { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+.notas-lista {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px;
+  display: grid; gap: 10px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto;
+}
+.notas-lista input[type="search"] {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--page-plane);
+}
+.notas-arvore { display: grid; gap: 1px; }
+.nota-pasta > summary {
+  cursor: pointer; padding: 6px 8px; border-radius: var(--radius-sm); font-weight: 600; color: var(--text-secondary); list-style: none;
+}
+.nota-pasta > summary::-webkit-details-marker { display: none; }
+.nota-pasta > summary::before { content: "▸"; display: inline-block; width: 14px; transition: transform .15s; }
+.nota-pasta[open] > summary::before { transform: rotate(90deg); }
+.nota-pasta > summary:hover { background: var(--hover); }
+.nota-pasta > :not(summary) { margin-left: 14px; }
+.nota-item {
+  display: block; padding: 6px 8px; border-radius: var(--radius-sm); color: var(--text-primary); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nota-item:hover { background: var(--hover); }
+.nota-item.active { background: var(--accent); color: var(--accent-ink); }
+.notas-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.notas-tags .tag, .md .tag {
+  border: none; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);
+  border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.notas-tags .tag span { opacity: .7; font-weight: 500; }
+.notas-tags .tag.ativa { background: var(--accent); color: var(--accent-ink); }
+
+.notas-nota { min-width: 0; }
+#nota-painel { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; display: grid; gap: 10px; }
+.notas-voltar { display: none; justify-self: start; }
+.nota-titulo {
+  font: inherit; font-size: 22px; font-weight: 700; border: none; background: transparent; padding: 4px 0; width: 100%;
+  border-bottom: 1px solid transparent; border-radius: 0;
+}
+.nota-titulo:focus { outline: none; border-bottom-color: var(--accent); }
+.nota-barra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nota-barra .spacer { flex: 1; }
+.nota-pasta-campo input { padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--page-plane); min-width: 200px; }
+.nota-status { font-size: 12px; color: var(--text-muted); }
+.nota-status.pendente, .nota-status.salvando { color: var(--status-warning); }
+.nota-status.erro { color: var(--critical-text); font-weight: 600; }
+.segmentado { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
+.segmentado button { border: none; background: transparent; padding: 6px 10px; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text-secondary); }
+.segmentado button + button { border-left: 1px solid var(--border-strong); }
+.segmentado button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.nota-corpo { display: grid; gap: 14px; min-height: 420px; }
+.nota-corpo.modo-dividir { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.nota-corpo.modo-ler .nota-editor { display: none; }
+.nota-corpo.modo-editar .nota-previa { display: none; }
+.nota-editor {
+  width: 100%; min-height: 420px; resize: vertical; padding: 12px 14px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); background: var(--page-plane); font-family: var(--font-mono); font-size: 13.5px; line-height: 1.6; tab-size: 2;
+  /* Texto corrido quebra a linha; e sem ligaduras (a Cascadia junta "|---|" num desenho). */
+  white-space: pre-wrap; overflow-wrap: anywhere; font-variant-ligatures: none;
+}
+/* textarea.code (editor JSON) usa white-space: pre e é mais específico: aqui o texto quebra a linha. */
+textarea.code.nota-editor { white-space: pre-wrap; }
+.nota-previa { padding: 4px 2px; min-width: 0; }
+.nota-corpo.modo-dividir .nota-previa { border-left: 1px solid var(--border); padding-left: 16px; max-height: 70vh; overflow: auto; }
+.nota-backlinks:empty { display: none; }
+.nota-backlinks { border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.nota-backlinks h3 { font-size: 13px; color: var(--text-secondary); margin: 0 6px 0 0; }
+.nota-backlinks .nota-item { display: inline-block; color: var(--accent); padding: 2px 6px; }
+
+/* Texto Markdown renderizado (js/markdown.js). */
+.md { line-height: 1.65; overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { line-height: 1.3; margin: 1.1em 0 .45em; }
+.md h1 { font-size: 1.6em; } .md h2 { font-size: 1.3em; } .md h3 { font-size: 1.12em; }
+.md p, .md ul, .md ol, .md blockquote, .md pre, .md .md-tabela { margin: 0 0 .8em; }
+.md ul, .md ol { padding-left: 1.5em; }
+.md li + li { margin-top: .2em; }
+.md li.tarefa { list-style: none; margin-left: -1.3em; }
+.md li.tarefa input { width: 16px; height: 16px; vertical-align: -3px; margin: 0 4px 0 0; accent-color: var(--accent); cursor: pointer; }
+.md li.tarefa.feita > span { color: var(--text-muted); text-decoration: line-through; }
+.md code { font-family: var(--font-mono); font-size: .9em; background: var(--hover); padding: 1px 5px; border-radius: 5px; }
+.md pre { background: var(--hover); padding: 12px 14px; border-radius: var(--radius-sm); overflow: auto; }
+.md pre code { background: none; padding: 0; font-size: 13px; }
+.md blockquote { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; color: var(--text-secondary); margin-left: 0; }
+.md hr { border: none; border-top: 1px solid var(--border-strong); margin: 1.2em 0; }
+.md mark { background: color-mix(in srgb, var(--status-warning) 45%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
+.md a { color: var(--accent); }
+.md .wikilink { text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.md .wikilink.novo { color: var(--text-muted); border-bottom-style: dashed; }
+.md img { max-width: 100%; border-radius: var(--radius-sm); }
+.md .md-tabela { overflow-x: auto; }
+.md table { border-collapse: collapse; }
+.md th, .md td { border: 1px solid var(--border-strong); padding: 6px 10px; text-align: left; }
+.md th { background: var(--hover); }
+
 /* ================= Responsividade =================
    Faixas: até 800px = celular/tablet em pé (menu vira gaveta); até 640px =
    celular (dashboard empilhado, modais em tela cheia). Medido com a auditoria
@@ -671,4 +814,35 @@ body.logado .tema-flutuante { display: none; }
 /* Celular bem estreito (abaixo de 360px): KPIs do dashboard numa linha cada. */
 @media (max-width: 359px) {
   .grid-stack > .grid-stack-item.cel-meia { grid-column: span 2; }
+}
+
+/* Configurações e notas em telas menores. */
+@media (max-width: 1100px) {
+  /* Lado a lado espremido não serve: a prévia vai para baixo do editor. */
+  .nota-corpo.modo-dividir { grid-template-columns: minmax(0, 1fr); }
+  .nota-corpo.modo-dividir .nota-previa { border-left: none; padding-left: 2px; border-top: 1px solid var(--border); padding-top: 12px; max-height: none; }
+}
+@media (max-width: 800px) {
+  .cfg-opcoes-campos { grid-template-columns: minmax(0, 1fr); }
+  .cfg-disponivel { flex-direction: column; align-items: stretch; }
+  .config-bloco { padding: 14px; }
+  /* Notas: a lista ocupa a tela; com uma nota aberta, só a nota (e o "← Notas"). */
+  .notas { grid-template-columns: minmax(0, 1fr); }
+  .notas-lista { position: static; max-height: none; }
+  .notas.com-nota .notas-lista { display: none; }
+  .notas:not(.com-nota) .notas-nota { display: none; }
+  .notas-voltar { display: inline-flex; }
+  /* Com uma nota aberta, os botões do caderno (importar, baixar...) saem do caminho. */
+  #view-notas:has(.notas.com-nota) .page-header .actions { display: none; }
+  #nota-painel { padding: 12px; }
+  .nota-titulo { font-size: 19px; }
+  .nota-pasta-campo, .nota-pasta-campo input { flex: 1 1 100%; min-width: 0; width: 100%; }
+  .nota-editor { min-height: 300px; }
+}
+@media (max-width: 820px), (pointer: coarse) {
+  .aba { min-height: 44px; display: inline-flex; align-items: center; }
+  .segmentado button { min-height: 36px; }
+  .nota-item, .nota-pasta > summary { min-height: 40px; display: flex; align-items: center; }
+  .notas-tags .tag { min-height: 36px; }
+  .nota-titulo, .nota-pasta-campo input { min-height: 40px; }
 }

@@ -1,4 +1,4 @@
-// Fonte da interface, escolhida em Minha conta. Como o tema: fica no navegador
+// Fonte da interface, escolhida em Configurações > Aparência. Como o tema: fica no navegador
 // (para abrir já com a fonte certa, antes do login) e, com alguém logado, nas
 // preferências da conta. Troca o atributo data-fonte do <html> (os tokens
 // --font-sans no CSS) e a fonte dos gráficos do Chart.js, que desenham num

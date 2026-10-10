@@ -132,8 +132,12 @@ const Modulos = (() => {
 
     const cols = campos().filter((c) => c.lista !== false).slice(0, 7);
     const head = cols.map((c) => `<th class="${Util.NUMERICOS.includes(c.tipo) ? "num" : c.tipo === "booleano" ? "cel-check" : ""}">${esc(c.nome)}</th>`).join("");
+    // "nota": cada registro abre (ou cria) a nota de mesmo título no módulo de
+    // notas declarado, se ele estiver instalado e ligado para esta pessoa.
+    const nota = atual.schema.nota && App.modulosVisiveis().find((m) => m.slug === atual.schema.nota.modulo && m.schema.visao);
     const linhas = registros.map((r) => `<tr>${cols.map((c) => celula(c, r)).join("")}
       <td><div class="row-actions">
+        ${nota ? `<button class="btn btn-sm" data-nota-de="${r.id}" title="Abrir a anotação de ${esc(String(r[atual.schema.nota.titulo] ?? ""))}">Nota</button>` : ""}
         <button class="btn btn-sm" data-editar="${r.id}">Editar</button>
         <button class="btn btn-sm btn-danger" data-excluir="${r.id}">Excluir</button>
       </div></td></tr>`).join("");
@@ -156,6 +160,11 @@ const Modulos = (() => {
     }));
     alvo.querySelectorAll("[data-excluir]").forEach((b) => b.addEventListener("click", () => excluirRegistro(b.dataset.excluir)));
     alvo.querySelectorAll("[data-marcar]").forEach((cx) => cx.addEventListener("change", () => marcar(cx)));
+    alvo.querySelectorAll("[data-nota-de]").forEach((b) => b.addEventListener("click", () => {
+      const r = registros.find((x) => String(x.id) === b.dataset.notaDe);
+      const n = atual.schema.nota;
+      Notas.abrirOuCriar(n.modulo, r?.[n.titulo], n.pasta ? r?.[n.pasta] : "").catch((e) => Util.aviso(e.message, "erro"));
+    }));
   }
 
   // Checklist: grava só o campo marcado. Em caso de erro, desfaz a marcação.
@@ -255,13 +264,15 @@ const Modulos = (() => {
   }
 
   // ---------------------------------------------------- estrutura JSON ----
-  function abrirEstrutura() {
-    const def = {
-      slug: atual.slug, nome: atual.nome, descricao: atual.descricao, icone: atual.icone,
-      rotulo: atual.schema.rotulo, campos: atual.schema.campos, resumo: atual.schema.resumo
-    };
-    // Só aparece no editor quando o módulo tem: salvar sem ela voltaria à ordem padrão.
-    if (atual.schema.ordenacao?.length) def.ordenacao = atual.schema.ordenacao;
+  // Módulo cuja estrutura está aberta no editor (a tabela ou um caderno de notas).
+  let estruturaDe = null;
+
+  // Tudo o que o schema declara (campos, resumo, ordenacao, visao, nota,
+  // configuracoes...) vai para o editor; só os slots, detalhe interno, ficam de fora.
+  function abrirEstrutura(mod = atual) {
+    estruturaDe = mod;
+    const { slots, ...schema } = mod.schema;
+    const def = { slug: mod.slug, nome: mod.nome, descricao: mod.descricao, icone: mod.icone, ...schema };
     $("estrutura-json").value = JSON.stringify(def, null, 2);
     erroEstrutura("");
     Util.abrirModal("modal-estrutura");
@@ -285,11 +296,14 @@ const Modulos = (() => {
     try {
       // O PUT devolve o módulo atualizado: usa já, para que um clique rápido em
       // "Novo registro" monte o formulário com o schema novo.
-      atual = await Api.put(`/api/modulos/${atual.slug}`, lerJson($("estrutura-json").value));
+      const salvo = await Api.put(`/api/modulos/${estruturaDe.slug}`, lerJson($("estrutura-json").value));
       Util.fecharModal("modal-estrutura");
       Util.aviso("Estrutura salva");
       await App.recarregarNav();
-      await abrir(atual.slug);
+      if (atual?.slug === salvo.slug) atual = salvo;
+      // A estrutura pode ter mudado a visão (tabela <-> notas): a rota decide a tela.
+      Notas.esquecer();
+      App.ir(`#/m/${encodeURIComponent(salvo.slug)}`);
     } catch (e) {
       erroEstrutura(e.message);
     }
@@ -366,7 +380,7 @@ const Modulos = (() => {
   function init() {
     $("btn-novo-registro").addEventListener("click", () => abrirFormulario());
     $("form-registro").addEventListener("submit", salvarRegistro);
-    $("btn-estrutura").addEventListener("click", abrirEstrutura);
+    $("btn-estrutura").addEventListener("click", () => abrirEstrutura());
     $("form-estrutura").addEventListener("submit", salvarEstrutura);
     $("estrutura-formatar").addEventListener("click", () => {
       try {
@@ -404,5 +418,5 @@ const Modulos = (() => {
     abrirFormulario(null, modulo, depois);
   }
 
-  return { init, abrir, abrirAdicionar, lancar };
+  return { init, abrir, abrirAdicionar, abrirEstrutura, lancar };
 })();

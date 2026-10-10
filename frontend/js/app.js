@@ -1,5 +1,6 @@
-// Inicialização, navegação (hash: #/d/<id> dashboard, #/m/<slug> módulo) e
-// estado compartilhado (lista de módulos e dashboards) usado pelas telas.
+// Inicialização, navegação (hash: #/d/<id> dashboard, #/m/<slug>[/<id>] módulo
+// ou nota, #/config/<aba> configurações, #/admin) e estado compartilhado (lista
+// de módulos e dashboards) usado pelas telas.
 const App = (() => {
   let modulos = [];
   let dashboards = [];
@@ -8,10 +9,13 @@ const App = (() => {
   const esc = Util.escapeHtml;
 
   const modulo = (slug) => modulos.find((m) => m.slug === slug);
+  // Módulos que a pessoa desligou em Configurações > Módulos saem do menu dela.
+  const ocultos = () => new Set(usuario?.preferencias?.modulos_ocultos || []);
+  const modulosVisiveis = () => modulos.filter((m) => !ocultos().has(m.slug));
 
   function rotaAtual() {
-    const [, tipo, id] = location.hash.split("/");
-    return { tipo, id: id ? decodeURIComponent(id) : null };
+    const [, tipo, id, extra] = location.hash.split("/");
+    return { tipo, id: id ? decodeURIComponent(id) : null, extra: extra ? decodeURIComponent(extra) : null };
   }
 
   async function recarregarNav() {
@@ -24,10 +28,12 @@ const App = (() => {
     $("nav-dashboards").innerHTML = dashboards.length
       ? dashboards.map((d) => `<a class="nav-item ${rota.tipo === "d" && rota.id === String(d.id) ? "active" : ""}" href="#/d/${d.id}">${esc(d.nome)}</a>`).join("")
       : '<div class="nav-empty">Nenhum dashboard</div>';
-    $("nav-modulos").innerHTML = modulos.length
-      ? modulos.map((m) => `<a class="nav-item ${rota.tipo === "m" && rota.id === m.slug ? "active" : ""}" href="#/m/${encodeURIComponent(m.slug)}">
+    const visiveis = modulosVisiveis();
+    $("nav-modulos").innerHTML = visiveis.length
+      ? visiveis.map((m) => `<a class="nav-item ${rota.tipo === "m" && rota.id === m.slug ? "active" : ""}" href="#/m/${encodeURIComponent(m.slug)}">
           <span>${esc(m.nome)}</span><span class="count">${m.total}</span></a>`).join("")
-      : '<div class="nav-empty">Nenhum módulo</div>';
+      : `<div class="nav-empty">${modulos.length ? '<a href="#/config/modulos">Todos desligados: ligue em Configurações</a>' : "Nenhum módulo"}</div>`;
+    $("link-config").classList.toggle("active", rota.tipo === "config");
   }
 
   function mostrar(view) {
@@ -37,7 +43,8 @@ const App = (() => {
   function rotaPadrao() {
     if (!modulos.length) return "#/inicio";
     if (dashboards.length) return `#/d/${dashboards[0].id}`;
-    return `#/m/${encodeURIComponent(modulos[0].slug)}`;
+    const primeiro = modulosVisiveis()[0] || modulos[0];
+    return `#/m/${encodeURIComponent(primeiro.slug)}`;
   }
 
   function ir(hash) {
@@ -48,15 +55,26 @@ const App = (() => {
   const irPadrao = () => ir(rotaPadrao());
 
   async function rotear() {
-    const { tipo, id } = rotaAtual();
+    const { tipo, id, extra } = rotaAtual();
+    // Navegar entre notas do mesmo caderno não recarrega a lista.
+    const jaNasNotas = $("view-notas").classList.contains("active");
     renderNav();
     try {
+      await Notas.gravarAgora(); // uma nota com edição pendente é gravada antes de sair
       if (tipo === "d" && dashboards.some((d) => String(d.id) === id)) {
         mostrar("view-dashboard");
         await Dashboards.abrir(Number(id));
       } else if (tipo === "m" && modulo(id)) {
-        mostrar("view-modulo");
-        await Modulos.abrir(id);
+        if (modulo(id).schema.visao?.tipo === "notas") {
+          mostrar("view-notas");
+          await Notas.abrir(id, extra, jaNasNotas);
+        } else {
+          mostrar("view-modulo");
+          await Modulos.abrir(id);
+        }
+      } else if (tipo === "config") {
+        mostrar("view-config");
+        await Config.abrir(id);
       } else if (tipo === "admin" && usuario?.admin) {
         mostrar("view-admin");
         await Admin.abrir(usuario.id);
@@ -202,5 +220,5 @@ const App = (() => {
 
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { modulo, modulos: () => modulos, dashboards: () => dashboards, recarregarNav, ir, irPadrao, atualizarUsuario };
+  return { modulo, modulos: () => modulos, modulosVisiveis, dashboards: () => dashboards, recarregarNav, ir, irPadrao, atualizarUsuario };
 })();

@@ -1,4 +1,5 @@
-// Conta do próprio usuário: "Minha conta" (dados e senha), a troca obrigatória
+// Conta do próprio usuário (abas Conta, Aparência e Segurança da página de
+// Configurações: dados, preferências e senha), a troca obrigatória
 // depois de uma senha temporária, e as telas abertas pelos links de e-mail
 // (#/redefinir/<token> e #/verificar-email/<token>).
 const Conta = (() => {
@@ -35,7 +36,7 @@ const Conta = (() => {
     const esc = Util.escapeHtml;
     const grupo = (rotulo, itens) => (itens.length ? `<optgroup label="${rotulo}">${itens.join("")}</optgroup>` : "");
     const dashboards = App.dashboards().map((d) => `<option value="#/d/${d.id}">${esc(d.nome)}</option>`);
-    const modulos = App.modulos().map((m) => `<option value="#/m/${esc(m.slug)}">${esc(m.nome)}</option>`);
+    const modulos = App.modulosVisiveis().map((m) => `<option value="#/m/${esc(m.slug)}">${esc(m.nome)}</option>`);
     return '<option value="">Padrão (primeiro dashboard)</option>' +
       grupo("Dashboards", dashboards) + grupo("Módulos", modulos) +
       (eu.admin ? '<option value="#/admin">Painel do adm</option>' : "");
@@ -68,7 +69,8 @@ const Conta = (() => {
       });
       Tema.aplicar(eu.preferencias.tema);
       Fonte.aplicar(eu.preferencias.fonte);
-      Util.aviso("Preferências salvas");
+      App.atualizarUsuario(eu);
+      Util.aviso("Aparência salva");
     } catch (e) { erro("pref-erro", e.message); }
   }
 
@@ -92,13 +94,15 @@ const Conta = (() => {
     } catch (e) { Util.aviso(e.message, "erro"); }
   }
 
+  // Preenche as abas Conta, Aparência e Segurança (chamado pela página de Configurações).
   async function abrir() {
     eu = await Api.get("/api/eu");
     preencher();
     $("form-senha").reset();
     erro("conta-erro", "");
     erro("senha-erro", "");
-    Util.abrirModal("modal-conta");
+    erro("pref-erro", "");
+    return eu;
   }
 
   async function salvarDados(ev) {
@@ -128,7 +132,6 @@ const Conta = (() => {
     try {
       await Api.put("/api/eu/senha", { senha_atual: $("senha-atual").value, senha_nova: $("senha-nova").value });
       $("form-senha").reset();
-      Util.fecharModal("modal-conta");
       Util.aviso("Senha trocada. Outras sessões abertas com a senha antiga foram encerradas.");
     } catch (e) { erro("senha-erro", e.message); }
   }
@@ -196,7 +199,6 @@ const Conta = (() => {
 
   function init(status) {
     emailConfigurado = Boolean(status.email_configurado);
-    $("btn-conta").addEventListener("click", abrir);
     $("form-conta").addEventListener("submit", salvarDados);
     $("conta-verificar").addEventListener("click", pedirVerificacao);
     $("form-senha").addEventListener("submit", trocarSenha);
