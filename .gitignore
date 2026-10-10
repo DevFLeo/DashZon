@@ -17,6 +17,7 @@ data/
 !/backend/templates/fluxo-caixa.json
 !/backend/templates/gestao-demandas.json
 !/backend/templates/mapeamento-setor.json
+!/backend/templates/cronograma-estudos.json
 !/.vscode/*.json
 
 # --- Log local de problemas/bugs ----------------------------------------------
@@ -53,6 +54,10 @@ backend/vendor/bundle/
 coverage/
 tmp/
 *.gem
+
+# --- Python (importador de planilhas) ----------------------------------------
+__pycache__/
+*.pyc
 
 # --- Empacotamento (executável) --------------------------------------------
 dist/

@@ -1,0 +1,78 @@
+{
+  "formato": "dashzon-template",
+  "versao": 1,
+  "id": "cronograma-estudos",
+  "ordem": 5,
+  "nome": "Cronograma de estudos",
+  "icone": "estudos",
+  "descricao": "Planeje as sessões de estudo por data e horário e marque o que já foi estudado, como um checklist.",
+  "modulos": [
+    {
+      "slug": "cronograma_estudos",
+      "nome": "Cronograma de estudos",
+      "icone": "estudos",
+      "descricao": "Sessões de estudo por data e horário. Marque \"Estudado\" direto na tabela.",
+      "rotulo": "assunto",
+      "campos": [
+        { "id": "data", "nome": "Data", "tipo": "data", "obrigatorio": true, "padrao": "$hoje" },
+        { "id": "hora", "nome": "Horário", "tipo": "hora", "ajuda": "Início da sessão (ex.: 19:30)" },
+        { "id": "materia", "nome": "Matéria", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Matemática", "Português", "Inglês", "Física", "Química", "Biologia", "História", "Geografia", "Programação", "Outra"] },
+        { "id": "assunto", "nome": "Assunto", "tipo": "texto", "obrigatorio": true },
+        { "id": "atividade", "nome": "Atividade", "tipo": "selecao",
+          "opcoes": ["Leitura", "Videoaula", "Exercícios", "Resumo", "Revisão", "Simulado"], "padrao": "Leitura" },
+        { "id": "duracao", "nome": "Duração (horas)", "tipo": "numero", "padrao": 1, "ajuda": "Tempo planejado, em horas (ex.: 1,5)" },
+        { "id": "estudado", "nome": "Estudado", "tipo": "booleano", "padrao": false },
+        { "id": "anotacoes", "nome": "Anotações", "tipo": "texto_longo", "lista": false }
+      ],
+      "ordenacao": [
+        { "campo": "data", "direcao": "asc" },
+        { "campo": "hora", "direcao": "asc" }
+      ],
+      "resumo": [
+        { "titulo": "Sessões", "agregacao": "contagem" },
+        { "titulo": "Estudadas", "agregacao": "contagem", "filtro": { "estudado": "true" } },
+        { "titulo": "Pendentes", "agregacao": "contagem", "filtro": { "estudado": "false" } },
+        { "titulo": "Horas planejadas", "agregacao": "soma", "campo": "duracao" },
+        { "titulo": "Horas estudadas", "agregacao": "soma", "campo": "duracao", "filtro": { "estudado": "true" } }
+      ],
+      "seed": [
+        { "data": "$hoje-9", "hora": "19:00", "materia": "Matemática", "assunto": "Funções do 1º grau", "atividade": "Videoaula", "duracao": 1.5, "estudado": true },
+        { "data": "$hoje-8", "hora": "19:00", "materia": "Português", "assunto": "Interpretação de texto", "atividade": "Leitura", "duracao": 1, "estudado": true },
+        { "data": "$hoje-7", "hora": "20:00", "materia": "Programação", "assunto": "Laços e condicionais", "atividade": "Exercícios", "duracao": 2, "estudado": true },
+        { "data": "$hoje-5", "hora": "19:00", "materia": "Inglês", "assunto": "Present perfect", "atividade": "Exercícios", "duracao": 1, "estudado": false, "anotacoes": "Ficou para o fim de semana." },
+        { "data": "$hoje-4", "hora": "19:30", "materia": "Física", "assunto": "Cinemática", "atividade": "Resumo", "duracao": 1.5, "estudado": true },
+        { "data": "$hoje-2", "hora": "19:00", "materia": "Matemática", "assunto": "Funções do 2º grau", "atividade": "Exercícios", "duracao": 2, "estudado": true },
+        { "data": "$hoje-1", "hora": "20:00", "materia": "História", "assunto": "Revolução Industrial", "atividade": "Leitura", "duracao": 1, "estudado": false },
+        { "data": "$hoje", "hora": "19:00", "materia": "Programação", "assunto": "Funções e listas", "atividade": "Videoaula", "duracao": 1.5, "estudado": false },
+        { "data": "$hoje+1", "hora": "19:00", "materia": "Química", "assunto": "Tabela periódica", "atividade": "Leitura", "duracao": 1, "estudado": false },
+        { "data": "$hoje+2", "hora": "19:30", "materia": "Português", "assunto": "Concordância verbal", "atividade": "Exercícios", "duracao": 1, "estudado": false },
+        { "data": "$hoje+4", "hora": "09:00", "materia": "Matemática", "assunto": "Revisão de funções", "atividade": "Revisão", "duracao": 2, "estudado": false },
+        { "data": "$hoje+6", "hora": "09:00", "materia": "Outra", "assunto": "Simulado geral", "atividade": "Simulado", "duracao": 4, "estudado": false }
+      ]
+    }
+  ],
+  "dashboards": [
+    {
+      "nome": "Estudos",
+      "widgets": [
+        { "titulo": "Sessões estudadas", "tipo": "kpi", "modulo": "cronograma_estudos", "x": 0, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "contagem", "filtro": { "estudado": "true" } } },
+        { "titulo": "Sessões pendentes", "tipo": "kpi", "modulo": "cronograma_estudos", "x": 3, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "contagem", "filtro": { "estudado": "false" } } },
+        { "titulo": "Horas estudadas", "tipo": "kpi", "modulo": "cronograma_estudos", "x": 6, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "soma", "campo": "duracao", "filtro": { "estudado": "true" } } },
+        { "titulo": "Horas planejadas", "tipo": "kpi", "modulo": "cronograma_estudos", "x": 9, "y": 0, "w": 3, "h": 2,
+          "config": { "agregacao": "soma", "campo": "duracao" } },
+        { "titulo": "Horas por matéria", "tipo": "bar", "modulo": "cronograma_estudos", "x": 0, "y": 2, "w": 6, "h": 4,
+          "config": { "agregacao": "soma", "campo": "duracao", "agrupar_por": "materia", "serie_por": "estudado" } },
+        { "titulo": "Horas por mês", "tipo": "line", "modulo": "cronograma_estudos", "x": 6, "y": 2, "w": 6, "h": 4,
+          "config": { "agregacao": "soma", "campo": "duracao", "agrupar_por": "data", "serie_por": "estudado" } },
+        { "titulo": "Sessões por atividade", "tipo": "table", "modulo": "cronograma_estudos", "x": 0, "y": 6, "w": 6, "h": 3,
+          "config": { "agregacao": "contagem", "agrupar_por": "atividade" } },
+        { "titulo": "Pendentes por matéria", "tipo": "bar", "modulo": "cronograma_estudos", "x": 6, "y": 6, "w": 6, "h": 3,
+          "config": { "agregacao": "contagem", "agrupar_por": "materia", "filtro": { "estudado": "false" } } }
+      ]
+    }
+  ]
+}
