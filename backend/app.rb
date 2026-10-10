@@ -120,7 +120,7 @@ helpers do
   end
 
   def texto_campos(schema)
-    schema["campos"].select { |c| %w[texto texto_longo].include?(c["tipo"]) }.map { |c| c["id"] }
+    schema["campos"].select { |c| ModuleSchema::TEXTUAIS.include?(c["tipo"]) }.map { |c| c["id"] }
   end
 end
 

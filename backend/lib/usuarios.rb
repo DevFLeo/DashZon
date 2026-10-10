@@ -38,7 +38,12 @@ module Usuarios
   FONTES = %w[inter sistema nunito atkinson].freeze
   # "" (padrão), "#/d/<id>" (dashboard), "#/m/<slug>" (módulo) ou "#/admin".
   PAGINA_INICIAL_RE = %r{\A(|#/d/\d{1,9}|#/m/[a-z][a-z0-9_]{0,39}|#/admin)\z}
-  PREFERENCIAS_PADRAO = { "tema" => "sistema", "fonte" => "inter", "pagina_inicial" => "", "privacidade" => false }.freeze
+  # modulos_ocultos: módulos que a pessoa desligou em Configurações > Módulos
+  # (somem do menu dela; os dados e os cards continuam, e os outros usuários
+  # não são afetados).
+  PREFERENCIAS_PADRAO = { "tema" => "sistema", "fonte" => "inter", "pagina_inicial" => "", "privacidade" => false,
+                          "modulos_ocultos" => [].freeze }.freeze
+  OCULTOS_MAX = 100
   AJUSTES_PADRAO = {
     "exigir_documento" => "nao",      # nao | cpf | cnpj | qualquer
     "exigir_email" => "0",            # e-mail obrigatório no cadastro
@@ -133,6 +138,13 @@ module Usuarios
       prefs["pagina_inicial"] = pagina
     end
     prefs["privacidade"] = d["privacidade"] == true if d.key?("privacidade")
+    if d.key?("modulos_ocultos")
+      lista = d["modulos_ocultos"]
+      valida = lista.is_a?(Array) && lista.size <= OCULTOS_MAX && lista.all? { |s| s.is_a?(String) && s.match?(/\A[a-z][a-z0-9_]{0,39}\z/) }
+      raise Erro, "Lista de módulos ocultos inválida" unless valida
+
+      prefs["modulos_ocultos"] = lista.uniq
+    end
     Database.execute("UPDATE usuarios SET preferencias = ?, atualizado_em = ? WHERE id = ?", [JSON.generate(prefs), Database.now, u["id"]])
     por_id(u["id"])
   end

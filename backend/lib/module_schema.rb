@@ -8,8 +8,13 @@ module ModuleSchema
   class Error < StandardError; end
 
   # `hora` (HH:MM) completa a `data` quando o horário importa (ex.: um
-  # cronograma). Não entra em DIMENSOES/SERIES: não agrupa nem filtra cards.
-  TIPOS = %w[texto texto_longo numero moeda data hora selecao booleano movimento].freeze
+  # cronograma). `markdown` é texto longo (até 100 mil caracteres) mostrado
+  # formatado, como as notas do Obsidian. Nenhum dos dois entra em
+  # DIMENSOES/SERIES: não agrupam nem filtram cards.
+  TIPOS = %w[texto texto_longo markdown numero moeda data hora selecao booleano movimento].freeze
+  TEXTUAIS = %w[texto texto_longo markdown].freeze
+  MARKDOWN_MAX = 100_000
+  CONFIGURAVEIS_MAX = 20
   NUMERICOS = %w[numero moeda].freeze
   DIMENSOES = %w[selecao movimento booleano texto data].freeze
   SERIES = %w[selecao movimento booleano].freeze
@@ -80,8 +85,71 @@ module ModuleSchema
       "rotulo" => rotulo,
       "resumo" => resumo,
       "ordenacao" => normalize_ordenacao!(defn["ordenacao"], slug, vistos),
+      "visao" => normalize_visao!(defn["visao"], slug, campos),
+      "nota" => normalize_nota!(defn["nota"], slug, campos),
+      "configuracoes" => normalize_configuracoes!(defn["configuracoes"], slug, vistos),
       "slots" => atribuir_slots(campos, anterior)
-    }
+    }.compact
+  end
+
+  # --- declarações opcionais do módulo ----------------------------------------
+  # Tudo aqui é genérico: o código não sabe o que é "cronograma" ou "anotação",
+  # só lê o que o JSON do módulo declara.
+
+  def campo_do_tipo!(campos, id, tipos, slug, papel, obrigatorio: true)
+    return nil if id.to_s.empty? && !obrigatorio
+
+    c = campos.find { |x| x["id"] == id.to_s }
+    raise Error, "Módulo '#{slug}': #{papel} precisa ser um campo existente" unless c
+    raise Error, "Módulo '#{slug}': #{papel} precisa ser um campo do tipo #{tipos.join(' ou ')}" unless tipos.include?(c["tipo"])
+
+    c["id"]
+  end
+
+  # "visao": {"tipo": "notas", "titulo": campo texto, "conteudo": campo
+  # markdown/texto_longo, "pasta": campo texto (opcional)}. Em vez da tabela, a
+  # tela do módulo vira um caderno de notas (lista por pasta + editor Markdown).
+  def normalize_visao!(visao, slug, campos)
+    return nil if visao.nil?
+    raise Error, "Módulo '#{slug}': 'visao' deve ser um objeto" unless visao.is_a?(Hash)
+    raise Error, "Módulo '#{slug}': visão '#{visao['tipo']}' inválida (use: notas)" unless visao["tipo"] == "notas"
+
+    {
+      "tipo" => "notas",
+      "titulo" => campo_do_tipo!(campos, visao["titulo"], %w[texto], slug, "o título das notas"),
+      "conteudo" => campo_do_tipo!(campos, visao["conteudo"], %w[markdown texto_longo], slug, "o conteúdo das notas"),
+      "pasta" => campo_do_tipo!(campos, visao["pasta"], %w[texto selecao], slug, "a pasta das notas", obrigatorio: false)
+    }.compact
+  end
+
+  # "nota": {"modulo": slug de um módulo de notas, "titulo": campo deste módulo
+  # que dá o título da nota, "pasta": campo (opcional)}. Cada registro ganha um
+  # botão que abre (ou cria) a nota com esse título no outro módulo. O outro
+  # módulo pode nem estar instalado: aí o botão não aparece.
+  def normalize_nota!(nota, slug, campos)
+    return nil if nota.nil?
+    raise Error, "Módulo '#{slug}': 'nota' deve ser um objeto" unless nota.is_a?(Hash)
+
+    alvo = nota["modulo"].to_s
+    raise Error, "Módulo '#{slug}': 'nota.modulo' deve ser o identificador de um módulo" unless alvo.match?(ID_RE)
+
+    {
+      "modulo" => alvo,
+      "titulo" => campo_do_tipo!(campos, nota["titulo"], %w[texto selecao], slug, "o título da nota"),
+      "pasta" => campo_do_tipo!(campos, nota["pasta"], %w[texto selecao], slug, "a pasta da nota", obrigatorio: false)
+    }.compact
+  end
+
+  # "configuracoes": ids dos campos que aparecem em Configurações > Módulos
+  # (opções de seleção e valores padrão), para ajustar o módulo sem o JSON.
+  def normalize_configuracoes!(lista, slug, ids)
+    return nil if lista.nil?
+    raise Error, "Módulo '#{slug}': 'configuracoes' deve ser uma lista de campos" unless lista.is_a?(Array)
+    raise Error, "Módulo '#{slug}': no máximo #{CONFIGURAVEIS_MAX} campos em 'configuracoes'" if lista.size > CONFIGURAVEIS_MAX
+
+    lista.map(&:to_s).uniq.each do |id|
+      raise Error, "Módulo '#{slug}': 'configuracoes' cita o campo inexistente '#{id}'" unless ids.include?(id)
+    end
   end
 
   # Ordem da lista de registros na tela do módulo (ex.: um cronograma por data
@@ -139,7 +207,7 @@ module ModuleSchema
 
   # A parte do módulo que vai para a coluna `modulos.schema`.
   def schema_de(modulo)
-    modulo.slice("campos", "rotulo", "resumo", "ordenacao", "slots")
+    modulo.slice("campos", "rotulo", "resumo", "ordenacao", "visao", "nota", "configuracoes", "slots")
   end
 
   # Ids dos campos que as consultas do motor realmente leem (agrupar, série,
@@ -353,6 +421,13 @@ module ModuleSchema
       s
     when "texto" then raw.to_s.strip[0, 500]
     when "texto_longo" then raw.to_s.strip[0, 5000]
+    # Markdown: quebras de linha do Windows viram \n; o espaço do começo pode ser
+    # recuo de lista ou de código, então só o fim é aparado.
+    when "markdown"
+      s = raw.to_s.gsub("\r\n", "\n").rstrip
+      raise Error, "'#{c['nome']}' passa do limite de #{MARKDOWN_MAX} caracteres" if s.length > MARKDOWN_MAX
+
+      s
     end
   end
 
