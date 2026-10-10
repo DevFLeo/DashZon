@@ -9,11 +9,19 @@ A inspiração veio de projetos open source de finanças como o [OpenMonetis](ht
 ## O que dá para fazer
 
 - **Primeiro acesso guiado:** nome, moeda, usuário e senha, e galeria de templates (dá para escolher vários ou importar um JSON). O banco só é criado no final.
-- **Contas de usuário de verdade:** login por usuário ou e-mail, **Minha conta** (nome, e-mail, CPF/CNPJ, trocar senha), "Esqueci minha senha" e botão **Sair**. Senhas, CPF/CNPJ e links ficam guardados só em **hash**.
+- **Contas de usuário de verdade:** login por usuário ou e-mail, **Configurações** (nome, e-mail, CPF/CNPJ, aparência, senha e módulos), "Esqueci minha senha" e botão **Sair**. Senhas, CPF/CNPJ e links ficam guardados só em **hash**.
 - **Painel do adm** (canto inferior esquerdo, só para administradores): criar gente nova com cargo (sócio, líder de produção, funcionário...) e perfil (administrador ou usuário), gerar senha temporária ou link de redefinição, confirmar e-mail, desativar e excluir. Também define as regras: CPF/CNPJ obrigatório ou não, e-mail obrigatório e "só entra quem confirmou o e-mail".
 - **Novo dashboard a partir de um template:** em branco ou escolhendo outro template da galeria, que instala os módulos dele e abre o dashboard pronto. Módulos com o mesmo nome **não se duplicam**: o existente é reaproveitado.
 - **Módulos gerados pelo JSON:** resumo (KPIs), busca, filtros, tabela e formulário montados a partir dos campos, com validação. A tabela carrega de 200 em 200 ("Carregar mais") e pode seguir uma ordem própria (ex.: por data e horário).
 - **Checklist na tabela:** todo campo sim/não vira uma caixa de marcar, que grava na hora e atualiza os KPIs (ex.: "Estudado" no cronograma, "Pago" nos lançamentos).
+- **Anotações em Markdown, como no Obsidian:**
+  - notas por pasta, editor com prévia ao lado e gravação automática;
+  - `[[links]]` entre notas (um link para uma nota que não existe a cria), #tags, tarefas `- [ ]` que se marcam com um clique e "Mencionada em";
+  - importar arquivos `.md` (ou a pasta inteira de um cofre do Obsidian) e baixar uma nota ou todas num `.zip`;
+  - no Cronograma de estudos, cada sessão tem o botão **Nota**, que abre a anotação do assunto (ou cria na pasta da matéria).
+- **Configurações numa página só:** abas Conta, Aparência, Segurança e **Módulos**.
+  - Em Módulos, cada pessoa liga ou desliga os módulos que quer ver no menu (os dados continuam, e os outros usuários não são afetados) e adiciona módulos prontos da galeria.
+  - As opções de um módulo, como matérias, atividades, duração e horário padrão do Cronograma, só aparecem quando ele está ligado.
 - **Importar planilha (Excel ou CSV):** um script em Python (`scripts/importar_planilha.py`, sem instalar pacotes) lê `.xlsx` ou `.csv` e cadastra cada linha num módulo, casando as colunas com os campos pelo nome. Tem planilha de exemplo em `exemplos/`.
 - **Estrutura editável:** edite campos, opções e resumos de um módulo em JSON direto na tela, ou adicione módulos pela galeria ou colando/importando um JSON.
 - **Dashboards de arrastar e soltar:** cards de número, barras, linha e tabela, com medida (contagem, soma, média, saldo), agrupamento (inclusive por mês), séries e filtro.
@@ -22,7 +30,7 @@ A inspiração veio de projetos open source de finanças como o [OpenMonetis](ht
 - **Ajuda (?) com imagem:** no criador de card e na criação de módulos, passar o mouse mostra um print de exemplo; clicar abre um popup com explicação e imagens (`frontend/preview/`).
 - **Modo privacidade:** esconde os valores em moeda com um clique.
 - **Funciona no celular:** barra no topo com o menu numa gaveta (☰), dashboard com os cards empilhados (sem mexer no layout do computador), formulários em tela cheia e botões do tamanho do dedo. Testado de 320 a 1920px de largura.
-- **Três temas com um clique:** sol (claro) → pôr do sol (**suave**: fundo creme, contraste mais baixo e menos luz azul, para cansar menos a vista) → lua (escuro). O ícone gira a cada troca. Em **Minha conta** dá para escolher o tema, a **fonte** (Inter, a do sistema, Nunito arredondada ou Atkinson Hyperlegible, de leitura fácil, com amostra antes de salvar), a página que abre ao entrar, começar com os valores ocultos e "sair dos outros dispositivos". Tudo fica salvo na conta.
+- **Três temas com um clique:** sol (claro) → pôr do sol (**suave**: fundo creme, contraste mais baixo e menos luz azul, para cansar menos a vista) → lua (escuro). O ícone gira a cada troca. Em **Configurações → Aparência** dá para escolher o tema, a **fonte** (Inter, a do sistema, Nunito arredondada ou Atkinson Hyperlegible, de leitura fácil, com amostra antes de salvar), a página que abre ao entrar, começar com os valores ocultos e "sair dos outros dispositivos". Tudo fica salvo na conta.
 - **Visual arredondado:** cartões, botões e janelas com cantos mais suaves, gráficos de linha com curvas que não passam dos pontos (nunca "inventam" um valor entre dois meses), barras de topo arredondado e números alinhados nas tabelas e KPIs.
 - **Exportar/backup:** a configuração (e, se quiser, os dados) sai em JSON no mesmo formato de template.
 - **JSON do usuário no banco:** templates importados e cada exportação ficam guardados no SQLite (tabela `jsons`), **comprimidos** (ocupam cerca de 1/10 do espaço), e os importados voltam na galeria. No git ficam só os templates padrão; qualquer outro `.json` é ignorado.
@@ -51,7 +59,8 @@ Motor C++ (dashzon_engine): busca e agregação
 | Fluxo de caixa empresarial | Movimentações (categoria, centro de custo, conta, previsto × realizado) |
 | Gestão de demandas | Demandas (status, prioridade, setor, responsável, prazo) |
 | Mapeamento de dados do setor | Inventário de dados (origem, dono, classificação, LGPD, qualidade), Indicadores com meta |
-| Cronograma de estudos | Cronograma (data, horário, matéria, assunto, atividade, duração e **Estudado** como checklist), na ordem do calendário |
+| Cronograma de estudos | Cronograma (data, horário, matéria, assunto, atividade, duração e **Estudado** como checklist), na ordem do calendário, e Anotações ligadas a cada sessão |
+| Anotações (estilo Obsidian) | Caderno de notas em Markdown: pastas, [[links]], #tags, tarefas, arquivos .md |
 
 Todos vêm com categorias reais, resumos (KPIs), dados de exemplo opcionais e um dashboard montado. Também dá para **importar um template seu** e **exportar a configuração atual** no mesmo formato, para backup ou para levar a um servidor.
 
@@ -120,7 +129,7 @@ Clique em "Esqueci minha senha". Com e-mail configurado, chega um link; sem ele,
 Tem receita no `docs/DESENVOLVIMENTO.md` ("Esqueci a senha do administrador"): um comando que define uma senha temporária direto no banco. Por isso vale ter **dois administradores** (um sócio, por exemplo).
 
 **"Cadê o admin/admin?"**
-Saiu. Ele existia quando o login era só de brincadeira, mas uma senha conhecida seria uma porta aberta com o sistema na internet. Quem já tinha o usuário `admin` continua com ele (e virou administrador), mas **troque essa senha** em Minha conta.
+Saiu. Ele existia quando o login era só de brincadeira, mas uma senha conhecida seria uma porta aberta com o sistema na internet. Quem já tinha o usuário `admin` continua com ele (e virou administrador), mas **troque essa senha** em Configurações → Segurança.
 
 **"Desativei alguém e a pessoa continuou na tela."**
 A tela pode continuar aberta, mas a próxima ação dela já volta para o login: desativar, redefinir ou trocar a senha derruba a sessão na hora.
@@ -184,7 +193,7 @@ Para criar ou mudar um módulo sem migração de banco. Para não desperdiçar e
 É a cópia de segurança que o DashZon faz sozinho antes de converter um banco da versão antiga para o formato compacto (acontece uma vez, na primeira partida depois da atualização; o log mostra "Banco migrado da versão 2 para a 3"). Confira que tudo está certo e apague quando quiser: ele só serve para voltar atrás (nesse caso, restaure-o sobre o `dashzon.db` e volte o código à versão anterior; o que foi lançado depois da migração não está nele). Os dados e as contas continuam intactos.
 
 **"Importei um template e o arquivo não apareceu no git."**
-É de propósito. Templates importados e exportações ficam guardados no banco (tabela `jsons`), não em arquivo. No git ficam só os 5 templates padrão, e qualquer outro `.json` é ignorado.
+É de propósito. Templates importados e exportações ficam guardados no banco (tabela `jsons`), não em arquivo. No git ficam só os 6 templates padrão, e qualquer outro `.json` é ignorado.
 
 **"Posso mudar como os gráficos se organizam (ordem, cores, empilhamento)?"**
 Só com pedido explícito. É a regra principal do `CLAUDE.md`: melhorar **como** se alimenta o dashboard pode, mexer na fórmula dos gráficos não.
@@ -229,7 +238,10 @@ frontend/
   js/conta.js            minha conta, troca obrigatória de senha e links
   js/admin.js            painel do adm
   js/tema.js             botão sol/lua (tema claro/escuro)
-  js/fonte.js            fonte escolhida em Minha conta (interface e gráficos)
+  js/fonte.js            fonte escolhida em Configurações (interface e gráficos)
+  js/config.js           página de Configurações (abas) e ligar/desligar módulos
+  js/notas.js            caderno de notas em Markdown (estilo Obsidian)
+  js/markdown.js         Markdown -> HTML seguro (sem biblioteca)
   js/modulos.js          tela genérica de módulo e editor JSON
   js/dashboards.js       canvas de dashboards, criador de card e "Lançar"
   js/ajuda.js            ícones (?) com prévia em imagem
