@@ -164,6 +164,7 @@ const App = (() => {
     // valores ocultos ao entrar e página inicial.
     const prefs = status.usuario.preferencias;
     Tema.aplicar(prefs.tema);
+    Fonte.aplicar(prefs.fonte);
     Tema.definirCallback(Conta.salvarTema);
     if (prefs.privacidade) aplicarPrivacidade(true);
     if (!location.hash && prefs.pagina_inicial) history.replaceState(null, "", prefs.pagina_inicial);
@@ -190,6 +191,7 @@ const App = (() => {
   async function boot() {
     ligarComportamentosGlobais();
     Tema.init();
+    Fonte.init();
     aplicarPrivacidade(Util.storage("dashzon.privado") === "1");
     if (Conta.paginaLink()) return; // aberto por um link de e-mail/redefinição
     const status = await Api.get("/api/status");

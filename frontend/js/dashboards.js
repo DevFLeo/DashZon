@@ -217,9 +217,13 @@ const Dashboards = (() => {
 
     const labels = linhas.map((r) => Util.rotuloChave(grupo, r.key, cfg.formato_grupo));
     const linha = w.tipo === "line";
+    // Curva "monotone": suave, mas nunca passa acima ou abaixo dos pontos (a
+    // curva antiga, com tensão, fazia barrigas e chegava a descer abaixo de zero
+    // entre dois meses). Só o traço mudou, a pedido; dados e ordem são os mesmos.
     const estilo = (cor) => linha
-      ? { borderColor: cor, backgroundColor: cor, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, tension: 0.25, fill: false }
-      : { backgroundColor: cor, borderRadius: 4, maxBarThickness: 36 };
+      ? { borderColor: cor, backgroundColor: cor, borderWidth: 2.5, borderCapStyle: "round", borderJoinStyle: "round",
+          cubicInterpolationMode: "monotone", pointRadius: 3, pointHoverRadius: 6, pointHitRadius: 10, fill: false }
+      : { backgroundColor: cor, borderRadius: 6, maxBarThickness: 36 };
 
     // Até 2 séries (ex.: entrada x saída) ficam lado a lado para comparar;
     // mais que isso é composição e vira barra empilhada.
@@ -255,8 +259,10 @@ const Dashboards = (() => {
         animation: { duration: 250 },
         interaction: { mode: "index", intersect: false },
         plugins: {
-          legend: { display: datasets.length > 1, position: "bottom", labels: { boxWidth: 10, boxHeight: 10, color: Util.cssVar("--text-secondary") } },
-          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } }
+          legend: { display: datasets.length > 1, position: "bottom",
+                    labels: { usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8, color: Util.cssVar("--text-secondary") } },
+          tooltip: { cornerRadius: 8, padding: 10, boxPadding: 4, usePointStyle: true,
+                     callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } }
         },
         scales: {
           x: { stacked: empilhar, grid: { display: false }, ticks: { color: muted } },

@@ -44,6 +44,9 @@ const Conta = (() => {
   function preencherPreferencias() {
     const p = eu.preferencias;
     $("pref-tema").value = p.tema;
+    $("pref-fonte").innerHTML = Object.entries(Fonte.FONTES).map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+    $("pref-fonte").value = p.fonte;
+    mostrarAmostraFonte();
     $("pref-inicial").innerHTML = opcoesPaginaInicial();
     // Página que não existe mais (dashboard excluído): mostra "Padrão".
     $("pref-inicial").value = [...$("pref-inicial").options].some((o) => o.value === p.pagina_inicial) ? p.pagina_inicial : "";
@@ -59,12 +62,19 @@ const Conta = (() => {
     try {
       eu = await Api.put("/api/eu/preferencias", {
         tema: $("pref-tema").value,
+        fonte: $("pref-fonte").value,
         pagina_inicial: $("pref-inicial").value,
         privacidade: $("pref-privacidade").checked
       });
       Tema.aplicar(eu.preferencias.tema);
+      Fonte.aplicar(eu.preferencias.fonte);
       Util.aviso("Preferências salvas");
     } catch (e) { erro("pref-erro", e.message); }
+  }
+
+  // A amostra mostra a fonte escolhida antes de salvar (sem mudar a tela toda).
+  function mostrarAmostraFonte() {
+    $("pref-fonte-amostra").dataset.fonte = $("pref-fonte").value;
   }
 
   // Chamado pelo botão de tema (sol/lua): guarda a escolha na conta.
@@ -191,6 +201,7 @@ const Conta = (() => {
     $("conta-verificar").addEventListener("click", pedirVerificacao);
     $("form-senha").addEventListener("submit", trocarSenha);
     $("form-preferencias").addEventListener("submit", salvarPreferencias);
+    $("pref-fonte").addEventListener("change", mostrarAmostraFonte);
     $("conta-sair-outros").addEventListener("click", sairOutros);
     $("troca-sair").addEventListener("click", Login.sair);
   }
