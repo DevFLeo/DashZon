@@ -49,7 +49,7 @@ class UsuariosTest < Minitest::Test
 
   def test_limite_de_tentativas
     configurar!
-    TENTATIVAS_MAX.times { entrar("dono", "errada-123") }
+    Seguranca::MAX_POR_IP.times { entrar("dono", "errada-123") }
     assert_equal 429, entrar("dono", "senha-forte-1").status
   end
 

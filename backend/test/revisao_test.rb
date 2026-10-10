@@ -100,7 +100,7 @@ class RevisaoTest < Minitest::Test
 
   def test_troca_de_senha_tem_limite_de_tentativas
     configurar!
-    TENTATIVAS_MAX.times do
+    Seguranca::MAX_POR_IP.times do
       put_json "/api/eu/senha", { "senha_atual" => "errada-000", "senha_nova" => "outra-senha-1" }
       assert_equal 422, last_response.status
     end
@@ -172,12 +172,12 @@ class RevisaoTest < Minitest::Test
     assert_equal 1000, resposta["limite"]
   end
 
-  def test_ip_sem_falhas_recentes_sai_do_mapa
-    registrar_falha("10.0.0.9")
-    FALHAS_LOCK.synchronize { FALHAS["10.0.0.9"] = [Time.now - JANELA_BLOQUEIO - 1] }
-    assert_equal 0, falhas_recentes("10.0.0.9")
-    refute FALHAS.key?("10.0.0.9")
-    assert_equal 0, falhas_recentes("10.0.0.10")
-    refute FALHAS.key?("10.0.0.10"), "consultar não pode criar entrada"
+  def test_falha_fora_da_janela_nao_conta
+    configurar!
+    Seguranca.registrar!("login_falhou", ip: "10.0.0.9")
+    Database.execute("UPDATE eventos_seguranca SET quando = quando - ? WHERE ip = '10.0.0.9'", [Seguranca::JANELA + 1])
+    assert_equal 0, Seguranca.falhas_ip("10.0.0.9")
+    Seguranca.registrar!("login_falhou", ip: "10.0.0.9")
+    assert_equal 1, Seguranca.falhas_ip("10.0.0.9")
   end
 end

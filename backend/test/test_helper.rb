@@ -28,7 +28,9 @@ module DashZonTeste
   def setup
     Database.fechar!
     Dir.glob("#{ENV['DASHZON_DB_PATH']}*").each { |f| File.delete(f) }
-    FALHAS_LOCK.synchronize { FALHAS.clear }
+    # As falhas de login ficam no banco (zerado acima). O limite de requisições
+    # por minuto é alto aqui: a suíte inteira faz milhares de chamadas do mesmo IP.
+    Seguranca::Protecao.limite = 1_000_000
     clear_cookies
   end
 
