@@ -1,6 +1,7 @@
 ﻿# Auditoria de responsividade do DashZon: 7 tamanhos de tela (320 a 1920px) x
-# as telas principais (setup, login, dashboard, módulo, admin, menu do celular
-# e os modais), com print de cada uma e checagens medidas (auditar-responsivo.js):
+# as telas principais (setup, login, dashboard, módulo, notas, as 4 abas de
+# Configurações, admin, menu do celular e os modais), com print de cada uma e
+# checagens medidas (auditar-responsivo.js):
 #   erros:  rolagem horizontal, elemento fora da tela, alvo de toque < 24px,
 #           texto maior que a caixa, modal que não cabe, card < 150px, botões sobrepostos;
 #   avisos: alvo de toque < 36px, campo < 16px (zoom no iPhone), texto < 11px.
@@ -135,9 +136,22 @@ try {
             [void](Js "document.getElementById('btn-add-modulo').click(); 0"); [void](Esperar "document.getElementById('modal-add-modulo').classList.contains('open')"); Start-Sleep -Milliseconds 400
             Auditar 'modal-add-modulo' $vp; [void](Js $fecharModais)
         }
-        if (Quer 'conta') {
-            [void](Js "document.getElementById('btn-conta').click(); 0"); [void](Esperar "document.getElementById('modal-conta').classList.contains('open')")
-            Auditar 'modal-conta' $vp; [void](Js $fecharModais)
+        if (Quer 'config') {
+            # Configurações: as 4 abas (a de Módulos lista os módulos, as opções do Cronograma e a galeria).
+            foreach ($aba in @('conta', 'aparencia', 'seguranca', 'modulos')) {
+                [void](Js "location.hash = '#/config/$aba'; 0")
+                [void](Esperar "document.getElementById('view-config').classList.contains('active') && !document.querySelector('[data-painel=$aba]').hidden && (('$aba' !== 'modulos') || document.querySelectorAll('#cfg-modulos .cfg-modulo').length > 0)")
+                Start-Sleep -Milliseconds 300
+                Auditar "config-$aba" $vp
+            }
+        }
+        if (Quer 'notas') {
+            # Caderno de notas (módulo com "visao": notas): lista + uma nota aberta lado a lado.
+            [void](Js "location.hash = '#/m/anotacoes'; 0"); [void](Esperar "document.querySelectorAll('#notas-arvore .nota-item').length > 0")
+            Auditar 'notas-lista' $vp
+            [void](Js "document.querySelector('#notas-arvore .nota-item').click(); 0"); [void](Esperar "!document.getElementById('nota-painel').hidden && document.getElementById('nota-previa').children.length > 0")
+            Start-Sleep -Milliseconds 300
+            Auditar 'notas-nota' $vp
         }
         if ((Quer 'menu') -and $vp.w -le 800) {
             [void](Js "document.getElementById('btn-menu').click(); 0"); [void](Esperar "document.getElementById('app').classList.contains('menu-aberto')")

@@ -46,7 +46,10 @@
 
   // 3. alvos de toque (celular/tablet)
   if (mobile) {
-    const alvos = todos.filter((el) => el.matches("button, a[href], select, textarea, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]), [role=button], summary"));
+    // Links no meio de um texto (Markdown renderizado das notas) ficam de fora:
+    // a WCAG 2.5.8 isenta alvos "inline" numa frase, cujo tamanho é o da linha.
+    const alvos = todos.filter((el) => el.matches("button, a[href], select, textarea, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]), [role=button], summary") &&
+      !(el.matches("a") && el.closest(".md")));
     const minusculos = [], pequenos = [];
     alvos.forEach((el) => {
       const r = el.getBoundingClientRect();
