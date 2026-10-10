@@ -438,7 +438,7 @@ Todas as opções são opcionais. Resposta:
 
 ## 7. Frontend
 
-`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `ajuda` → `tema` → `api` → `setup` → `login` → `conta` → `admin` → `modulos` → `dashboards` → `responsivo` → `app`.
+`frontend/` é uma SPA sem etapa de build: HTML, CSS e JS puros, com Chart.js e GridStack guardados em `frontend/vendor/` para funcionar offline. Cada arquivo JS é um módulo com escopo próprio (`const X = (() => { ... return {...} })()`), carregado nesta ordem pelo `index.html`: `util` → `ajuda` → `tema` → `fonte` → `api` → `setup` → `login` → `conta` → `admin` → `modulos` → `dashboards` → `responsivo` → `app`.
 
 ### Celular e telas pequenas
 
@@ -493,6 +493,25 @@ A URL guarda onde você está, então dá para recarregar a página ou mandar o 
 ### `js/tema.js` (`Tema`)
 
 Botão de tema (`.tema-btn`: na barra lateral e, antes do login, flutuando no canto) com ciclo de três: sol = claro (`data-theme="light"`) → pôr do sol = **suave** (`"soft"`: sol sobre fundo alaranjado e lua com brilho clarinho) → lua = escuro (`"dark"`). A troca gira o botão e cruza os ícones (CSS; desliga com "reduzir movimento"). `aplicar(tema)` põe `data-theme` no `<html>` (ou tira, para seguir o sistema), guarda no navegador (`dashzon.tema`) e dispara o evento `dashzon:tema`, que o dashboard usa para **redesenhar** os gráficos com as mesmas funções (a regra dos gráficos não muda). Um script no `<head>` aplica o tema salvo antes de desenhar a página, sem piscar. Com alguém logado, o botão também salva na conta (`Conta.salvarTema`), e ao entrar vale o tema da conta.
+
+### `js/fonte.js` (`Fonte`)
+
+Fonte da interface, escolhida em **Minha conta → Preferências → Fonte**:
+
+| Opção | Fonte |
+|---|---|
+| `inter` (padrão) | Inter |
+| `sistema` | a do sistema (Segoe UI no Windows) |
+| `nunito` | Nunito, arredondada |
+| `atkinson` | Atkinson Hyperlegible, feita para leitura fácil |
+
+- Os arquivos `.woff2` ficam em `vendor/fonts/` (offline, só o subconjunto latino, licença OFL ao lado). O `@font-face` está no topo do `style.css`.
+- `aplicar(fonte)`:
+  - põe `data-fonte` no `<html>` (o CSS troca `--font-sans`);
+  - guarda no navegador (`dashzon.fonte`; o script do `<head>` aplica antes de desenhar);
+  - ajusta `Chart.defaults.font.family`, porque os gráficos são `<canvas>` e não herdam o CSS, e redesenha os gráficos quando o arquivo da fonte termina de carregar.
+- Ao entrar vale a fonte da conta (`preferencias.fonte`).
+- Fonte nova: o arquivo em `vendor/fonts/` (com a versão no nome), o `@font-face`, a regra `:root[data-fonte="x"]` e a `.amostra-fonte[data-fonte="x"]` no CSS, a entrada em `Fonte.FONTES` e em `Usuarios::FONTES`. O teste `test_cada_fonte_tem_arquivo_e_regra_no_css` confere que nada ficou faltando.
 
 ### `js/admin.js` (`Admin`)
 

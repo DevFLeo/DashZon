@@ -6,6 +6,44 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-09 · `desenvolvimento` · Fonte nas configurações, curvas mais suaves e cantos arredondados
+
+**O que:**
+- **Fonte escolhida em Minha conta → Preferências:**
+  - opções: Inter (padrão novo), a do sistema (a de antes), Nunito (arredondada) e Atkinson Hyperlegible (leitura fácil);
+  - a escolha fica salva na conta (`preferencias.fonte`, validada) e no navegador; um script no `<head>` aplica antes de desenhar, sem piscar;
+  - uma amostra mostra a fonte antes de salvar;
+  - os gráficos usam a mesma fonte da tela (antes o Chart.js desenhava em Helvetica/Arial) e são redesenhados quando a fonte carrega.
+- **Arquivos das fontes** em `frontend/vendor/fonts/`: offline (regra "sem CDN"), só o subconjunto latino (~120 KB ao todo), licença OFL ao lado, versão no nome do arquivo.
+- **Números alinhados** (`tabular-nums`) em KPIs e colunas numéricas.
+- **Curvas dos gráficos** (`dashboards.js`, código protegido pela REGRA, alterado **a pedido**; dados, ordem, cores e organização iguais):
+  - linhas `monotone`: suaves, mas sem passar acima ou abaixo dos pontos. A curva antiga, com tensão, fazia barrigas e podia descer abaixo de zero entre dois meses;
+  - traço um pouco mais grosso, com pontas arredondadas;
+  - barras com topo arredondado (raio 6);
+  - legenda com bolinhas e tooltip arredondado.
+- **Cantos da interface:** botões e campos 6 → 8px, cartões 10 → 14px, janelas 14 → 20px (tokens `--radius-*`).
+
+**Por quê:** pedido de melhorar as curvas (linhas dos gráficos e cantos, as duas coisas) e a fonte, com a troca de fonte nas configurações.
+
+**Também neste pedido (dados, não código):** o nome da organização "Finguia web" foi apagado do banco local (`data/dashzon.db`), pela própria função `Database.atualizar_config!`, a pedido.
+- A tela mostra só "DashZon".
+- Era o único lugar com esse nome: não havia módulo, dashboard, usuário nem exportação ligados a ele.
+- Cópia de antes: `data/dashzon.db.antes-de-tirar-nome-20261009202049.bak`.
+
+**Validação:**
+- `rake test` 119/119 (2 testes novos: a fonte salva na conta, e cada fonte com arquivo e regra no CSS);
+- auditoria de responsividade: 74 telas com a Inter e os cantos novos, 0 erros e 0 avisos;
+- Edge, 15 checagens:
+  - login já em Inter;
+  - gráficos na fonte da tela e linha `monotone`;
+  - amostra muda antes de salvar;
+  - salvar troca a tela e os gráficos;
+  - a fonte vem da conta num navegador limpo;
+  - auditoria do dashboard Estudos nas fontes Nunito, sistema e Inter, em 390 e 1366px;
+- prints revisados.
+
+---
+
 ## 2026-10-09 · `desenvolvimento` · Cronograma de estudos, checklist, tipo `hora`, paginação e importador de planilhas (Python)
 
 **O que:**

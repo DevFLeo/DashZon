@@ -37,6 +37,7 @@ O domínio é dirigido por dados: módulos (campos, resumo) e dashboards vêm de
 | Importador de planilhas | Python 3.8+, só biblioteca padrão (`scripts/importar_planilha.py`); ferramenta opcional, fora do servidor |
 | Motor | C++17, CMake ≥ 3.15, sem dependências; JSON próprio em `src/json.hpp`; Release por padrão |
 | Frontend | Chart.js 4.5.1 e GridStack, em `frontend/vendor/` (offline, sem CDN) |
+| Fontes | Inter, Nunito e Atkinson Hyperlegible 5.1.0 (fontsource, OFL, subconjunto latino) em `frontend/vendor/fonts/`, com as licenças |
 | Proxy HTTPS | Caddy 2 (Let's Encrypt, ou plugin DuckDNS no Windows) |
 
 ## 3. Estrutura do repositório
@@ -250,7 +251,7 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
 
 ## 9. Frontend
 
-SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `api`, `setup`, `login`, `conta`, `admin`, `modulos`, `dashboards`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
+SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `fonte`, `api`, `setup`, `login`, `conta`, `admin`, `modulos`, `dashboards`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
 
 **Responsividade** (bloco no fim do `style.css`, para ter precedência):
 
@@ -270,6 +271,12 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 - **Boot:** `GET /api/status` decide entre setup, login (ou "crie seu usuário") e o app; troca de senha obrigatória antes de qualquer outra tela.
 - **`Api`:** `fetch` + JSON. Um 401 fora de `/api/login` e `/api/usuarios/primeiro` volta para `/`.
 - **Temas:** sistema, claro, suave e escuro, por tokens CSS (`--series-*`, `--text-*`). Modo privacidade pela classe `sensivel`.
+- **Fonte:** preferência da conta `fonte` (`inter` padrão, `sistema`, `nunito`, `atkinson`; validada por `Usuarios::FONTES`).
+  - `js/fonte.js` põe `data-fonte` no `<html>` (que troca `--font-sans`) e guarda a escolha no `localStorage`, para a tela de login já abrir com ela.
+  - O Chart.js desenha em `<canvas>` e não herda o CSS: `Fonte.aplicar` define `Chart.defaults.font.family` e redesenha os gráficos depois que o arquivo da fonte carrega.
+  - Em Minha conta, a amostra mostra a fonte antes de salvar.
+  - Números com `tabular-nums` (KPIs e colunas alinhados).
+- **Cantos:** `--radius-sm` 8px (botões, campos), `--radius-md` 14px (cartões), `--radius-lg` 20px (janelas). Nos gráficos (a pedido, sem mudar dados nem ordem): linhas com `cubicInterpolationMode: "monotone"` (suaves sem passar dos pontos), barras com `borderRadius` 6, legenda e tooltip arredondados.
 
 ## 10. Implantação
 
@@ -289,7 +296,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`. São 117 testes; os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`. São 119 testes; os do motor dão `skip` se o binário não existir.
 - **Importador (Python):** `python -m unittest discover -s scripts -p "test_*.py"` (13 testes: conversão por tipo, leitura de `.xlsx`/`.csv` e as planilhas de `exemplos/`).
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:
