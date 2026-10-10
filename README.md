@@ -1,6 +1,6 @@
 # DashZon
 
-Um painel de gestão que se molda ao que você quer controlar. Em vez de uma planilha para cada coisa, você escolhe (ou importa) um template em JSON e o sistema monta sozinho os cadastros, os resumos e os dashboards de arrastar e soltar. Hoje ele já cuida de finanças pessoais, fluxo de caixa de empresa, demandas de equipe e mapeamento de dados de um setor. Se der para descrever em JSON, dá para controlar aqui.
+Um painel de gestão que se molda ao que você quer controlar. Em vez de uma planilha para cada coisa, você escolhe (ou importa) um template em JSON e o sistema monta sozinho os cadastros, os resumos e os dashboards de arrastar e soltar. Hoje ele já cuida de finanças pessoais, fluxo de caixa de empresa, demandas de equipe, mapeamento de dados de um setor e cronograma de estudos. Se der para descrever em JSON, dá para controlar aqui.
 
 A inspiração veio de projetos open source de finanças como o [OpenMonetis](https://openmonetis.com/) e o [Actual Budget](https://actualbudget.org/). A diferença é que aqui nada é fixo em "finanças": tudo é genérico.
 
@@ -12,7 +12,9 @@ A inspiração veio de projetos open source de finanças como o [OpenMonetis](ht
 - **Contas de usuário de verdade:** login por usuário ou e-mail, **Minha conta** (nome, e-mail, CPF/CNPJ, trocar senha), "Esqueci minha senha" e botão **Sair**. Senhas, CPF/CNPJ e links ficam guardados só em **hash**.
 - **Painel do adm** (canto inferior esquerdo, só para administradores): criar gente nova com cargo (sócio, líder de produção, funcionário...) e perfil (administrador ou usuário), gerar senha temporária ou link de redefinição, confirmar e-mail, desativar e excluir. Também define as regras: CPF/CNPJ obrigatório ou não, e-mail obrigatório e "só entra quem confirmou o e-mail".
 - **Novo dashboard a partir de um template:** em branco ou escolhendo outro template da galeria, que instala os módulos dele e abre o dashboard pronto. Módulos com o mesmo nome **não se duplicam**: o existente é reaproveitado.
-- **Módulos gerados pelo JSON:** resumo (KPIs), busca, filtros, tabela e formulário montados a partir dos campos, com validação.
+- **Módulos gerados pelo JSON:** resumo (KPIs), busca, filtros, tabela e formulário montados a partir dos campos, com validação. A tabela carrega de 200 em 200 ("Carregar mais") e pode seguir uma ordem própria (ex.: por data e horário).
+- **Checklist na tabela:** todo campo sim/não vira uma caixa de marcar, que grava na hora e atualiza os KPIs (ex.: "Estudado" no cronograma, "Pago" nos lançamentos).
+- **Importar planilha (Excel ou CSV):** um script em Python (`scripts/importar_planilha.py`, sem instalar pacotes) lê `.xlsx` ou `.csv` e cadastra cada linha num módulo, casando as colunas com os campos pelo nome. Tem planilha de exemplo em `exemplos/`.
 - **Estrutura editável:** edite campos, opções e resumos de um módulo em JSON direto na tela, ou adicione módulos pela galeria ou colando/importando um JSON.
 - **Dashboards de arrastar e soltar:** cards de número, barras, linha e tabela, com medida (contagem, soma, média, saldo), agrupamento (inclusive por mês), séries e filtro.
 - **Criador de card guiado:** atalhos prontos a partir dos campos do módulo, escolhas em linguagem simples, nome sugerido, uma frase explicando o card e **prévia ao vivo com dados fictícios**.
@@ -48,6 +50,7 @@ Motor C++ (dashzon_engine): busca e agregação
 | Fluxo de caixa empresarial | Movimentações (categoria, centro de custo, conta, previsto × realizado) |
 | Gestão de demandas | Demandas (status, prioridade, setor, responsável, prazo) |
 | Mapeamento de dados do setor | Inventário de dados (origem, dono, classificação, LGPD, qualidade), Indicadores com meta |
+| Cronograma de estudos | Cronograma (data, horário, matéria, assunto, atividade, duração e **Estudado** como checklist), na ordem do calendário |
 
 Todos vêm com categorias reais, resumos (KPIs), dados de exemplo opcionais e um dashboard montado. Também dá para **importar um template seu** e **exportar a configuração atual** no mesmo formato, para backup ou para levar a um servidor.
 
@@ -180,7 +183,7 @@ Para criar ou mudar um módulo sem migração de banco. Para não desperdiçar e
 É a cópia de segurança que o DashZon faz sozinho antes de converter um banco da versão antiga para o formato compacto (acontece uma vez, na primeira partida depois da atualização; o log mostra "Banco migrado da versão 2 para a 3"). Confira que tudo está certo e apague quando quiser: ele só serve para voltar atrás (nesse caso, restaure-o sobre o `dashzon.db` e volte o código à versão anterior; o que foi lançado depois da migração não está nele). Os dados e as contas continuam intactos.
 
 **"Importei um template e o arquivo não apareceu no git."**
-É de propósito. Templates importados e exportações ficam guardados no banco (tabela `jsons`), não em arquivo. No git ficam só os 4 templates padrão, e qualquer outro `.json` é ignorado.
+É de propósito. Templates importados e exportações ficam guardados no banco (tabela `jsons`), não em arquivo. No git ficam só os 5 templates padrão, e qualquer outro `.json` é ignorado.
 
 **"Posso mudar como os gráficos se organizam (ordem, cores, empilhamento)?"**
 Só com pedido explícito. É a regra principal do `CLAUDE.md`: melhorar **como** se alimenta o dashboard pode, mexer na fórmula dos gráficos não.
@@ -236,6 +239,8 @@ docs/DESENVOLVIMENTO.md  lógica, funções e tutorial
 docs/PUBLICAR-DUCKDNS.md passo a passo para rodar no seu domínio
 deploy/                  Caddyfile e scripts de publicação (instalar, iniciar, parar, DuckDNS)
 scripts/gerar-previews.js  refaz os prints de frontend/preview/
+scripts/importar_planilha.py  importa uma planilha .xlsx/.csv para um módulo (Python, só biblioteca padrão)
+exemplos/                planilha modelo do cronograma de estudos (.xlsx e .csv) e o script que a gera
 CLAUDE.md                instruções enxutas para o assistente: instalar, subir, parar e o que nunca fazer
 Sistema.md               especificação técnica completa e regras de desenvolvimento
 Log.md                   o que foi feito, quando e por quê
@@ -257,7 +262,7 @@ Dockerfile, docker-compose.yml, .env.example   Docker (motor compilado no Linux,
 
 - Empacotamento como executável Windows.
 - Orçamento × realizado (cruzar dois módulos, como no Actual Budget).
-- Importação do extrato em CSV/OFX para dentro de um módulo (é a alternativa ao Open Finance; ver as perguntas e respostas).
+- Importar planilha pela própria tela (hoje é pelo `scripts/importar_planilha.py`) e extrato OFX do banco (a alternativa ao Open Finance; ver as perguntas e respostas).
 - Permissões por módulo/dashboard (hoje: usuário e administrador).
 - Subir sozinho junto com o Windows (hoje é preciso rodar o `iniciar-publico.ps1` depois de reiniciar o PC).
 - Tela para ver e baixar de novo as exportações guardadas no banco (a API `/api/exportacoes` já existe).
