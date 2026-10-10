@@ -139,6 +139,39 @@ class RevisaoTest < Minitest::Test
     ENV.delete("DASHZON_SMTP_HOST")
   end
 
+  def test_registros_paginados
+    skip "motor C++ não compilado" unless EngineClient.binary_path && File.exist?(EngineClient.binary_path)
+    configurar!
+    post_json "/api/modulos", MODULO
+    m = Database.modulo("itens")
+    Database.transaction { 450.times { |i| Database.inserir_registro(m, { "nome" => "Item #{i}", "cat" => i.even? ? "A" : "B", "valor" => i }) } }
+
+    get "/api/modulos/itens/registros"
+    assert_equal 450, resposta["count"]
+    primeira = resposta["result"]
+    assert_equal 200, primeira.size
+    assert_equal "Item 449", primeira.first["nome"], "do mais novo para o mais antigo"
+
+    get "/api/modulos/itens/registros?inicio=200"
+    segunda = resposta["result"]
+    assert_equal 200, segunda.size
+    assert_empty primeira.map { |r| r["id"] } & segunda.map { |r| r["id"] }, "páginas sem repetição"
+
+    get "/api/modulos/itens/registros?inicio=400"
+    assert_equal 50, resposta["result"].size
+    get "/api/modulos/itens/registros?inicio=999"
+    assert_equal [], resposta["result"]
+    assert_equal 450, resposta["count"]
+
+    # Filtro e busca contam o total encontrado, não o da página.
+    get "/api/modulos/itens/registros?f[cat]=A&limite=10"
+    assert_equal 225, resposta["count"]
+    assert_equal 10, resposta["result"].size
+    get "/api/modulos/itens/registros?limite=5000"
+    assert_equal 450, resposta["result"].size
+    assert_equal 1000, resposta["limite"]
+  end
+
   def test_ip_sem_falhas_recentes_sai_do_mapa
     registrar_falha("10.0.0.9")
     FALHAS_LOCK.synchronize { FALHAS["10.0.0.9"] = [Time.now - JANELA_BLOQUEIO - 1] }
