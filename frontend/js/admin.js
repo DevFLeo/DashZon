@@ -31,6 +31,54 @@ const Admin = (() => {
     erro("aj-erro", "");
     erro("org-erro", "");
     renderUsuarios();
+    await carregarSeguranca();
+  }
+
+  // ------------------------------------------------------------ segurança ----
+  const NOMES_EVENTO = {
+    login_ok: "Entrou", login_falhou: "Login errado", logout: "Saiu", bloqueio: "Bloqueio",
+    desbloqueio: "Desbloqueio", senha_atual_errada: "Senha atual errada", link_invalido: "Link inválido",
+    pedido_link: "Pediu link de senha", senha_trocada: "Trocou a senha", senha_redefinida: "Redefiniu a senha",
+    sessoes_encerradas: "Saiu dos outros dispositivos", origem_recusada: "Escrita de outro site recusada",
+    excesso_requisicoes: "Excesso de requisições"
+  };
+  const ALERTA = new Set(["login_falhou", "bloqueio", "senha_atual_errada", "link_invalido", "origem_recusada", "excesso_requisicoes"]);
+
+  async function carregarSeguranca() {
+    const s = await Api.get("/api/admin/seguranca");
+    $("seg-checagens").innerHTML = s.checagens.map((c) => {
+      const classe = c.ok === true ? "ok" : c.ok === false ? "alerta" : "info";
+      const sinal = c.ok === true ? "✓" : c.ok === false ? "!" : "i";
+      return `<li class="checagem ${classe}"><span class="checagem-sinal" aria-hidden="true">${sinal}</span>
+        <div><strong>${esc(c.titulo)}</strong><div class="hint">${esc(c.detalhe)}</div></div></li>`;
+    }).join("");
+    $("seg-limites").textContent = `Bloqueio automático por ${s.limites.janela_minutos} min: ${s.limites.por_ip} falhas do mesmo IP ou ${s.limites.por_conta} contra a mesma conta.`;
+    $("seg-bloqueios").innerHTML = s.bloqueios.length
+      ? s.bloqueios.map((b) => `<div class="bloqueio">
+          <span>${b.tipo === "ip" ? `IP <code>${esc(b.ip)}</code>` : `Conta <strong>${esc(b.login || "(login que não existe)")}</strong>`}</span>
+          <button type="button" class="btn btn-sm" data-desbloquear-ip="${esc(b.ip || "")}" data-desbloquear-conta="${esc(b.conta || "")}">Desbloquear</button>
+        </div>`).join("")
+      : '<p class="hint">Nenhum bloqueio agora.</p>';
+    $("seg-bloqueios").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => desbloquear(b)));
+    const data = (iso) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "medium" });
+    $("seg-eventos").innerHTML = s.eventos.length
+      ? `<div class="table-wrap"><table class="data"><thead><tr><th>Quando</th><th>O quê</th><th>Quem</th><th>IP</th><th>Detalhe</th></tr></thead><tbody>${
+        s.eventos.map((e) => `<tr class="${ALERTA.has(e.tipo) ? "evento-alerta" : ""}"><td class="nowrap">${esc(data(e.quando))}</td>
+          <td>${esc(NOMES_EVENTO[e.tipo] || e.tipo)}</td><td>${esc(e.login || "—")}</td><td><code>${esc(e.ip || "—")}</code></td>
+          <td>${esc(e.detalhe || "")}</td></tr>`).join("")}</tbody></table></div>`
+      : '<p class="hint">Nada registrado ainda.</p>';
+  }
+
+  async function desbloquear(botao) {
+    botao.disabled = true;
+    try {
+      await Api.post("/api/admin/seguranca/desbloquear", { ip: botao.dataset.desbloquearIp, conta: botao.dataset.desbloquearConta });
+      Util.aviso("Desbloqueado");
+      await carregarSeguranca();
+    } catch (e) {
+      botao.disabled = false;
+      Util.aviso(e.message, "erro");
+    }
   }
 
   function renderUsuarios() {

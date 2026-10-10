@@ -539,6 +539,19 @@ body.logado .tema-flutuante { display: none; }
 }
 .modal-actions-esquerda { justify-content: flex-start; margin-top: 6px; }
 
+/* ================= Painel do adm: segurança ================= */
+.checagens { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.checagem { display: flex; gap: 10px; align-items: flex-start; }
+.checagem-sinal {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; color: #fff; background: var(--text-muted);
+}
+.checagem.ok .checagem-sinal { background: var(--status-good); }
+.checagem.alerta .checagem-sinal { background: var(--status-critical); }
+.bloqueio { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.bloqueio code, #seg-eventos code { font-family: var(--font-mono); font-size: 12.5px; }
+tr.evento-alerta td:nth-child(2) { color: var(--critical-text); font-weight: 600; }
+
 /* ================= Configurações (#/config/<aba>) ================= */
 .abas { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
 .aba {

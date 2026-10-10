@@ -6,16 +6,7 @@
 <title>DashZon</title>
 <link rel="stylesheet" href="/vendor/gridstack.min.css">
 <link rel="stylesheet" href="/css/style.css">
-<script>
-  // Aplica o tema e a fonte salvos antes de desenhar a página (evita piscar).
-  try {
-    var t = localStorage.getItem("dashzon.tema");
-    var attr = { claro: "light", suave: "soft", escuro: "dark" }[t];
-    if (attr) document.documentElement.setAttribute("data-theme", attr);
-    var f = localStorage.getItem("dashzon.fonte");
-    if (f === "sistema" || f === "nunito" || f === "atkinson") document.documentElement.setAttribute("data-fonte", f);
-  } catch (_) { /* navegação privada: segue o padrão */ }
-</script>
+<script src="/js/antes.js"></script>
 </head>
 <body>
 
@@ -456,6 +447,24 @@
 
       <h2 class="admin-titulo">Usuários</h2>
       <div id="admin-usuarios"></div>
+
+      <h2 class="admin-titulo">Segurança</h2>
+      <div class="admin-grid">
+        <section class="admin-bloco">
+          <h2>Checagem da instalação</h2>
+          <ul class="checagens" id="seg-checagens"></ul>
+        </section>
+        <section class="admin-bloco">
+          <h2>Bloqueios em vigor</h2>
+          <p class="hint" id="seg-limites"></p>
+          <div id="seg-bloqueios"></div>
+        </section>
+      </div>
+      <section class="admin-bloco">
+        <h2>Diário de segurança</h2>
+        <p class="hint">Logins, falhas, bloqueios, trocas de senha e acessos recusados (os últimos 100). O login digitado errado não é guardado como texto, para não registrar uma senha digitada no campo errado.</p>
+        <div id="seg-eventos"></div>
+      </section>
     </section>
 
     <section class="view" id="view-vazio">
