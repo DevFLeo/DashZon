@@ -9,6 +9,7 @@ require "date"
 # tipos são guardados de forma mais curta:
 #
 #   data       -> dias desde 1970-01-01 (20412 em vez de "2025-11-20")
+#   hora       -> minutos desde 00:00 (510 em vez de "08:30")
 #   booleano   -> 1 / 0
 #   movimento  -> 0 = entrada, 1 = saida
 #   numero     -> inteiro quando não tem casas decimais (1450 em vez de 1450.0)
@@ -58,6 +59,7 @@ module RecordCodec
     when "booleano" then v ? 1 : 0
     when "movimento" then MOVIMENTO.index(v)
     when "data" then Date.iso8601(v).jd - EPOCH_JD
+    when "hora" then v.split(":").then { |h, m| h.to_i * 60 + m.to_i }
     when "numero", "moeda" then v.abs < INTEIRO_MAX && v == v.to_i ? v.to_i : v
     else v
     end
@@ -71,6 +73,7 @@ module RecordCodec
     when "booleano" then v == 1
     when "movimento" then v.is_a?(Integer) ? MOVIMENTO[v] : nil
     when "data" then v.is_a?(Integer) ? dia_para_iso(v) : nil
+    when "hora" then v.is_a?(Integer) && v.between?(0, 1439) ? format("%02d:%02d", v / 60, v % 60) : nil
     else v
     end
   end

@@ -7,7 +7,9 @@ require "date"
 module ModuleSchema
   class Error < StandardError; end
 
-  TIPOS = %w[texto texto_longo numero moeda data selecao booleano movimento].freeze
+  # `hora` (HH:MM) completa a `data` quando o horário importa (ex.: um
+  # cronograma). Não entra em DIMENSOES/SERIES: não agrupa nem filtra cards.
+  TIPOS = %w[texto texto_longo numero moeda data hora selecao booleano movimento].freeze
   NUMERICOS = %w[numero moeda].freeze
   DIMENSOES = %w[selecao movimento booleano texto data].freeze
   SERIES = %w[selecao movimento booleano].freeze
@@ -16,6 +18,9 @@ module ModuleSchema
   MOVIMENTO = %w[entrada saida].freeze
   RESERVADOS = %w[id _criado_em _atualizado_em].freeze
   ID_RE = /\A[a-z][a-z0-9_]{0,39}\z/
+  HORA_RE = /\A(\d{1,2}):(\d{2})(?::\d{2})?\z/
+  DIRECOES = %w[asc desc].freeze
+  ORDENACAO_MAX = 3
   # Limites da definição de módulo (os templates padrão usam bem menos).
   NOME_MAX = 80
   DESCRICAO_MAX = 500
@@ -74,8 +79,53 @@ module ModuleSchema
       "campos" => campos,
       "rotulo" => rotulo,
       "resumo" => resumo,
+      "ordenacao" => normalize_ordenacao!(defn["ordenacao"], slug, vistos),
       "slots" => atribuir_slots(campos, anterior)
     }
+  end
+
+  # Ordem da lista de registros na tela do módulo (ex.: um cronograma por data
+  # e hora). Vazia = do mais novo para o mais antigo, como sempre. Só muda a
+  # ordem da lista: cards e resumos não dependem dela.
+  def normalize_ordenacao!(ordenacao, slug, ids)
+    return [] if ordenacao.nil?
+    raise Error, "Módulo '#{slug}': 'ordenacao' deve ser uma lista" unless ordenacao.is_a?(Array)
+    raise Error, "Módulo '#{slug}': no máximo #{ORDENACAO_MAX} critérios de ordenação" if ordenacao.size > ORDENACAO_MAX
+
+    ordenacao.map do |o|
+      campo = (o.is_a?(Hash) ? o["campo"] : o).to_s
+      direcao = (o["direcao"] if o.is_a?(Hash)).to_s
+      direcao = "asc" if direcao.empty?
+      raise Error, "Módulo '#{slug}': ordenação pelo campo inexistente '#{campo}'" unless ids.include?(campo)
+      raise Error, "Módulo '#{slug}': direção '#{direcao}' inválida (use asc ou desc)" unless DIRECOES.include?(direcao)
+
+      { "campo" => campo, "direcao" => direcao }
+    end
+  end
+
+  # Aplica a ordenação do schema a registros já achatados. Vazios ficam por
+  # último nos dois sentidos; empates mantêm a ordem recebida (mais novo antes).
+  def ordenar_registros(schema, lista)
+    regras = Array(schema["ordenacao"])
+    return lista if regras.empty?
+
+    lista.each_with_index.sort do |(a, i), (b, j)|
+      cmp = 0
+      regras.each do |r|
+        va = a[r["campo"]]
+        vb = b[r["campo"]]
+        next if va == vb
+
+        cmp = if va.nil? then 1
+              elsif vb.nil? then -1
+              else
+                c = (va <=> vb) || (va.to_s <=> vb.to_s)
+                r["direcao"] == "desc" ? -c : c
+              end
+        break
+      end
+      cmp.zero? ? i <=> j : cmp
+    end.map(&:first)
   end
 
   # id do campo => posição no array do registro. Campos removidos continuam no
@@ -89,7 +139,7 @@ module ModuleSchema
 
   # A parte do módulo que vai para a coluna `modulos.schema`.
   def schema_de(modulo)
-    modulo.slice("campos", "rotulo", "resumo", "slots")
+    modulo.slice("campos", "rotulo", "resumo", "ordenacao", "slots")
   end
 
   # Ids dos campos que as consultas do motor realmente leem (agrupar, série,
@@ -291,6 +341,11 @@ module ModuleSchema
       raise Error, "'#{c['nome']}' deve ser uma data válida (AAAA-MM-DD)" unless data_valida?(s)
 
       s
+    when "hora"
+      m = raw.to_s.strip.match(HORA_RE)
+      raise Error, "'#{c['nome']}' deve ser um horário válido (HH:MM)" unless m && m[1].to_i < 24 && m[2].to_i < 60
+
+      format("%02d:%02d", m[1].to_i, m[2].to_i)
     when "selecao", "movimento"
       s = raw.to_s
       raise Error, "'#{c['nome']}': o valor '#{s}' não está entre as opções" unless c["opcoes"].include?(s)

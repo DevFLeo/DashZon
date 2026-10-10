@@ -29,6 +29,7 @@ module DadosFicticios
     when "numero" then rng.rand(1..100)
     # Espalha os registros pelos últimos 6 meses, para os gráficos por mês.
     when "data" then (hoje - rng.rand(0..180)).iso8601
+    when "hora" then format("%02d:%02d", rng.rand(6..22), [0, 15, 30, 45].sample(random: rng))
     when "booleano" then rng.rand < 0.65
     # Mais saídas que entradas, como num caixa comum.
     when "movimento" then rng.rand < 0.35 ? "entrada" : "saida"

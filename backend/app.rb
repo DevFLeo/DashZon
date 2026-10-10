@@ -409,19 +409,52 @@ get "/api/modulos/:slug/resumo" do
 end
 
 # ------------------------------------------------------------- registros ---
+# Paginado: `inicio` (padrão 0) e `limite` (padrão 200, máximo 1000). `count`
+# continua sendo o total encontrado. O cache guarda só a página pedida: guardar
+# a lista inteira de um módulo grande a cada busca digitada enchia a memória.
+REGISTROS_POR_PAGINA = 200
+REGISTROS_MAX_PAGINA = 1000
+
 get "/api/modulos/:slug/registros" do
   m = modulo!(params[:slug])
   filtros = params["f"].is_a?(Hash) ? params["f"].reject { |_, v| v.to_s.empty? } : {}
-  res = CacheResultados.buscar("busca", m["id"], m["schema"], params[:q].to_s, filtros) do
-    EngineClient.run(
+  inicio = [params[:inicio].to_i, 0].max
+  limite = (params[:limite] || REGISTROS_POR_PAGINA).to_i.clamp(1, REGISTROS_MAX_PAGINA)
+  res = CacheResultados.buscar("busca", m["id"], m["schema"], params[:q].to_s, filtros, inicio, limite) do
+    tudo = EngineClient.run(
       cmd: "search",
       records: Database.registros(m),
       q: params[:q].to_s,
       text_fields: texto_campos(m["schema"]),
       filters: filtros
     )
+    # A busca do motor devolve do mais novo para o mais antigo; a ordenação do
+    # módulo (ex.: cronograma por data e hora) vale antes de cortar a página.
+    lista = ModuleSchema.ordenar_registros(m["schema"], tudo["result"])
+    { "result" => lista[inicio, limite] || [], "count" => tudo["count"], "inicio" => inicio, "limite" => limite }
   end
   json res
+end
+
+# Um registro, lido direto do banco. O formulário de edição usa esta rota:
+# a lista vem do motor e não deve servir de base para regravar valores.
+get "/api/modulos/:slug/registros/:id" do
+  m = modulo!(params[:slug])
+  json(Database.registro(m, params[:id].to_i) || halt(json({ error: "Registro não encontrado" }, 404)))
+end
+
+# Alteração parcial: só os campos enviados mudam; o resto vem do banco. É o que
+# o checklist usa para marcar um campo sim/não sem reenviar o registro inteiro.
+patch "/api/modulos/:slug/registros/:id" do
+  m = modulo!(params[:slug])
+  id = params[:id].to_i
+  atual = Database.registro(m, id) || halt(json({ error: "Registro não encontrado" }, 404))
+  ids = m["schema"]["campos"].map { |c| c["id"] }
+  mudancas = body_json.slice(*ids)
+  halt json({ error: "Nenhum campo do módulo foi enviado" }, 422) if mudancas.empty?
+
+  Database.atualizar_registro(m, id, ModuleSchema.coerce_registro!(m["schema"], atual.slice(*ids).merge(mudancas)))
+  json Database.registro(m, id)
 end
 
 post "/api/modulos/:slug/registros" do
