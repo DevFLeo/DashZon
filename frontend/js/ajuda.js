@@ -45,16 +45,18 @@ const Ajuda = (() => {
     "modulo-demandas": { titulo: "Demandas", texto: "Pedidos, tarefas e chamados da equipe com status, prioridade, setor, responsável, prazo e valor estimado.", imagens: ["modulo-demandas.png"] },
     "modulo-inventario_dados": { titulo: "Inventário de dados", texto: "Mapa das bases de dados do setor: origem, dono, classificação, dados pessoais (LGPD) e qualidade.", imagens: ["modulo-inventario_dados.png"] },
     "modulo-indicadores": { titulo: "Indicadores do setor", texto: "Medições periódicas de cada setor: valor medido, meta, unidade, período e se atingiu a meta.", imagens: ["modulo-indicadores.png"] },
+    "modulo-cronograma_estudos": { titulo: "Cronograma de estudos", texto: "Sessões de estudo por data e horário, com matéria, assunto, atividade e duração. A lista segue a ordem do calendário e a coluna \"Estudado\" funciona como checklist: marque direto na tabela.", imagens: ["modulo-cronograma_estudos.png"] },
 
     // --- templates (galeria) -------------------------------------------------
     "template-financas-pessoais": { titulo: "Finanças pessoais", texto: "Instala Lançamentos, Orçamento mensal e Contas e cartões, com um dashboard de receitas, despesas e saldo.", imagens: ["modulo-lancamentos.png", "modulo-orcamento.png", "modulo-contas.png"] },
     "template-fluxo-caixa": { titulo: "Fluxo de caixa empresarial", texto: "Instala Movimentações de caixa (previsto × realizado) com um dashboard de entradas, saídas e saldo por mês.", imagens: ["modulo-movimentacoes.png"] },
     "template-gestao-demandas": { titulo: "Gestão de demandas", texto: "Instala Demandas com status, prioridade e prazo, e um dashboard por status e setor.", imagens: ["modulo-demandas.png"] },
+    "template-cronograma-estudos": { titulo: "Cronograma de estudos", texto: "Instala o Cronograma de estudos (data, horário, matéria e checklist do que foi estudado), com um dashboard de horas por matéria e por mês, estudadas × pendentes.", imagens: ["modulo-cronograma_estudos.png"] },
     "template-mapeamento-setor": { titulo: "Mapeamento de dados do setor", texto: "Instala o Inventário de dados (LGPD) e os Indicadores do setor, com um dashboard por setor, classificação, dados pessoais e qualidade.", imagens: ["modulo-inventario_dados.png", "modulo-indicadores.png"] },
 
     "criar-modulo": {
       titulo: "Criar um módulo em JSON",
-      texto: "Um módulo é uma lista de campos. Cada campo tem id, nome e tipo (texto, texto_longo, numero, moeda, data, selecao, booleano ou movimento). Seleção precisa de \"opcoes\". O \"resumo\" define os números do topo da tela. O nome do módulo precisa ser único. Com \"Começar do zero\" você recebe um exemplo pronto para editar. A tela gerada fica assim:",
+      texto: "Um módulo é uma lista de campos. Cada campo tem id, nome e tipo (texto, texto_longo, numero, moeda, data, hora, selecao, booleano ou movimento). Seleção precisa de \"opcoes\". O \"resumo\" define os números do topo da tela, e \"ordenacao\" (opcional) a ordem da lista, como [{\"campo\": \"data\", \"direcao\": \"asc\"}]. Campos sim/não aparecem na tabela como caixas de marcar (checklist). O nome do módulo precisa ser único. Com \"Começar do zero\" você recebe um exemplo pronto para editar. A tela gerada fica assim:",
       imagens: ["modulo-lancamentos.png"]
     }
   };

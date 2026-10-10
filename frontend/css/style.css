@@ -232,6 +232,12 @@ h1, h2, h3 { margin: 0; }
 
 /* ---------- Table ---------- */
 .table-wrap { overflow-x: auto; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.carregar-mais { display: flex; justify-content: center; margin-top: 12px; }
+/* Checklist na tabela: a caixa é pequena, mas a área clicável (label) tem 36px. */
+.cel-check { width: 1%; text-align: center; }
+.marcar { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; cursor: pointer; }
+.marcar input { width: 18px; height: 18px; margin: 0; cursor: pointer; accent-color: var(--accent); }
+.marcar input:disabled { cursor: progress; }
 table.data { width: 100%; border-collapse: collapse; }
 table.data th {
   text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted);

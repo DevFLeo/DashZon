@@ -55,6 +55,7 @@ const Util = (() => {
       case "moeda": return fmtMoeda(v);
       case "numero": return fmtNumero(v);
       case "data": return fmtData(v);
+      case "hora": return String(v).slice(0, 5);
       case "movimento": return v === "entrada" ? "Entrada" : "Saída";
       default: return String(v);
     }

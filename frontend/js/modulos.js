@@ -84,21 +84,34 @@ const Modulos = (() => {
   // Cada busca ganha um número; uma resposta que chega depois de outra mais
   // nova (busca digitada rápido) é descartada em vez de sobrescrever a tabela.
   let ultimaBusca = 0;
+  // A API devolve uma página por vez (200); "Carregar mais" pede a próxima e
+  // acrescenta. `totalRegistros` é o total encontrado pela busca/filtros.
+  let totalRegistros = 0;
 
-  async function carregarRegistros() {
+  async function carregarRegistros(mais = false) {
     const qs = new URLSearchParams();
     if (busca) qs.set("q", busca);
     Object.entries(filtros).forEach(([k, v]) => { if (v) qs.set(`f[${k}]`, v); });
+    if (mais) qs.set("inicio", registros.length);
     const minha = ++ultimaBusca;
     const res = await Api.get(`/api/modulos/${atual.slug}/registros?${qs}`);
     if (minha !== ultimaBusca) return;
-    registros = res.result;
-    $("mod-contagem").textContent = `${res.count} registro(s)`;
+    registros = mais ? registros.concat(res.result) : res.result;
+    totalRegistros = res.count;
+    $("mod-contagem").textContent = registros.length < totalRegistros
+      ? `${Util.fmtNumero(registros.length, 0)} de ${Util.fmtNumero(totalRegistros, 0)} registro(s)`
+      : `${Util.fmtNumero(totalRegistros, 0)} registro(s)`;
     renderTabela();
   }
 
   function celula(c, r) {
     const v = r[c.id];
+    // Sim/não vira checklist: marca direto na tabela (PATCH só deste campo).
+    if (c.tipo === "booleano") {
+      const rotulo = `${c.nome}: ${Util.fmtValor(campos().find((x) => x.id === atual.schema.rotulo) || c, r[atual.schema.rotulo])}`;
+      return `<td class="cel-check"><label class="marcar"><input type="checkbox" data-marcar="${r.id}" data-campo="${c.id}" ${v ? "checked" : ""}
+        aria-label="${esc(rotulo)}"></label></td>`;
+    }
     if (c.tipo === "movimento" && v) return `<td><span class="chip chip-${v}">${Util.fmtValor(c, v)}</span></td>`;
     if (c.tipo === "selecao" && v) return `<td><span class="chip">${esc(v)}</span></td>`;
     const texto = esc(Util.fmtValor(c, v));
@@ -118,18 +131,48 @@ const Modulos = (() => {
     }
 
     const cols = campos().filter((c) => c.lista !== false).slice(0, 7);
-    const head = cols.map((c) => `<th class="${Util.NUMERICOS.includes(c.tipo) ? "num" : ""}">${esc(c.nome)}</th>`).join("");
+    const head = cols.map((c) => `<th class="${Util.NUMERICOS.includes(c.tipo) ? "num" : c.tipo === "booleano" ? "cel-check" : ""}">${esc(c.nome)}</th>`).join("");
     const linhas = registros.map((r) => `<tr>${cols.map((c) => celula(c, r)).join("")}
       <td><div class="row-actions">
         <button class="btn btn-sm" data-editar="${r.id}">Editar</button>
         <button class="btn btn-sm btn-danger" data-excluir="${r.id}">Excluir</button>
       </div></td></tr>`).join("");
 
-    alvo.innerHTML = `<div class="table-wrap"><table class="data"><thead><tr>${head}<th></th></tr></thead><tbody>${linhas}</tbody></table></div>`;
-    alvo.querySelectorAll("[data-editar]").forEach((b) => b.addEventListener("click", () => {
-      abrirFormulario(registros.find((r) => String(r.id) === b.dataset.editar));
+    const faltam = totalRegistros - registros.length;
+    const mais = faltam > 0
+      ? `<div class="carregar-mais"><button class="btn" data-mais>Carregar mais (${Util.fmtNumero(faltam, 0)} restante${faltam > 1 ? "s" : ""})</button></div>`
+      : "";
+    alvo.innerHTML = `<div class="table-wrap"><table class="data"><thead><tr>${head}<th></th></tr></thead><tbody>${linhas}</tbody></table></div>${mais}`;
+    alvo.querySelector("[data-mais]")?.addEventListener("click", (e) => {
+      e.currentTarget.disabled = true;
+      carregarRegistros(true);
+    });
+    // Editar lê o registro do banco: a lista vem do motor de busca e não deve
+    // ser a base do que é regravado.
+    alvo.querySelectorAll("[data-editar]").forEach((b) => b.addEventListener("click", async () => {
+      try {
+        abrirFormulario(await Api.get(`/api/modulos/${atual.slug}/registros/${b.dataset.editar}`));
+      } catch (e) { Util.aviso(e.message, "erro"); }
     }));
     alvo.querySelectorAll("[data-excluir]").forEach((b) => b.addEventListener("click", () => excluirRegistro(b.dataset.excluir)));
+    alvo.querySelectorAll("[data-marcar]").forEach((cx) => cx.addEventListener("change", () => marcar(cx)));
+  }
+
+  // Checklist: grava só o campo marcado. Em caso de erro, desfaz a marcação.
+  async function marcar(cx) {
+    const id = Number(cx.dataset.marcar);
+    cx.disabled = true;
+    try {
+      const novo = await Api.patch(`/api/modulos/${atual.slug}/registros/${id}`, { [cx.dataset.campo]: cx.checked });
+      const i = registros.findIndex((r) => r.id === id);
+      if (i >= 0) registros[i] = { ...registros[i], ...novo };
+      await carregarResumo();
+    } catch (e) {
+      cx.checked = !cx.checked;
+      Util.aviso(e.message, "erro");
+    } finally {
+      cx.disabled = false;
+    }
   }
 
   // ------------------------------------------------------- formulário ----
@@ -156,7 +199,7 @@ const Modulos = (() => {
         return `<div class="field">${label}<select id="${id}" ${req}>${vazio}${removida}${opts}</select>${ajuda}</div>`;
       }
       default: {
-        const tipo = { numero: "number", moeda: "number", data: "date" }[c.tipo] || "text";
+        const tipo = { numero: "number", moeda: "number", data: "date", hora: "time" }[c.tipo] || "text";
         const step = c.tipo === "moeda" ? 'step="0.01"' : c.tipo === "numero" ? 'step="any"' : "";
         return `<div class="field">${label}<input id="${id}" type="${tipo}" ${step} ${req} value="${esc(valor ?? "")}">${ajuda}</div>`;
       }
@@ -217,6 +260,8 @@ const Modulos = (() => {
       slug: atual.slug, nome: atual.nome, descricao: atual.descricao, icone: atual.icone,
       rotulo: atual.schema.rotulo, campos: atual.schema.campos, resumo: atual.schema.resumo
     };
+    // Só aparece no editor quando o módulo tem: salvar sem ela voltaria à ordem padrão.
+    if (atual.schema.ordenacao?.length) def.ordenacao = atual.schema.ordenacao;
     $("estrutura-json").value = JSON.stringify(def, null, 2);
     erroEstrutura("");
     Util.abrirModal("modal-estrutura");
