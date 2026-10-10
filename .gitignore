@@ -18,6 +18,7 @@ data/
 !/backend/templates/gestao-demandas.json
 !/backend/templates/mapeamento-setor.json
 !/backend/templates/cronograma-estudos.json
+!/backend/templates/anotacoes.json
 !/.vscode/*.json
 
 # --- Log local de problemas/bugs ----------------------------------------------

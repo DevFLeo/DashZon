@@ -1,0 +1,41 @@
+{
+  "formato": "dashzon-template",
+  "versao": 1,
+  "id": "anotacoes",
+  "ordem": 6,
+  "nome": "Anotações (estilo Obsidian)",
+  "icone": "notas",
+  "descricao": "Caderno de notas em Markdown: pastas, [[links]] entre notas, #tags, listas de tarefas e importação/exportação de arquivos .md.",
+  "modulos": [
+    {
+      "slug": "anotacoes",
+      "nome": "Anotações",
+      "icone": "notas",
+      "descricao": "Notas em Markdown por pasta, com [[links]] entre elas, #tags e tarefas.",
+      "rotulo": "titulo",
+      "campos": [
+        { "id": "titulo", "nome": "Título", "tipo": "texto", "obrigatorio": true },
+        { "id": "pasta", "nome": "Pasta", "tipo": "texto", "ajuda": "Use / para subpastas (ex.: Matemática/Funções)" },
+        { "id": "conteudo", "nome": "Conteúdo", "tipo": "markdown", "lista": false }
+      ],
+      "visao": { "tipo": "notas", "titulo": "titulo", "conteudo": "conteudo", "pasta": "pasta" },
+      "ordenacao": [{ "campo": "pasta", "direcao": "asc" }, { "campo": "titulo", "direcao": "asc" }],
+      "resumo": [{ "titulo": "Notas", "agregacao": "contagem" }],
+      "seed": [
+        { "titulo": "Como usar as anotações", "pasta": "",
+          "conteudo": "# Como usar as anotações\n\nCada nota é um texto em **Markdown**, como no Obsidian.\n\n## O básico\n\n- `# Título`, `## Subtítulo`\n- **negrito**, *itálico*, ~~riscado~~ e `código`\n- Listas com `-` ou `1.`\n- Tarefas: `- [ ]` e `- [x]` (clique na caixa, na visualização, para marcar)\n- Citação com `>`\n\n## Ligando notas\n\nEscreva o título de outra nota entre colchetes duplos: [[Funções do 1º grau]]. Se a nota ainda não existir, o link cria uma nova.\n\nUse #tags para achar notas parecidas: clique numa tag para filtrar.\n\n## Arquivos .md\n\nDá para **importar** arquivos `.md` (ou a pasta inteira de um cofre do Obsidian) e **baixar** uma nota ou todas num `.zip`.\n\n> Dica: no Cronograma de estudos, o botão de nota de cada sessão abre a anotação do assunto." },
+        { "titulo": "Plano da semana", "pasta": "",
+          "conteudo": "# Plano da semana #planejamento\n\n- [x] Revisar [[Funções do 1º grau]]\n- [ ] Terminar a lista de [[Laços e condicionais]]\n- [ ] Exercícios de [[Present perfect]]\n- [ ] Começar [[Funções do 2º grau]]" },
+        { "titulo": "Funções do 1º grau", "pasta": "Matemática",
+          "conteudo": "# Funções do 1º grau #matematica #revisar\n\nForma geral: `f(x) = ax + b`, com `a ≠ 0`.\n\n- **a** é o coeficiente angular (inclinação)\n- **b** é o coeficiente linear (onde a reta corta o eixo y)\n- Raiz: `x = -b / a`\n\n| a | A reta |\n|---|---|\n| a > 0 | sobe (crescente) |\n| a < 0 | desce (decrescente) |\n\n## Para revisar\n\n- [x] Gráfico a partir de dois pontos\n- [ ] Problemas com taxa de variação\n\nPróximo assunto: [[Funções do 2º grau]]" },
+        { "titulo": "Funções do 2º grau", "pasta": "Matemática",
+          "conteudo": "# Funções do 2º grau #matematica\n\nForma geral: `f(x) = ax² + bx + c`.\n\n1. Calcule o discriminante: `Δ = b² - 4ac`\n2. Raízes: `x = (-b ± √Δ) / 2a`\n3. Vértice: `xv = -b / 2a`\n\n> Se `Δ < 0`, não há raízes reais.\n\nVeja antes: [[Funções do 1º grau]]" },
+        { "titulo": "Laços e condicionais", "pasta": "Programação",
+          "conteudo": "# Laços e condicionais #programacao\n\n```python\nfor i in range(1, 6):\n    if i % 2 == 0:\n        print(i, \"é par\")\n    else:\n        print(i, \"é ímpar\")\n```\n\n- `for` repete para cada item\n- `while` repete enquanto a condição for verdadeira\n- [ ] Fazer a lista 2 de exercícios" },
+        { "titulo": "Present perfect", "pasta": "Inglês",
+          "conteudo": "# Present perfect #ingles #revisar\n\n**have/has + particípio**: *I have studied*, *She has finished*.\n\nUsos:\n\n- Experiência: *I have been to London.*\n- Ação recente: *I have just finished.*\n- Com *since* e *for*: *I have lived here for two years.*" }
+      ]
+    }
+  ],
+  "dashboards": []
+}
