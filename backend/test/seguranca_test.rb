@@ -153,10 +153,25 @@ class SegurancaTest < Minitest::Test
     assert_equal 403, last_response.status
     post "/api/dashboards", JSON.generate("nome" => "X"), "CONTENT_TYPE" => "application/json", "HTTP_ORIGIN" => "null"
     assert_equal 403, last_response.status
-    # A proteção do Sinatra também derruba a sessão nesse caso. No navegador o
-    # cookie SameSite=Strict nem vai numa requisição de outro site; aqui ele vai,
-    # então entra de novo.
-    entrar("dono", "senha-forte-1")
+    # Origem é esquema + host + porta: outra porta ou http/https trocado é outro site.
+    ["http://example.org:8080", "https://example.org", "http://example.org.malicioso.example"].each do |origem|
+      post "/api/dashboards", JSON.generate("nome" => "X"), "CONTENT_TYPE" => "application/json", "HTTP_ORIGIN" => origem
+      assert_equal 403, last_response.status, origem
+    end
+    # Um Referer de outro site com o Origin certo não é barrado nem derruba nada.
+    post "/api/dashboards", JSON.generate("nome" => "R"), "CONTENT_TYPE" => "application/json",
+         "HTTP_ORIGIN" => "http://example.org", "HTTP_REFERER" => "https://site-malicioso.example/pagina"
+    assert_equal 201, last_response.status
+    assert_empty Database.rows("SELECT id FROM dashboards WHERE nome = ?", ["X"]), "nada foi gravado pelas recusadas"
+    # Atrás do Caddy o app recebe HTTP, mas o navegador está em https://dominio:
+    # o X-Forwarded-Proto entra na comparação (senão ninguém gravaria nada).
+    post "/api/dashboards", JSON.generate("nome" => "Caddy"), "CONTENT_TYPE" => "application/json",
+         "HTTP_ORIGIN" => "https://example.org", "HTTP_X_FORWARDED_PROTO" => "https"
+    assert_equal 201, last_response.status, "pelo Caddy, com HTTPS"
+    # A recusa não derruba a sessão de quem foi alvo (antes o Rack::Protection a
+    # descartava e a pessoa era deslogada).
+    get "/api/eu"
+    assert_equal 200, last_response.status, "a sessão continua depois da recusa"
     post "/api/dashboards", JSON.generate("nome" => "X"), "CONTENT_TYPE" => "application/json", "HTTP_ORIGIN" => "http://example.org"
     assert_equal 201, last_response.status, "o próprio endereço passa"
     post_json "/api/dashboards", { "nome" => "Y" }
@@ -193,6 +208,18 @@ class SegurancaTest < Minitest::Test
     end
     get "/api/status", {}, "HTTPS" => "on"
     assert_match(/max-age=/, last_response.headers["strict-transport-security"])
+  end
+
+  # Sem o charset, clientes como o PowerShell 5.1 leem o JSON como Latin-1.
+  def test_json_declara_utf8
+    configurar!
+    get "/api/eu"
+    assert_equal "application/json;charset=utf-8", last_response.content_type
+    post "/api/dashboards", "{}", "CONTENT_TYPE" => "application/json", "HTTP_ORIGIN" => "https://site-malicioso.example"
+    assert_equal "application/json;charset=utf-8", last_response.content_type, "erro do middleware de segurança"
+    post "/api/dashboards", "", "CONTENT_TYPE" => "application/json", "CONTENT_LENGTH" => (65 * 1024 * 1024).to_s
+    assert_equal 413, last_response.status
+    assert_equal "application/json;charset=utf-8", last_response.content_type, "corpo grande demais"
   end
 
   def test_pagina_sem_script_inline
