@@ -201,7 +201,7 @@ A tradução da consulta de um widget ou resumo para o motor é feita por `Modul
 
 ## 7. API HTTP
 
-Formato JSON. Erros: `{"error": "mensagem"}`.
+Formato JSON (`application/json;charset=utf-8`, também nos erros dos middlewares). Erros: `{"error": "mensagem"}`.
 
 | Status | Quando |
 |---|---|
@@ -274,7 +274,7 @@ Formato JSON. Erros: `{"error": "mensagem"}`.
     - `nosniff`, `X-Frame-Options DENY`, `Referrer-Policy same-origin`, `Permissions-Policy` e `COOP same-origin`;
     - HSTS só em HTTPS;
     - `Server: DashZon`, sem a versão do Ruby ou do servidor;
-  - escrita (`POST/PUT/PATCH/DELETE` em `/api`) com `Origin` de outro site ou `null` recebe 403. Sem `Origin` (curl, importador) segue, e a sessão continua exigida;
+  - escrita (`POST/PUT/PATCH/DELETE` em `/api`) com `Origin` diferente de `req.base_url` (esquema + host + porta, já com o `X-Forwarded-Proto` do Caddy) ou `null` recebe 403, e a sessão de quem foi alvo continua de pé. Sem `Origin` (curl, importador) segue, e a sessão continua exigida. Por isso o `HttpOrigin` e o `RemoteToken` do Rack::Protection ficam desligados (`set :protection, except: ...`): eles rodam antes e, em vez de recusar, derrubavam a sessão; as demais proteções do Sinatra seguem ligadas;
   - limite de requisições à API por IP (`DASHZON_LIMITE_POR_MINUTO`).
 - **SQL injection:** todo SQL usa parâmetros (`?`). O teste `test_nenhum_sql_monta_texto_com_dado` varre o backend e falha se aparecer SQL com texto interpolado fora de uma lista curta, onde só entram constantes do código. Outro teste manda ataques clássicos pela API (login, busca, filtros, slug, valores), e eles viram texto comum.
 - **XSS:** todo texto do usuário passa por `Util.escapeHtml`; o Markdown escapa antes de formatar; a CSP barra script injetado mesmo se escapar algo.

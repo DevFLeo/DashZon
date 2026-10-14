@@ -6,6 +6,23 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-14 · `desenvolvimento` · Recusa de outro site sem derrubar a sessão e JSON com charset
+
+**O que:**
+- **Origem das escritas** (`lib/seguranca.rb`, `app.rb`):
+  - o `Seguranca::Protecao` compara o `Origin` inteiro (esquema + host + porta) com o endereço da requisição, a mesma regra do `Rack::Protection::HttpOrigin`;
+  - o `HttpOrigin` e o `RemoteToken` do Rack::Protection foram desligados; as demais proteções do Sinatra seguem.
+- **Charset:** respostas JSON saem como `application/json;charset=utf-8`, inclusive os 403/413/429 dos middlewares.
+- **Testes:** outra porta, http/https trocado, sufixo de domínio, Referer de outro site, acesso pelo Caddy (`X-Forwarded-Proto`), sessão de pé depois da recusa e `test_json_declara_utf8`.
+
+**Por quê:** achados na validação antes da produção, com um roteiro pela API numa instância zerada.
+- Uma escrita recusada por vir de outro site também derrubava a sessão de quem foi alvo: o Rack::Protection do Sinatra roda antes do nosso middleware e reage descartando a sessão. Com o cookie `SameSite=Strict` isso quase não acontece no navegador, mas recusar já basta, e o 403 em JSON com registro no diário continua só no nosso middleware. A comparação passou a incluir porta e esquema para não perder o que o `HttpOrigin` barrava.
+- Sem `charset`, clientes como o PowerShell 5.1 liam o JSON como Latin-1 e estragavam os acentos (o navegador e o importador em Python não eram afetados).
+
+**Validação:** `rake test` (143 testes) + auditoria de responsividade (109 telas, 0 erros) + roteiro pela API (35 verificações), duas rodadas, cada uma num banco zerado.
+
+---
+
 ## 2026-10-09 · `desenvolvimento` · Módulo de segurança: força bruta, SQL injection, CSP, origem, sessão e diário
 
 **O que** (`backend/lib/seguranca.rb` + Painel do adm):
