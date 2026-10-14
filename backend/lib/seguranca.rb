@@ -230,20 +230,21 @@ module Seguranca
     private
 
     def resposta(status, msg, extra = {})
-      [status, { "content-type" => "application/json" }.merge(extra), [JSON.generate(error: msg)]]
+      [status, { "content-type" => "application/json;charset=utf-8" }.merge(extra), [JSON.generate(error: msg)]]
     end
 
     # O navegador manda Origin em toda escrita. Se veio, tem de ser este mesmo
-    # endereço (outro site não escreve aqui, mesmo que o cookie fosse junto).
-    # Sem Origin (curl, o importador em Python) segue: a sessão continua exigida.
+    # endereço: esquema, host e porta (outro site não escreve aqui, mesmo que o
+    # cookie fosse junto; outra porta do mesmo host é outro site). É a mesma
+    # comparação do Rack::Protection::HttpOrigin, que fica desligado no app.rb
+    # porque, em vez de recusar, ele derrubava a sessão de quem foi alvo.
+    # `base_url` já considera o X-Forwarded-Proto/Host do Caddy. "null" nunca
+    # bate. Sem Origin (curl, o importador em Python) segue: a sessão continua exigida.
     def origem_ok?(req)
       origem = req.get_header("HTTP_ORIGIN")
       return true if origem.nil? || origem.empty?
-      return false if origem == "null"
 
-      URI(origem).host.to_s.casecmp?(req.host.to_s)
-    rescue URI::InvalidURIError
-      false
+      origem.casecmp?(req.base_url)
     end
 
     def excesso?(ip)

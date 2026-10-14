@@ -55,7 +55,7 @@ class LimiteCorpo
     tamanho = env["CONTENT_LENGTH"].to_i
     if tamanho > MAXIMO
       corpo = JSON.generate(error: "Envio grande demais (máximo #{MAXIMO / 1024 / 1024} MB)")
-      return [413, { "content-type" => "application/json" }, [corpo]]
+      return [413, { "content-type" => "application/json;charset=utf-8" }, [corpo]]
     end
     @app.call(env)
   end
@@ -67,6 +67,16 @@ use LimiteCorpo
 # servidor não derruba ninguém.
 set :session_secret, Segredo.chave
 set :sessions, same_site: :strict, httponly: true
+
+# A checagem de origem das escritas é do Seguranca::Protecao (403 em JSON e
+# registro no diário). As duas do Rack::Protection que fazem o mesmo papel
+# reagem derrubando a sessão (o padrão do Sinatra) e rodam antes dela: uma
+# tentativa de outro site deslogava a vítima. As demais proteções seguem ligadas.
+set :protection, except: %i[http_origin remote_token]
+
+# JSON com charset explícito: o navegador já lê como UTF-8, mas clientes como o
+# Invoke-WebRequest do PowerShell 5.1 caem em Latin-1 sem ele e estragam os acentos.
+set :add_charset, settings.add_charset + %w[application/json]
 
 # DASHZON_COOKIE_SEGURO=1 (uso público, atrás do Caddy): o cookie de sessão sai
 # marcado como Secure em toda requisição que chega por HTTPS, então pela
