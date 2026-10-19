@@ -313,7 +313,7 @@ end
 delete "/api/admin/usuarios/:id" do
   alvo = usuario_alvo!
   nao_em_si_mesmo!(alvo, "excluir")
-  Usuarios.excluir!(alvo["id"])
+  Usuarios.excluir!(alvo["id"], herdeiro_id: usuario_atual["id"])
   json ok: true
 end
 

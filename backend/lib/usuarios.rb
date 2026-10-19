@@ -340,10 +340,17 @@ module Usuarios
     por_id(u["id"])
   end
 
-  def excluir!(id)
+  # Os dashboards de quem é excluído passam para `herdeiro_id` (o administrador
+  # que excluiu), mantendo a visibilidade: nada some junto com a conta.
+  def excluir!(id, herdeiro_id: nil)
     u = por_id(id) || raise(Erro.new("Usuário não encontrado", 404))
     garantir_outro_admin!(u, "excluir") if u["perfil"] == "admin"
-    Database.execute("DELETE FROM usuarios WHERE id = ?", [u["id"]])
+    Database.transaction do
+      if herdeiro_id
+        Database.execute("UPDATE dashboards SET dono_id = ?, atualizado_em = ? WHERE dono_id = ?", [herdeiro_id, Database.now, u["id"]])
+      end
+      Database.execute("DELETE FROM usuarios WHERE id = ?", [u["id"]])
+    end
   end
 
   def garantir_outro_admin!(u, acao)

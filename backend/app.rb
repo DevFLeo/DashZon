@@ -126,8 +126,46 @@ helpers do
     nome
   end
 
+  # Dashboard que a pessoa logada pode VER (o dela ou um da equipe). Os
+  # privados dos outros respondem 404, como se não existissem.
   def dashboard!(id)
-    Database.row("SELECT * FROM dashboards WHERE id = ?", [id.to_i]) || halt(json({ error: "Dashboard não encontrado" }, 404))
+    d = Database.row("SELECT * FROM dashboards WHERE id = ?", [id.to_i])
+    halt json({ error: "Dashboard não encontrado" }, 404) unless d && dashboard_visivel?(d)
+
+    d
+  end
+
+  # Dashboard que a pessoa pode MUDAR (nome, cards, layout, compartilhamento):
+  # o dono, ou um administrador quando o dashboard é da equipe.
+  def dashboard_editavel!(id)
+    d = dashboard!(id)
+    halt json({ error: "Só quem criou este dashboard (ou um administrador) pode alterá-lo" }, 403) unless dashboard_editavel?(d)
+
+    d
+  end
+
+  def dashboard_visivel?(d)
+    d["visibilidade"] == "equipe" || d["dono_id"] == usuario_atual["id"]
+  end
+
+  def dashboard_editavel?(d)
+    d["dono_id"] == usuario_atual["id"] || (usuario_atual["perfil"] == "admin" && d["visibilidade"] == "equipe")
+  end
+
+  # Widget + dashboard dele, conferindo o acesso pelo dashboard.
+  def widget!(id, editar: false)
+    w = Database.row("SELECT * FROM widgets WHERE id = ?", [id.to_i])
+    halt json({ error: "Widget não encontrado" }, 404) unless w
+    d = Database.row("SELECT * FROM dashboards WHERE id = ?", [w["dashboard_id"]])
+    halt json({ error: "Widget não encontrado" }, 404) unless d && dashboard_visivel?(d)
+    if editar && !dashboard_editavel?(d)
+      halt json({ error: "Só quem criou este dashboard (ou um administrador) pode alterá-lo" }, 403)
+    end
+    [w, d]
+  end
+
+  def visibilidade_pedida(d)
+    d["visibilidade"] == "equipe" || d["compartilhar"] == true ? "equipe" : "privado"
   end
 
   def modulo!(slug)
@@ -289,12 +327,13 @@ post "/api/setup" do
   # Quem faz o setup é o primeiro administrador.
   uid = Usuarios.criar!({ "login" => login, "nome" => d["nome"].to_s.strip.empty? ? login : d["nome"], "perfil" => "admin" },
                         senha: senha)
-  pacotes.each { |t| TemplateRegistry.install!(t, com_exemplos: d["com_exemplos"] != false) }
+  # Os dashboards do setup são da organização: visíveis para a equipe toda.
+  pacotes.each { |t| TemplateRegistry.install!(t, com_exemplos: d["com_exemplos"] != false, dono_id: uid, visibilidade: "equipe") }
   Array(d["importados"]).each { |t| TemplateRegistry.salvar_importado!(t) }
 
   if Database.rows("SELECT id FROM dashboards").empty?
-    Database.execute("INSERT INTO dashboards (nome, criado_em, atualizado_em) VALUES (?, ?, ?)",
-                     ["Visão geral", Database.now, Database.now])
+    Database.execute("INSERT INTO dashboards (nome, criado_em, atualizado_em, dono_id, visibilidade) VALUES (?, ?, ?, ?, 'equipe')",
+                     ["Visão geral", Database.now, Database.now, uid])
   end
   u = Usuarios.por_id(uid)
   session.clear
@@ -329,7 +368,10 @@ post "/api/templates/instalar" do
   bruto = d["template_id"] ? TemplateRegistry.find(d["template_id"]) : d["template"]
   halt json({ error: "Template não encontrado" }, 404) unless bruto
 
-  res = TemplateRegistry.install!(TemplateRegistry.normalize!(bruto), com_exemplos: d["com_exemplos"] != false)
+  # Os dashboards que o template criar são de quem instalou: privados, a não
+  # ser que a pessoa peça para compartilhar com a equipe.
+  res = TemplateRegistry.install!(TemplateRegistry.normalize!(bruto), com_exemplos: d["com_exemplos"] != false,
+                                  dono_id: usuario_atual["id"], visibilidade: visibilidade_pedida(d))
   # Um JSON colado/importado fica guardado no banco e volta na galeria.
   TemplateRegistry.salvar_importado!(bruto) unless d["template_id"]
   json res.merge(ok: true)
@@ -351,7 +393,7 @@ end
 # Cada exportação também fica guardada no banco (histórico de backups).
 get "/api/export" do
   com_dados = params[:dados] == "1"
-  dados = TemplateRegistry.export(com_dados: com_dados)
+  dados = TemplateRegistry.export(com_dados: com_dados, usuario_id: usuario_atual["id"])
   nome = "dashzon-#{Time.now.strftime('%Y%m%d-%H%M')}#{com_dados ? '-dados' : ''}.json"
   Database.salvar_json!("exportacao", nome, dados)
   attachment nome
@@ -521,38 +563,79 @@ def widget_json(w)
   w.merge("config" => JSON.parse(w["config"]))
 end
 
+# Cada dashboard tem dono (quem criou) e visibilidade: "privado" (só o dono
+# vê) ou "equipe" (todos veem; só o dono ou um admin alteram). "fixo" trava o
+# layout. Ver Database.migrar_dashboards! e os helpers dashboard!/editavel!.
+def dashboard_json(d, editavel)
+  d.slice("id", "nome", "criado_em", "atualizado_em", "dono_id", "visibilidade")
+   .merge("dono_nome" => d["dono_nome"].to_s.empty? ? d["dono_login"] : d["dono_nome"],
+          "fixo" => d["fixo"].to_i == 1, "editavel" => editavel)
+end
+
 get "/api/dashboards" do
-  json Database.rows("SELECT * FROM dashboards ORDER BY id")
+  json(Database.dashboards_visiveis(usuario_atual["id"]).map { |d| dashboard_json(d, dashboard_editavel?(d)) })
 end
 
 post "/api/dashboards" do
-  nome = nome_dashboard!(body_json)
-  id = Database.insert("INSERT INTO dashboards (nome, criado_em, atualizado_em) VALUES (?, ?, ?)", [nome, Database.now, Database.now])
+  d = body_json
+  nome = nome_dashboard!(d)
+  id = Database.insert("INSERT INTO dashboards (nome, criado_em, atualizado_em, dono_id, visibilidade) VALUES (?, ?, ?, ?, ?)",
+                       [nome, Database.now, Database.now, usuario_atual["id"], visibilidade_pedida(d)])
   json({ id: id }, 201)
 end
 
 get "/api/dashboards/:id" do
   dash = dashboard!(params[:id])
-  dash["widgets"] = Database.rows("SELECT * FROM widgets WHERE dashboard_id = ?", [dash["id"]]).map { |w| widget_json(w) }
-  json dash
+  dono = Usuarios.por_id(dash["dono_id"])
+  out = dashboard_json(dash.merge("dono_nome" => dono&.dig("nome"), "dono_login" => dono&.dig("login")), dashboard_editavel?(dash))
+  out["widgets"] = Database.rows("SELECT * FROM widgets WHERE dashboard_id = ?", [dash["id"]]).map { |w| widget_json(w) }
+  json out
 end
 
+# Alteração parcial: só o que vier no corpo muda (nome, fixo, visibilidade e,
+# para administrador, dono_id: transferir o dashboard para outra pessoa).
 put "/api/dashboards/:id" do
-  nome = nome_dashboard!(body_json)
-  dashboard!(params[:id])
-  Database.execute("UPDATE dashboards SET nome = ?, atualizado_em = ? WHERE id = ?", [nome, Database.now, params[:id].to_i])
+  dash = dashboard_editavel!(params[:id])
+  d = body_json
+  novo = {}
+  novo["nome"] = nome_dashboard!(d) if d.key?("nome")
+  novo["fixo"] = d["fixo"] == true ? 1 : 0 if d.key?("fixo")
+  if d.key?("visibilidade")
+    halt json({ error: "Visibilidade inválida (use privado ou equipe)" }, 422) unless %w[privado equipe].include?(d["visibilidade"])
+    novo["visibilidade"] = d["visibilidade"]
+  end
+  if d.key?("dono_id") && d["dono_id"].to_i != dash["dono_id"]
+    halt json({ error: "Só um administrador transfere dashboards" }, 403) unless usuario_atual["perfil"] == "admin"
+    alvo = Usuarios.por_id(d["dono_id"])
+    halt json({ error: "Escolha uma conta ativa para ser o novo dono" }, 422) unless alvo && alvo["ativo"].to_i == 1
+    novo["dono_id"] = alvo["id"]
+  end
+  # Um UPDATE fixo por campo (sem montar SQL com texto): ver seguranca_test.
+  sql = {
+    "nome" => "UPDATE dashboards SET nome = ? WHERE id = ?",
+    "fixo" => "UPDATE dashboards SET fixo = ? WHERE id = ?",
+    "visibilidade" => "UPDATE dashboards SET visibilidade = ? WHERE id = ?",
+    "dono_id" => "UPDATE dashboards SET dono_id = ? WHERE id = ?"
+  }
+  unless novo.empty?
+    Database.transaction do
+      novo.each { |campo, valor| Database.execute(sql.fetch(campo), [valor, dash["id"]]) }
+      Database.execute("UPDATE dashboards SET atualizado_em = ? WHERE id = ?", [Database.now, dash["id"]])
+    end
+  end
   json ok: true
 end
 
 delete "/api/dashboards/:id" do
-  Database.execute("DELETE FROM dashboards WHERE id = ?", [params[:id].to_i])
+  dash = dashboard_editavel!(params[:id])
+  Database.execute("DELETE FROM dashboards WHERE id = ?", [dash["id"]])
   json ok: true
 end
 
 # --------------------------------------------------------------- widgets ---
 post "/api/dashboards/:id/widgets" do
   d = body_json
-  dash = dashboard!(params[:id])
+  dash = dashboard_editavel!(params[:id])
   m = modulo!(d["modulo"].to_s)
   w = ModuleSchema.normalize_widget!(d, m["schema"]).merge("modulo" => m["slug"])
   id = TemplateRegistry.insert_widget(dash["id"], w)
@@ -561,7 +644,7 @@ end
 
 put "/api/widgets/:id" do
   d = body_json
-  halt json({ error: "Widget não encontrado" }, 404) unless Database.row("SELECT id FROM widgets WHERE id = ?", [params[:id].to_i])
+  widget!(params[:id], editar: true)
   m = modulo!(d["modulo"].to_s)
   w = ModuleSchema.normalize_widget!(d, m["schema"])
   Database.execute(
@@ -574,6 +657,8 @@ end
 # Atualização leve de posição/tamanho (a cada drag/resize no canvas),
 # separada do PUT completo para nunca sobrescrever a configuração.
 put "/api/widgets/:id/layout" do
+  _w, dash = widget!(params[:id], editar: true)
+  halt json({ error: "O layout deste dashboard está fixado. Libere a movimentação para mudar." }, 409) if dash["fixo"].to_i == 1
   d = body_json
   Database.execute("UPDATE widgets SET x = ?, y = ?, w = ?, h = ? WHERE id = ?",
                    [d["x"].to_i, d["y"].to_i, [d["w"].to_i, 1].max, [d["h"].to_i, 1].max, params[:id].to_i])
@@ -581,13 +666,13 @@ put "/api/widgets/:id/layout" do
 end
 
 delete "/api/widgets/:id" do
+  widget!(params[:id], editar: true)
   Database.execute("DELETE FROM widgets WHERE id = ?", [params[:id].to_i])
   json ok: true
 end
 
 get "/api/widgets/:id/data" do
-  w = Database.row("SELECT * FROM widgets WHERE id = ?", [params[:id].to_i])
-  halt json({ error: "Widget não encontrado" }, 404) unless w
+  w, _dash = widget!(params[:id])
 
   m = modulo!(w["modulo_slug"])
   # Revalida contra o schema atual: o módulo pode ter sido editado depois.

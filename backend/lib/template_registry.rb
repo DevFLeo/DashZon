@@ -105,7 +105,10 @@ module TemplateRegistry
   # Devolve os slugs dos módulos, os ids dos dashboards criados, os nomes dos
   # módulos reaproveitados e quantos widgets foram pulados por não caberem no
   # módulo reaproveitado (ex.: o usuário removeu um campo que o widget usa).
-  def install!(tpl, com_exemplos: true)
+  #
+  # Os dashboards do template nascem de `dono_id` com a `visibilidade` pedida
+  # (no setup: "equipe"; quando alguém instala depois: "privado").
+  def install!(tpl, com_exemplos: true, dono_id: nil, visibilidade: "privado")
     now = Database.now
 
     Database.transaction do
@@ -139,8 +142,10 @@ module TemplateRegistry
 
       pulados = 0
       dash_ids = tpl["dashboards"].map do |d|
-        dash_id = Database.insert("INSERT INTO dashboards (nome, criado_em, atualizado_em) VALUES (?, ?, ?)",
-                                  [nome_dashboard_livre(d["nome"]), now, now])
+        dash_id = Database.insert(
+          "INSERT INTO dashboards (nome, criado_em, atualizado_em, dono_id, visibilidade) VALUES (?, ?, ?, ?, ?)",
+          [nome_dashboard_livre(d["nome"], dono_id), now, now, dono_id, visibilidade]
+        )
         d["widgets"].each do |w|
           alvo = reaproveitados[w["modulo"]]
           # Widget apontando para módulo reaproveitado: revalida contra o schema
@@ -167,9 +172,10 @@ module TemplateRegistry
     end
   end
 
-  # "Demandas" já existe -> "Demandas (2)", "Demandas (3)"...
-  def nome_dashboard_livre(base)
-    nomes = Database.rows("SELECT nome FROM dashboards").map { |r| r["nome"].to_s.strip.downcase }
+  # "Demandas" já existe -> "Demandas (2)", "Demandas (3)"... Só conta os
+  # dashboards que a pessoa vê (os privados dos outros não interessam a ela).
+  def nome_dashboard_livre(base, dono_id = nil)
+    nomes = Database.dashboards_visiveis(dono_id).map { |r| r["nome"].to_s.strip.downcase }
     return base unless nomes.include?(base.strip.downcase)
 
     n = 2
@@ -193,7 +199,9 @@ module TemplateRegistry
   end
 
   # Configuração atual no mesmo formato de template (reimportável).
-  def export(com_dados: false)
+  # `usuario_id`: leva só os dashboards que essa pessoa vê (os dela e os da
+  # equipe); os privados dos outros não saem na exportação.
+  def export(com_dados: false, usuario_id: nil)
     cfg = Database.config
     modulos = Database.modulos.map do |m|
       # Os slots são detalhe de armazenamento: na exportação o módulo sai só com o que o template define.
@@ -204,7 +212,7 @@ module TemplateRegistry
       h
     end
 
-    dashboards = Database.rows("SELECT * FROM dashboards ORDER BY id").map do |d|
+    dashboards = Database.dashboards_visiveis(usuario_id).map do |d|
       widgets = Database.rows("SELECT * FROM widgets WHERE dashboard_id = ? ORDER BY y, x", [d["id"]]).map do |w|
         w.slice("titulo", "tipo", "x", "y", "w", "h").merge("modulo" => w["modulo_slug"], "config" => JSON.parse(w["config"]))
       end

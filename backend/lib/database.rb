@@ -192,6 +192,7 @@ module Database
 
       connection.execute_batch(EXTRAS_SQL)
       migrar_usuarios!
+      migrar_dashboards!
       @extras_ok = true
     end
   end
@@ -226,6 +227,46 @@ module Database
     if sem_admin
       connection.execute("UPDATE usuarios SET perfil = 'admin' WHERE id = (SELECT MIN(id) FROM usuarios)")
     end
+  end
+
+  # Dashboards com dono (antes eram todos de todo mundo):
+  #  - dono_id: quem criou; só o dono (ou um admin, se for da equipe) edita;
+  #  - visibilidade: "privado" (só o dono vê) ou "equipe" (todos veem);
+  #  - fixo: 1 = layout travado (os cards não se movem nem mudam de tamanho).
+  # Dashboards que já existiam não têm dono conhecido: viram "equipe" (ninguém
+  # perde o acesso que tinha) e passam a ser do primeiro administrador, que
+  # pode transferi-los para quem os criou ou torná-los privados.
+  COLUNAS_DASHBOARD = {
+    "dono_id" => "INTEGER",
+    "visibilidade" => "TEXT NOT NULL DEFAULT 'equipe'",
+    "fixo" => "INTEGER NOT NULL DEFAULT 0"
+  }.freeze
+
+  def self.migrar_dashboards!
+    existentes = connection.execute("PRAGMA table_info(dashboards)").map { |c| c["name"] || c[1] }
+    return if existentes.empty? # tabela ainda não criada (antes do setup)
+
+    COLUNAS_DASHBOARD.each do |col, tipo|
+      connection.execute("ALTER TABLE dashboards ADD COLUMN #{col} #{tipo}") unless existentes.include?(col)
+    end
+    connection.execute(<<~SQL)
+      UPDATE dashboards SET dono_id = (SELECT MIN(id) FROM usuarios WHERE perfil = 'admin' AND ativo = 1)
+      WHERE dono_id IS NULL OR dono_id NOT IN (SELECT id FROM usuarios)
+    SQL
+  end
+
+  # Dashboards que `usuario_id` vê: os dele e os da equipe, com o nome do dono.
+  # nil = todos (uso interno, ex.: setup).
+  def self.dashboards_visiveis(usuario_id)
+    garantir_tabelas!
+    if usuario_id.nil?
+      return rows("SELECT d.*, u.nome AS dono_nome, u.login AS dono_login FROM dashboards d
+                   LEFT JOIN usuarios u ON u.id = d.dono_id ORDER BY d.id")
+    end
+
+    rows("SELECT d.*, u.nome AS dono_nome, u.login AS dono_login FROM dashboards d
+          LEFT JOIN usuarios u ON u.id = d.dono_id
+          WHERE d.visibilidade = 'equipe' OR d.dono_id = ? ORDER BY d.id", [usuario_id.to_i])
   end
 
   # O driver sqlite3 duplica cada coluna com uma chave inteira posicional;
