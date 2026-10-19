@@ -18,15 +18,20 @@
 param(
     [int]$Porta = 4567,
     [string]$Telas = '',
-    [string]$Saida = ''
+    [string]$Saida = '',
+    [string]$Navegador = ''   # outro Chromium (ex.: Chrome) quando não há Edge
 )
 
 $ErrorActionPreference = 'Stop'
 $raiz = Split-Path $PSScriptRoot -Parent
 if (-not $Saida) { $Saida = Join-Path $raiz ("log\responsivo\" + (Get-Date -Format 'yyyyMMdd-HHmmss')) }
 New-Item -ItemType Directory -Force $Saida | Out-Null
-$edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $edge) { Write-Host "ERRO: Microsoft Edge não encontrado."; exit 2 }
+# Edge de preferência; senão Chrome (do sistema ou o que o Puppeteer baixou).
+$candidatos = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") +
+    @(Get-ChildItem "$env:USERPROFILE\.cache\puppeteer\chrome" -Recurse -Filter chrome.exe -ErrorAction SilentlyContinue | ForEach-Object FullName)
+$edge = if ($Navegador) { $Navegador } else { $candidatos | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1 }
+if (-not $edge -or -not (Test-Path $edge)) { Write-Host "ERRO: nenhum navegador Chromium encontrado (Edge ou Chrome). Use -Navegador <caminho>."; exit 2 }
 $perfil = Join-Path $env:TEMP ("dz-edge-" + [guid]::NewGuid().ToString('N'))
 $portaCdp = 9334
 $base = "http://127.0.0.1:$Porta/"
