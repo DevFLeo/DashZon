@@ -6,6 +6,21 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-18 · `desenvolvimento` · Dashboards por usuário e opção de fixar o layout
+
+**O que:**
+- **Correção:** dashboards passam a ter **dono** e **visibilidade**. Um dashboard novo é só de quem criou; dá para **compartilhar com a equipe** (todos veem, só o dono ou um admin alteram). O privado de outra pessoa não aparece nem pelo link (404). Cards, layout e exclusão conferem o acesso pelo dashboard. Admin pode transferir um dashboard para outra conta; excluir uma conta passa os dashboards dela para quem excluiu; a exportação leva só os visíveis.
+- **Migração:** os dashboards que já existiam viram "da equipe", do primeiro administrador. Ninguém perde acesso, e o admin pode transferir cada um para quem o criou ou torná-lo privado.
+- **Fixar layout:** botão "🔒 Fixar layout" / "🔓 Liberar movimentação" no dashboard. Fixado, os cards não se movem nem mudam de tamanho (o servidor também recusa, 409). Quem não pode alterar sempre vê travado e sem editar/remover.
+- Na tela: selo "Só você vê" / "Da equipe · criado por X · só leitura", marcas 🔒/👥 no menu, botão "Compartilhar" (com troca de dono para admin) e a opção "Compartilhar com a equipe" ao criar.
+- Abrir o link de um dashboard recém-compartilhado funciona sem recarregar a página (a lista é buscada de novo).
+- `scripts/verificar-dashboards.js`: verificador para produção com uma conta comum. `auditar-responsivo.ps1` aceita Chrome (`-Navegador`) quando não há Edge.
+- Testes: `test/dashboards_acesso_test.rb` (13); teste de ponta a ponta com 3 pessoas; auditoria de responsividade 0 erros.
+
+**Por quê:** um funcionário criou um dashboard e ele apareceu para o administrador: todos os dashboards eram de todo mundo (a tabela não tinha dono). Também foi pedido poder fixar ou movimentar a organização do dashboard.
+
+---
+
 ## 2026-10-14 · `desenvolvimento` · Recusa de outro site sem derrubar a sessão e JSON com charset
 
 **O que:**

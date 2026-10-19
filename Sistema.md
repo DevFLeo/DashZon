@@ -123,7 +123,7 @@ Docker Compose (`.env`): `DASHZON_DOMINIO` vira `DASHZON_HOSTS` e o domínio do 
 | `config` | `id` (=1), `org_name`, `moeda`, `configured_at` | Uma linha |
 | `modulos` | `id`, `slug` UNIQUE, `nome`, `descricao`, `icone`, `schema` (JSON: `campos`, `rotulo`, `resumo`, `slots`), `template_origem`, `ordem`, `criado_em` | Nome único sem diferenciar maiúsculas (comparado em Ruby, por causa dos acentos) |
 | `registros` | `id` INTEGER PK, `modulo_id` → modulos ON DELETE CASCADE, `dados` (array JSON compacto), `criado_em` INTEGER (epoch), `atualizado_em` INTEGER NULL | Índice `idx_registros_modulo` |
-| `dashboards` | `id`, `nome`, `criado_em`, `atualizado_em` | |
+| `dashboards` | `id`, `nome`, `criado_em`, `atualizado_em`, `dono_id`, `visibilidade` (`privado`/`equipe`), `fixo` (0/1) | Colunas novas por `ALTER TABLE` (`migrar_dashboards!`); os que já existiam viram `equipe` do primeiro admin |
 | `widgets` | `id`, `dashboard_id` → dashboards CASCADE, `titulo`, `tipo` (kpi/bar/line/table), `modulo_slug`, `config` (JSON), `x`, `y`, `w`, `h` | Índice `idx_widgets_dashboard`; grade de 12 colunas |
 | `usuarios` | `id`, `login` UNIQUE, `senha_hash`, `sal`, `nome`, `email`, `email_verificado_em`, `documento_tipo`, `documento_hash`, `documento_mascara`, `cargo`, `perfil` (`admin`/`usuario`), `ativo`, `deve_trocar_senha`, `sessao_versao`, `ultimo_login_em`, `criado_em`, `atualizado_em`, `preferencias` (JSON) | Criada sob demanda; colunas novas por `ALTER TABLE` (`migrar_usuarios!`) |
 | `tokens` | `id`, `usuario_id` → usuarios CASCADE, `tipo` (`redefinir_senha` 24 h, `verificar_email` 7 dias), `token_hash` UNIQUE (SHA-256), `dado`, `expira_em`, `usado_em`, `criado_em` | Uso único |
@@ -242,7 +242,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | `GET /api/modulos/:slug/registros/:id` | Um registro lido do banco (base do formulário de edição: a lista vem do motor) |
 | `PATCH /api/modulos/:slug/registros/:id` | Altera só os campos enviados; o resto vem do banco, e o registro inteiro passa por `coerce_registro!` (checklist) |
 | `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD validado por `coerce_registro!` |
-| `GET/POST /api/dashboards`, `GET/PUT/DELETE /api/dashboards/:id` | Dashboards (o `GET :id` traz os widgets) |
+| `GET/POST /api/dashboards`, `GET/PUT/DELETE /api/dashboards/:id` | Dashboards **por usuário**: a lista traz os seus e os da equipe (com `dono_nome`, `fixo`, `editavel`); o privado de outra pessoa responde 404; `PUT` parcial (`nome`, `fixo`, `visibilidade`; `dono_id` só admin); alterar exige ser o dono ou admin num da equipe (403). O `GET :id` traz os widgets |
 | `POST /api/dashboards/:id/widgets`, `PUT/DELETE /api/widgets/:id`, `PUT /api/widgets/:id/layout` | Widgets (o `layout` altera só x/y/w/h) |
 | `GET /api/widgets/:id/data` | Dados do card (`aggregate`, revalidado contra o schema atual, projetado, com cache) |
 | `POST /api/widgets/preview` | Prévia sobre 72 registros fictícios (nada gravado) |
@@ -250,6 +250,15 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 **Validação de valores:** `texto` ≤ 500, `texto_longo` ≤ 5000, `markdown` ≤ 100.000 caracteres (guarda o recuo; só o fim é aparado e `\r\n` vira `\n`); números finitos e em formato simples (aceita `1.234,56`, `1234.56`, `1.5e3`; recusa `0x1A` e `1_000`); datas existentes no calendário; `hora` em `HH:MM` (aceita `8:05` e `08:05:00`); `selecao`/`movimento` restritos às opções; `padrao` aceita `$hoje`, `$hoje±N` e é validado ao salvar a estrutura.
 
 **Limites de cadastro:** nome de módulo, de campo e de dashboard ≤ 80; descrição de módulo ≤ 500; ícone ≤ 40; ajuda ≤ 500; até 100 campos por módulo e 200 opções por seleção (≤ 100 caracteres cada). Moeda: `BRL`, `USD` ou `EUR` (setup e painel do adm).
+
+### 7.1 Dashboards: dono, equipe e layout fixo
+
+- Cada dashboard tem **dono** (quem criou) e **visibilidade**: `privado` (só o dono vê, nem os administradores) ou `equipe` (todos veem). Novo nasce `privado`; o setup cria os do template como `equipe`; instalar um template depois cria os dele como `privado` de quem instalou (ou `equipe`, se pedido).
+- **Alterar** (nome, cards, layout, compartilhamento, excluir): o dono, ou um administrador quando é da equipe. Os demais só veem e lançam registros. Helpers `dashboard!` (ver; 404 se não pode) e `dashboard_editavel!` / `widget!(editar: true)` (403) no `app.rb`.
+- **Transferir:** só administrador, para uma conta ativa (`PUT {dono_id}`). Excluir uma conta passa os dashboards dela para quem excluiu.
+- **Fixo:** `PUT /api/widgets/:id/layout` responde 409 enquanto o dashboard está fixado; no navegador, `GridStack.setStatic` trava arrastar/redimensionar (a grade e o layout salvo não mudam, REGRA §12.1).
+- A exportação leva só os dashboards que a pessoa vê.
+- `scripts/verificar-dashboards.js` confere isso num servidor de verdade com uma conta comum (credenciais por variável de ambiente; só cria e apaga um dashboard de teste dela).
 
 ## 8. Autenticação e segurança
 
