@@ -192,6 +192,7 @@ const App = (() => {
     // valores ocultos ao entrar e página inicial.
     const prefs = status.usuario.preferencias;
     Tema.aplicar(prefs.tema);
+    Fonte.aplicarTamanho(prefs.tamanho_fonte);
     Fonte.aplicar(prefs.fonte);
     Tema.definirCallback(Conta.salvarTema);
     if (prefs.privacidade) aplicarPrivacidade(true);

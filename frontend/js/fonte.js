@@ -12,6 +12,21 @@ const Fonte = (() => {
     atkinson: "Atkinson Hyperlegible (leitura fácil)"
   };
 
+  // Tamanho do texto: escala --fs do CSS (todo font-size em px é multiplicado).
+  const TAMANHOS = {
+    pequena: { nome: "Pequeno (90%)", escala: 0.9 },
+    normal: { nome: "Normal (100%)", escala: 1 },
+    grande: { nome: "Grande (115%)", escala: 1.15 },
+    muito_grande: { nome: "Muito grande (130%)", escala: 1.3 }
+  };
+  const CHAVE_TAMANHO = "dashzon.tamanho";
+  const TAMANHO_GRAFICO = 12; // padrão do Chart.js
+
+  const tamanhoPreferido = () => {
+    const t = Util.storage(CHAVE_TAMANHO);
+    return TAMANHOS[t] ? t : "normal";
+  };
+
   const preferida = () => {
     const f = Util.storage(CHAVE);
     return FONTES[f] ? f : "inter";
@@ -23,6 +38,7 @@ const Fonte = (() => {
     const familia = getComputedStyle(document.body).fontFamily;
     if (!window.Chart) return;
     Chart.defaults.font.family = familia;
+    Chart.defaults.font.size = Math.round(TAMANHO_GRAFICO * TAMANHOS[tamanhoPreferido()].escala);
     Object.values(Chart.instances || {}).forEach((g) => g.update("none"));
   }
 
@@ -36,7 +52,16 @@ const Fonte = (() => {
     document.fonts?.load(`14px ${familia}`).then(atualizarGraficos, () => {});
   }
 
-  const init = () => aplicar(preferida());
+  // Só o texto muda de tamanho; a grade e o layout dos dashboards não.
+  function aplicarTamanho(tamanho) {
+    const t = TAMANHOS[tamanho] ? tamanho : "normal";
+    Util.storage(CHAVE_TAMANHO, t);
+    if (t === "normal") document.documentElement.removeAttribute("data-tamanho");
+    else document.documentElement.setAttribute("data-tamanho", t);
+    atualizarGraficos();
+  }
 
-  return { FONTES, init, aplicar, preferida };
+  const init = () => { aplicarTamanho(tamanhoPreferido()); aplicar(preferida()); };
+
+  return { FONTES, TAMANHOS, init, aplicar, aplicarTamanho, preferida, tamanhoPreferido };
 })();

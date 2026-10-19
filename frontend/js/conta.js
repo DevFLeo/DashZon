@@ -47,6 +47,8 @@ const Conta = (() => {
     $("pref-tema").value = p.tema;
     $("pref-fonte").innerHTML = Object.entries(Fonte.FONTES).map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
     $("pref-fonte").value = p.fonte;
+    $("pref-tamanho").innerHTML = Object.entries(Fonte.TAMANHOS).map(([v, t]) => `<option value="${v}">${t.nome}</option>`).join("");
+    $("pref-tamanho").value = p.tamanho_fonte || "normal";
     mostrarAmostraFonte();
     $("pref-inicial").innerHTML = opcoesPaginaInicial();
     // Página que não existe mais (dashboard excluído): mostra "Padrão".
@@ -64,19 +66,23 @@ const Conta = (() => {
       eu = await Api.put("/api/eu/preferencias", {
         tema: $("pref-tema").value,
         fonte: $("pref-fonte").value,
+        tamanho_fonte: $("pref-tamanho").value,
         pagina_inicial: $("pref-inicial").value,
         privacidade: $("pref-privacidade").checked
       });
       Tema.aplicar(eu.preferencias.tema);
+      Fonte.aplicarTamanho(eu.preferencias.tamanho_fonte);
       Fonte.aplicar(eu.preferencias.fonte);
       App.atualizarUsuario(eu);
       Util.aviso("Aparência salva");
     } catch (e) { erro("pref-erro", e.message); }
   }
 
-  // A amostra mostra a fonte escolhida antes de salvar (sem mudar a tela toda).
+  // A amostra mostra a fonte e o tamanho escolhidos antes de salvar (sem
+  // mudar a tela toda): o --fs só dela vira a escala escolhida.
   function mostrarAmostraFonte() {
     $("pref-fonte-amostra").dataset.fonte = $("pref-fonte").value;
+    $("pref-fonte-amostra").style.setProperty("--fs", Fonte.TAMANHOS[$("pref-tamanho").value]?.escala ?? 1);
   }
 
   // Chamado pelo botão de tema (sol/lua): guarda a escolha na conta.
@@ -204,6 +210,7 @@ const Conta = (() => {
     $("form-senha").addEventListener("submit", trocarSenha);
     $("form-preferencias").addEventListener("submit", salvarPreferencias);
     $("pref-fonte").addEventListener("change", mostrarAmostraFonte);
+    $("pref-tamanho").addEventListener("change", mostrarAmostraFonte);
     $("conta-sair-outros").addEventListener("click", sairOutros);
     $("troca-sair").addEventListener("click", Login.sair);
   }
