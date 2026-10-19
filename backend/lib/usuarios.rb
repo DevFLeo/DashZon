@@ -37,12 +37,14 @@ module Usuarios
   TEMAS = %w[sistema claro suave escuro].freeze
   # Fontes da interface (arquivos em frontend/vendor/fonts; ver js/fonte.js).
   FONTES = %w[inter sistema nunito atkinson].freeze
+  # Tamanho do texto da interface (escala --fs no CSS; ver js/fonte.js).
+  TAMANHOS_FONTE = %w[pequena normal grande muito_grande].freeze
   # "" (padrão), "#/d/<id>" (dashboard), "#/m/<slug>" (módulo) ou "#/admin".
   PAGINA_INICIAL_RE = %r{\A(|#/d/\d{1,9}|#/m/[a-z][a-z0-9_]{0,39}|#/admin)\z}
   # modulos_ocultos: módulos que a pessoa desligou em Configurações > Módulos
   # (somem do menu dela; os dados e os cards continuam, e os outros usuários
   # não são afetados).
-  PREFERENCIAS_PADRAO = { "tema" => "sistema", "fonte" => "inter", "pagina_inicial" => "", "privacidade" => false,
+  PREFERENCIAS_PADRAO = { "tema" => "sistema", "fonte" => "inter", "tamanho_fonte" => "normal", "pagina_inicial" => "", "privacidade" => false,
                           "modulos_ocultos" => [].freeze }.freeze
   OCULTOS_MAX = 100
   AJUSTES_PADRAO = {
@@ -131,6 +133,11 @@ module Usuarios
       raise Erro, "Fonte inválida" unless FONTES.include?(d["fonte"])
 
       prefs["fonte"] = d["fonte"]
+    end
+    if d.key?("tamanho_fonte")
+      raise Erro, "Tamanho de fonte inválido" unless TAMANHOS_FONTE.include?(d["tamanho_fonte"])
+
+      prefs["tamanho_fonte"] = d["tamanho_fonte"]
     end
     if d.key?("pagina_inicial")
       pagina = d["pagina_inicial"].to_s

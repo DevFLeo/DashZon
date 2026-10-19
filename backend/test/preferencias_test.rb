@@ -7,8 +7,18 @@ class PreferenciasTest < Minitest::Test
   def test_padrao
     configurar!
     get "/api/eu"
-    assert_equal({ "tema" => "sistema", "fonte" => "inter", "pagina_inicial" => "", "privacidade" => false, "modulos_ocultos" => [] },
+    assert_equal({ "tema" => "sistema", "fonte" => "inter", "tamanho_fonte" => "normal", "pagina_inicial" => "", "privacidade" => false, "modulos_ocultos" => [] },
                  resposta["preferencias"])
+  end
+
+  def test_tamanho_de_fonte
+    configurar!
+    put_json "/api/eu/preferencias", { "tamanho_fonte" => "muito_grande" }
+    assert_equal 200, last_response.status, last_response.body
+    put_json "/api/eu/preferencias", { "fonte" => "nunito" } # mudar outra coisa não troca o tamanho
+    assert_equal "muito_grande", resposta["preferencias"]["tamanho_fonte"]
+    put_json "/api/eu/preferencias", { "tamanho_fonte" => "gigante" }
+    assert_equal 422, last_response.status
   end
 
   def test_fonte_salva_na_conta
