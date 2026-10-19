@@ -695,6 +695,19 @@ textarea.code.nota-editor { white-space: pre-wrap; }
 .md th, .md td { border: 1px solid var(--border-strong); padding: 6px 10px; text-align: left; }
 .md th { background: var(--hover); }
 
+/* ---------- Dashboards: dono, equipe e layout fixo ---------- */
+.dash-selo { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.nav-marca { font-size: 11px; opacity: .75; flex-shrink: 0; }
+/* Layout fixado (ou dashboard só de leitura): nada indica que dá para arrastar. */
+.layout-fixo .widget-header { cursor: default; }
+.layout-fixo .ui-resizable-handle { display: none !important; }
+#btn-fixar[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.opcao-radio { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); cursor: pointer; }
+.opcao-radio:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.opcao-radio input { margin-top: 3px; }
+.opcao-radio > span { display: grid; gap: 2px; }
+.nd-compartilhar { display: flex; margin-top: 14px; }
+
 /* ================= Responsividade =================
    Faixas: até 800px = celular/tablet em pé (menu vira gaveta); até 640px =
    celular (dashboard empilhado, modais em tela cheia). Medido com a auditoria

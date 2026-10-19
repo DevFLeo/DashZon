@@ -34,6 +34,9 @@ const Dashboards = (() => {
 
     $("btn-add-widget").addEventListener("click", () => abrirFormulario());
     $("btn-renomear-dashboard").addEventListener("click", renomear);
+    $("btn-fixar").addEventListener("click", alternarFixo);
+    $("btn-compartilhar").addEventListener("click", abrirCompartilhar);
+    $("form-compartilhar").addEventListener("submit", salvarCompartilhar);
     $("btn-excluir-dashboard").addEventListener("click", excluir);
     $("form-widget").addEventListener("submit", salvarWidget);
     $("w-modulo").addEventListener("change", trocarModulo);
@@ -73,7 +76,76 @@ const Dashboards = (() => {
     carregando = false;
 
     $("dash-vazio").hidden = atual.widgets.length > 0;
+    aplicarPermissoes();
     atual.widgets.forEach(carregarDados);
+  }
+
+  // --------------------------------------------- dono, equipe e layout fixo ----
+  // Só o dono (ou um admin, nos da equipe) altera; os demais só veem e lançam.
+  // "Fixo" trava arrastar e redimensionar (GridStack.setStatic): o layout
+  // salvo e a grade de 12 colunas continuam os mesmos (REGRA em CLAUDE.md).
+  function aplicarPermissoes() {
+    const editavel = atual.editavel;
+    const travado = atual.fixo || !editavel;
+    grid.setStatic(travado);
+    $("grid").classList.toggle("layout-fixo", travado);
+    ["btn-fixar", "btn-compartilhar", "btn-renomear-dashboard", "btn-excluir-dashboard", "btn-add-widget"]
+      .forEach((id) => { $(id).hidden = !editavel; });
+    document.querySelectorAll('#dash-vazio [data-acao="add-widget"]').forEach((b) => { b.hidden = !editavel; });
+
+    $("btn-fixar").textContent = atual.fixo ? "🔓 Liberar movimentação" : "🔒 Fixar layout";
+    $("btn-fixar").setAttribute("aria-pressed", String(atual.fixo));
+    $("btn-fixar").title = atual.fixo ? "Permite arrastar e redimensionar os cards de novo" : "Trava a posição e o tamanho dos cards";
+
+    const meu = atual.dono_id === App.usuario()?.id;
+    $("dash-selo").textContent = atual.visibilidade === "privado"
+      ? "🔒 Só você vê este dashboard"
+      : `👥 Da equipe${meu ? "" : ` · criado por ${atual.dono_nome || "outra pessoa"}`}${editavel ? "" : " · só leitura"}`;
+    $("dash-dica").textContent = !editavel
+      ? "Você pode ver os cards e lançar registros; só quem criou (ou um administrador) altera este dashboard."
+      : atual.fixo
+        ? "Layout fixado: os cards não se movem nem mudam de tamanho. Use \"Liberar movimentação\" para reorganizar."
+        : "Arraste os cards pelo título e redimensione pelo canto. Passe o mouse num card para lançar, editar ou remover.";
+  }
+
+  async function alternarFixo() {
+    try {
+      await Api.put(`/api/dashboards/${atual.id}`, { fixo: !atual.fixo });
+      atual.fixo = !atual.fixo;
+      aplicarPermissoes();
+      Util.aviso(atual.fixo ? "Layout fixado" : "Movimentação liberada");
+    } catch (e) { Util.aviso(e.message, "erro"); }
+  }
+
+  async function abrirCompartilhar() {
+    document.querySelectorAll('input[name="comp-visibilidade"]').forEach((r) => { r.checked = r.value === atual.visibilidade; });
+    $("comp-erro").hidden = true;
+    const admin = App.usuario()?.admin;
+    $("comp-dono-wrap").hidden = !admin;
+    if (admin) {
+      const contas = (await Api.get("/api/admin/usuarios")).filter((u) => u.ativo);
+      $("comp-dono").innerHTML = contas.map((u) =>
+        `<option value="${u.id}" ${u.id === atual.dono_id ? "selected" : ""}>${esc(u.nome || u.login)} (${esc(u.login)})</option>`).join("");
+    }
+    Util.abrirModal("modal-compartilhar");
+  }
+
+  async function salvarCompartilhar(ev) {
+    ev.preventDefault();
+    const corpo = { visibilidade: document.querySelector('input[name="comp-visibilidade"]:checked')?.value };
+    if (!$("comp-dono-wrap").hidden) corpo.dono_id = Number($("comp-dono").value);
+    try {
+      await Api.put(`/api/dashboards/${atual.id}`, corpo);
+      Util.fecharModal("modal-compartilhar");
+      await App.recarregarNav();
+      // Transferido como privado para outra pessoa: ele some daqui.
+      if (App.dashboards().some((d) => d.id === atual.id)) await abrir(atual.id);
+      else App.irPadrao();
+      Util.aviso("Compartilhamento salvo");
+    } catch (e) {
+      $("comp-erro").textContent = e.message;
+      $("comp-erro").hidden = false;
+    }
   }
 
   function adicionarNoGrid(w, autoPosicao) {
@@ -101,8 +173,9 @@ const Dashboards = (() => {
         <div class="widget-body" id="wb-${w.id}"></div>
       </div>`;
     item.querySelector("[data-lancar]").addEventListener("click", () => Modulos.lancar(w.modulo_slug, aposLancar));
-    item.querySelector("[data-editar]").addEventListener("click", () => abrirFormulario(atual.widgets.find((x) => x.id === w.id)));
-    item.querySelector("[data-remover]").addEventListener("click", () => remover(w.id));
+    if (!atual.editavel) item.querySelectorAll("[data-editar], [data-remover]").forEach((b) => b.remove());
+    item.querySelector("[data-editar]")?.addEventListener("click", () => abrirFormulario(atual.widgets.find((x) => x.id === w.id)));
+    item.querySelector("[data-remover]")?.addEventListener("click", () => remover(w.id));
     $("grid").appendChild(item);
     grid.makeWidget(item);
     return item;
@@ -636,7 +709,7 @@ const Dashboards = (() => {
     const nome = $("nd-nome").value.trim();
     if (!nome) { erroNovo("Informe o nome do dashboard."); return; }
     try {
-      const { id } = await Api.post("/api/dashboards", { nome });
+      const { id } = await Api.post("/api/dashboards", { nome, visibilidade: $("nd-compartilhar").checked ? "equipe" : "privado" });
       await concluirNovo(`#/d/${id}`);
     } catch (e) { erroNovo(e.message); }
   }
@@ -644,7 +717,9 @@ const Dashboards = (() => {
   async function criarDeTemplate(t) {
     if (!confirm(`Criar um dashboard com o template "${t.nome}"? Ele instala os módulos: ${t.modulos.map((m) => m.nome).join(", ")}.`)) return;
     try {
-      const res = await Api.post("/api/templates/instalar", { template_id: t.id, com_exemplos: $("nd-exemplos").checked });
+      const res = await Api.post("/api/templates/instalar", {
+        template_id: t.id, com_exemplos: $("nd-exemplos").checked, visibilidade: $("nd-compartilhar").checked ? "equipe" : "privado"
+      });
       Util.aviso(Util.resumoInstalacao(res));
       await concluirNovo(res.dashboards.length ? `#/d/${res.dashboards[0]}` : `#/m/${encodeURIComponent(res.modulos[0])}`);
     } catch (e) { erroNovo(e.message); }
@@ -660,6 +735,7 @@ const Dashboards = (() => {
       criarDeTemplate(templates.find((x) => x.id === card.dataset.id));
     }));
     $("nd-nome").value = "";
+    $("nd-compartilhar").checked = false; // por padrão o dashboard novo é só de quem cria
     trocarAbaNovo("nd-aba-template");
     Util.abrirModal("modal-novo-dashboard");
   }

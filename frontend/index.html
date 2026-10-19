@@ -174,9 +174,12 @@
       <header class="page-header">
         <div>
           <h1 id="dash-titulo"></h1>
-          <p class="hint">Arraste os cards pelo título e redimensione pelo canto. Passe o mouse num card para lançar, editar ou remover.</p>
+          <p class="dash-selo" id="dash-selo"></p>
+          <p class="hint" id="dash-dica"></p>
         </div>
         <div class="actions">
+          <button class="btn btn-sm" id="btn-fixar" aria-pressed="false"></button>
+          <button class="btn btn-sm" id="btn-compartilhar">Compartilhar</button>
           <button class="btn btn-sm" id="btn-renomear-dashboard">Renomear</button>
           <button class="btn btn-sm btn-danger" id="btn-excluir-dashboard">Excluir</button>
           <button class="btn btn-sm" data-acao="novo-dashboard">Novo dashboard</button>
@@ -558,6 +561,7 @@
       <p class="hint">Um canvas vazio: depois é só criar cards a partir dos módulos que já existem.</p>
       <div class="modal-actions"><button type="submit" class="btn btn-primary">Criar dashboard</button></div>
     </form>
+    <label class="field-check nd-compartilhar"><input type="checkbox" id="nd-compartilhar"> Compartilhar com a equipe (todos veem; só você e os administradores alteram)</label>
     <div class="form-erro" id="nd-erro" hidden></div>
     <div class="modal-actions"><button type="button" class="btn" data-fechar="modal-novo-dashboard">Fechar</button></div>
   </div>
@@ -647,6 +651,26 @@
     <div class="modal-actions">
       <button type="button" class="btn" data-fechar="modal-widget">Cancelar</button>
       <button type="submit" class="btn btn-primary" id="w-salvar">Adicionar ao dashboard</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ Modal: compartilhamento do dashboard ============ -->
+<div class="modal-overlay" id="modal-compartilhar">
+  <form class="modal" id="form-compartilhar">
+    <h2>Quem vê este dashboard</h2>
+    <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="privado">
+      <span><strong>Só eu</strong><span class="hint">Ninguém mais vê, nem os administradores.</span></span></label>
+    <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="equipe">
+      <span><strong>A equipe toda</strong><span class="hint">Todos veem. Só você e os administradores mudam os cards, o nome e o layout.</span></span></label>
+    <div class="field" id="comp-dono-wrap" hidden>
+      <label for="comp-dono">Dono (administrador pode transferir)</label>
+      <select id="comp-dono"></select>
+    </div>
+    <div class="form-erro" id="comp-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-compartilhar">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Salvar</button>
     </div>
   </form>
 </div>

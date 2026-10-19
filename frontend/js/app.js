@@ -26,7 +26,14 @@ const App = (() => {
   function renderNav() {
     const rota = rotaAtual();
     $("nav-dashboards").innerHTML = dashboards.length
-      ? dashboards.map((d) => `<a class="nav-item ${rota.tipo === "d" && rota.id === String(d.id) ? "active" : ""}" href="#/d/${d.id}">${esc(d.nome)}</a>`).join("")
+      ? dashboards.map((d) => {
+          // 🔒 só meu · 👥 da equipe (com o dono no título, se não for meu)
+          const meu = d.dono_id === usuario?.id;
+          const marca = d.visibilidade === "privado" ? "🔒" : "👥";
+          const dica = d.visibilidade === "privado" ? "Só você vê" : meu ? "Compartilhado com a equipe" : `Da equipe, criado por ${d.dono_nome || "outra pessoa"}`;
+          return `<a class="nav-item ${rota.tipo === "d" && rota.id === String(d.id) ? "active" : ""}" href="#/d/${d.id}" title="${esc(dica)}">
+            <span>${esc(d.nome)}</span><span class="nav-marca" aria-label="${esc(dica)}">${marca}</span></a>`;
+        }).join("")
       : '<div class="nav-empty">Nenhum dashboard</div>';
     const visiveis = modulosVisiveis();
     $("nav-modulos").innerHTML = visiveis.length
@@ -61,6 +68,9 @@ const App = (() => {
     renderNav();
     try {
       await Notas.gravarAgora(); // uma nota com edição pendente é gravada antes de sair
+      // Link para um dashboard que não está na lista (ex.: alguém acabou de
+      // compartilhar): busca a lista de novo uma vez antes de desistir.
+      if (tipo === "d" && !dashboards.some((d) => String(d.id) === id)) await recarregarNav();
       if (tipo === "d" && dashboards.some((d) => String(d.id) === id)) {
         mostrar("view-dashboard");
         await Dashboards.abrir(Number(id));
@@ -220,5 +230,5 @@ const App = (() => {
 
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { modulo, modulos: () => modulos, modulosVisiveis, dashboards: () => dashboards, recarregarNav, ir, irPadrao, atualizarUsuario };
+  return { modulo, modulos: () => modulos, modulosVisiveis, dashboards: () => dashboards, usuario: () => usuario, recarregarNav, ir, irPadrao, atualizarUsuario };
 })();
