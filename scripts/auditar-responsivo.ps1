@@ -19,7 +19,8 @@ param(
     [int]$Porta = 4567,
     [string]$Telas = '',
     [string]$Saida = '',
-    [string]$Navegador = ''   # outro Chromium (ex.: Chrome) quando não há Edge
+    [string]$Navegador = '',   # outro Chromium (ex.: Chrome) quando não há Edge
+    [string]$TamanhoFonte = 'normal'   # pequena | normal | grande | muito_grande (Configurações > Aparência)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -111,6 +112,9 @@ try {
 
     # Setup com todos os templates e dados de exemplo (só nesta instância zerada).
     [void](Js "fetch('/api/templates').then(r => r.json()).then(ts => fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org_name: 'Empresa Exemplo Ltda', moeda: 'BRL', usuario: 'auditoria', senha: 'auditoria-responsiva-1', templates: ts.map(t => t.id), com_exemplos: true }) })).then(r => r.status)")
+    if ($TamanhoFonte -ne 'normal') {
+        [void](Js "fetch('/api/eu/preferencias', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tamanho_fonte: '$TamanhoFonte' }) }).then(r => r.status)")
+    }
     [void](Cdp 'Page.navigate' @{ url = $base })
     [void](Esperar "document.getElementById('app').classList.contains('ready')" 20)
 
