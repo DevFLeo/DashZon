@@ -6,6 +6,18 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-19 · `desenvolvimento` · Tamanho do texto
+
+**O que:**
+- Configurações > Aparência ganha **Tamanho do texto**: Pequeno (90%), Normal, Grande (115%) e Muito grande (130%), com a amostra mudando antes de salvar. Fica na conta (vale em qualquer computador) e no navegador (abre já no tamanho certo).
+- Os 74 tamanhos de texto do CSS passaram a seguir a escala `--fs`; os gráficos acompanham (`Chart.defaults.font.size`).
+- Só o texto muda: a grade e o layout dos dashboards não mudam (conferido por teste). Os números dos KPIs continuam cabendo no card (só o teto cresce); campos no celular nunca abaixo de 16px.
+- `auditar-responsivo.ps1 -TamanhoFonte` para auditar com o texto maior ou menor.
+
+**Por quê:** pedido de "adicionar tamanho de fonte". Também ajuda quem enxerga pior ou usa tela pequena.
+
+---
+
 ## 2026-10-18 · `desenvolvimento` · Dashboards por usuário e opção de fixar o layout
 
 **O que:**

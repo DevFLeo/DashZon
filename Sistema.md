@@ -330,6 +330,13 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
   - O Chart.js desenha em `<canvas>` e não herda o CSS: `Fonte.aplicar` define `Chart.defaults.font.family` e redesenha os gráficos depois que o arquivo da fonte carrega.
   - Em Configurações > Aparência, a amostra mostra a fonte antes de salvar.
   - Números com `tabular-nums` (KPIs e colunas alinhados).
+- **Tamanho do texto:** preferência da conta `tamanho_fonte` (`pequena` 90%, `normal`, `grande` 115%, `muito_grande` 130%; validada por `Usuarios::TAMANHOS_FONTE`).
+  - Todo `font-size` em px do `style.css` é `calc(Npx * var(--fs))`; `js/fonte.js` põe `data-tamanho` no `<html>` (que define `--fs`) e escala o `Chart.defaults.font.size`. O `antes.js` aplica a escolha guardada no navegador antes de desenhar.
+  - Só o texto muda: a grade de 12 colunas, a altura das linhas e o layout salvo dos dashboards continuam os mesmos (REGRA §12.1).
+  - Números dos KPIs: `clamp(17px, 12.5–13cqi, calc(26–30px * var(--fs)))`; o termo `cqi` faz caber na largura do card, e só o teto cresce com a escala (não corta o número).
+  - Campos no celular: `max(16px, …)`, para o tamanho pequeno não provocar o zoom do iOS.
+  - Textos de até 12px têm piso de 11px (`max(11px, …)`): o tamanho pequeno não os deixa ilegíveis.
+  - `scripts/auditar-responsivo.ps1 -TamanhoFonte muito_grande` audita com o texto maior.
 - **Cantos:** `--radius-sm` 8px (botões, campos), `--radius-md` 14px (cartões), `--radius-lg` 20px (janelas). Nos gráficos (a pedido, sem mudar dados nem ordem): linhas com `cubicInterpolationMode: "monotone"` (suaves sem passar dos pontos), barras com `borderRadius` 6, legenda e tooltip arredondados.
 
 ## 10. Implantação
