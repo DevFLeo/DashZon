@@ -6,6 +6,21 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-19 · `desenvolvimento-empresa` · Equipes, GitHub, barra lateral em cascata e sem emojis
+
+**O que:**
+- **Equipes** (Painel do adm > Criar > Equipe): grupos de usuários; uma equipe pode ser **empresa**, com **CNPJ obrigatório ou não** (guardado só em HMAC + máscara, único). Um usuário fica em nenhuma, uma ou várias equipes; dá para criar o usuário já dentro de equipes ("+ Usuário" na equipe, ou as caixas no formulário) e mudar depois. A tabela de usuários ganhou a coluna **Equipes** ("Nenhuma" quando não está em nenhuma). O menu "Criar" também tem Lote de produção (template novo) e Empresa de teste (CNPJ fictício).
+- **Contribuições do GitHub** (seção Estudos do menu): calendário do último ano, como no perfil, com total, dias ativos, sequência atual e maior, e últimos 30 dias. O usuário do GitHub fica na conta; o servidor lê a página pública e guarda por 30 min.
+- **Barra lateral:** seções em **cascata** (abrem e fecham pelo título); **arrastar e soltar** dashboards e módulos pela alça, com mouse, dedo ou Alt + seta, numa ordem que fica na conta (`ordem_menu`); botão para **recolher** a barra numa coluna com siglas (só no computador).
+- **Botão direito num dashboard** (no menu ou na tela dele), ou toque longo no celular: **"Fixar" / "Fixado"**. O botão do painel continua lá ("Fixar layout" / "Fixado"), sincronizado; o menu mostra um alfinete nos fixados.
+- **Celular:** alça sempre visível e com área de toque, toque longo para o menu, cascata sem fechar a gaveta, menu de contexto dentro da tela.
+- **Sem emojis:** ícones viraram SVG (`Util.icone`); regra no `CLAUDE.md` e teste `test_interface_sem_emojis`. Símbolo **cubo 3D** à esquerda de "DashZon".
+- Testes: 183 no backend (novos: ordem do menu, sem emojis, equipes, GitHub); ponta a ponta com 61 checagens em duas rodadas com banco zerado (inclui o layout salvo dos dashboards idêntico); auditoria de responsividade: 109 telas, 0 erros, 0 avisos.
+
+**Por quê:** pedido de grupos de usuários (equipe/empresa, CNPJ opcional), de acompanhar os estudos pelo GitHub, de uma barra lateral reorganizável e recolhível, de fixar pelo botão direito e de tirar os emojis da interface.
+
+---
+
 ## 2026-10-19 · `desenvolvimento` · Tamanho do texto
 
 **O que:**
@@ -23,8 +38,8 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 **O que:**
 - **Correção:** dashboards passam a ter **dono** e **visibilidade**. Um dashboard novo é só de quem criou; dá para **compartilhar com a equipe** (todos veem, só o dono ou um admin alteram). O privado de outra pessoa não aparece nem pelo link (404). Cards, layout e exclusão conferem o acesso pelo dashboard. Admin pode transferir um dashboard para outra conta; excluir uma conta passa os dashboards dela para quem excluiu; a exportação leva só os visíveis.
 - **Migração:** os dashboards que já existiam viram "da equipe", do primeiro administrador. Ninguém perde acesso, e o admin pode transferir cada um para quem o criou ou torná-lo privado.
-- **Fixar layout:** botão "🔒 Fixar layout" / "🔓 Liberar movimentação" no dashboard. Fixado, os cards não se movem nem mudam de tamanho (o servidor também recusa, 409). Quem não pode alterar sempre vê travado e sem editar/remover.
-- Na tela: selo "Só você vê" / "Da equipe · criado por X · só leitura", marcas 🔒/👥 no menu, botão "Compartilhar" (com troca de dono para admin) e a opção "Compartilhar com a equipe" ao criar.
+- **Fixar layout:** botão "Fixar layout" / "Liberar movimentação" no dashboard (hoje "Fixar layout" / "Fixado"). Fixado, os cards não se movem nem mudam de tamanho (o servidor também recusa, 409). Quem não pode alterar sempre vê travado e sem editar/remover.
+- Na tela: selo "Só você vê" / "Da equipe · criado por X · só leitura", marcas de cadeado/equipe no menu, botão "Compartilhar" (com troca de dono para admin) e a opção "Compartilhar com a equipe" ao criar.
 - Abrir o link de um dashboard recém-compartilhado funciona sem recarregar a página (a lista é buscada de novo).
 - `scripts/verificar-dashboards.js`: verificador para produção com uma conta comum. `auditar-responsivo.ps1` aceita Chrome (`-Navegador`) quando não há Edge.
 - Testes: `test/dashboards_acesso_test.rb` (13); teste de ponta a ponta com 3 pessoas; auditoria de responsividade 0 erros.
@@ -274,7 +289,7 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 ## 2026-10-08 · `desenvolvimento` · Interface responsiva (celular, tablet e telas grandes)
 
 **O que:**
-- **Celular (até 800px):** barra fixa no topo (☰, marca, tema) e o menu numa gaveta, em vez de ~270px de menus em rolagem horizontal antes de qualquer conteúdo.
+- **Celular (até 800px):** barra fixa no topo (botão de menu, marca, tema) e o menu numa gaveta, em vez de ~270px de menus em rolagem horizontal antes de qualquer conteúdo.
 - **Dashboard no celular (até 640px):**
   - cards empilhados em ordem de leitura, com os KPIs dois por linha (`js/responsivo.js` + CSS);
   - arrastar e redimensionar desligados nessa faixa;

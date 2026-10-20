@@ -451,7 +451,7 @@ Faixas do CSS (bloco "Responsividade", no fim do `style.css`, para ter precedên
 | Largura | O que muda |
 |---|---|
 | até 820px ou tela de toque | Alvos de toque de 36 a 44px (botões, itens de menu, ícones; o (?) tem 36px de área com o círculo pequeno); campos com 16px (abaixo disso o iPhone dá zoom ao tocar) |
-| até 800px | O menu lateral vira uma barra fixa no topo (marca, tema e botão ☰) e uma **gaveta** que abre por baixo dela (`app.js`, `ligarMenuMovel`: fecha ao navegar, ao escolher um item e com Esc; `aria-expanded` no botão) |
+| até 800px | O menu lateral vira uma barra fixa no topo (marca, tema e botão de menu) e uma **gaveta** que abre por baixo dela (`app.js`, `ligarMenuMovel`: fecha ao navegar, ao escolher um item e com Esc; `aria-expanded` no botão) |
 | até 640px | Dashboard empilhado (abaixo); KPIs do módulo dois por linha; modais em **tela cheia** com o rodapé de botões fixo; setup e login com menos moldura |
 | abaixo de 360px | KPIs do dashboard um por linha |
 

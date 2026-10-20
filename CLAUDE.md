@@ -53,6 +53,7 @@ A saída do `rodar.ps1` já traz o fim do log. Se precisar, leia só a cauda de 
 - Ligar o modo WAL do SQLite (o backup copia só o `dashzon.db`).
 - **REGRA:** alterar a lógica ou a organização dos dashboards e gráficos sem pedido explícito: o motor C++ (`engine-cpp/src/main.cpp`), `normalize_consulta!`, `normalize_widget!` e `engine_query` (`backend/lib/module_schema.rb`), e o desenho e layout em `frontend/js/dashboards.js`. Os trechos protegidos têm comentário `REGRA:`; detalhes no `Sistema.md`.
 - Fazer push sem pedido, ou commitar segredos (`.env`, `*.db`, `data/`).
+- **REGRA:** usar emojis, na interface, no código, nos comentários, nos docs ou nas mensagens de commit. Ícones são SVG (`Util.icone` em `frontend/js/util.js`) ou texto. O teste `test_interface_sem_emojis` barra emojis no frontend e nos templates.
 
 ## Ao mudar código
 

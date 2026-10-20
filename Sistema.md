@@ -56,6 +56,7 @@ backend/
   app.rb                   rotas de módulos, registros, dashboards, widgets, templates, setup; filtros
   config.ru                entrada rackup
   rotas/usuarios.rb        login, conta, admin, links de e-mail, limite de tentativas
+  rotas/equipes.rb         equipes (grupos de usuários, que podem ser empresa) no painel do adm
   lib/ambiente.rb          Ambiente["VAR", padrao]: variável vazia = não definida
   lib/database.rb          conexão, schema, migração na abertura, registros, jsons
   lib/record_codec.rb      formato compacto de registros.dados
@@ -66,11 +67,13 @@ backend/
   lib/engine_client.rb     ponte com o binário C++
   lib/desempenho.rb        CacheResultados (motor) e CacheEstaticos (cabeçalhos)
   lib/usuarios.rb          contas, senhas, tokens, preferências, ajustes
+  lib/equipes.rb           equipes e membros; CNPJ em HMAC + máscara; empresa de teste
+  lib/github.rb            calendário público de contribuições do GitHub (cache de 30 min)
   lib/segredo.rb           chave do servidor (sessão e HMAC)
   lib/documento.rb         CPF/CNPJ: validação, máscara, HMAC
   lib/correio.rb           SMTP opcional
   lib/dados_ficticios.rb   registros fictícios para a prévia de card
-  templates/*.json         6 templates padrão (únicos JSON versionados; cada um liberado no .gitignore)
+  templates/*.json         7 templates padrão (únicos JSON versionados; cada um liberado no .gitignore)
   test/*_test.rb           Minitest + Rack::Test em banco temporário
 engine-cpp/                CMakeLists.txt, src/main.cpp, src/json.hpp
 frontend/                  index.html, css/, js/, vendor/, preview/
@@ -130,8 +133,10 @@ Docker Compose (`.env`): `DASHZON_DOMINIO` vira `DASHZON_HOSTS` e o domínio do 
 | `ajustes` | `chave` PK, `valor` | `exigir_documento` (nao/cpf/cnpj/qualquer), `exigir_email`, `exigir_email_verificado` |
 | `eventos_seguranca` | `id`, `quando` INTEGER (epoch), `tipo`, `ip`, `conta` (HMAC do login digitado, 32 hex), `usuario_id`, `detalhe` | Diário de segurança e base da contagem de falhas (§8). Índices por `(ip, quando)`, `(conta, quando)` e `quando`. Guardado por 180 dias |
 | `jsons` | `id`, `tipo` (`template`/`exportacao`), `nome`, `conteudo` (BLOB zlib), `criado_em` | Índice `idx_jsons_tipo` |
+| `equipes` | `id`, `nome`, `descricao`, `empresa` (0/1), `exigir_cnpj` (0/1), `cnpj_hash` (HMAC), `cnpj_mascara`, `teste` (0/1), `criado_em`, `atualizado_em` | Grupo de usuários. Empresa pode exigir CNPJ ou não; CNPJ único (pelo HMAC). `teste` = empresa de teste com CNPJ fictício |
+| `equipe_membros` | `equipe_id` → equipes CASCADE, `usuario_id` → usuarios CASCADE, `criado_em`; PK (equipe, usuário) | Um usuário em nenhuma, uma ou várias equipes. Índice `idx_equipe_membros_usuario` |
 
-`usuarios`, `tokens`, `ajustes`, `jsons` e `eventos_seguranca` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
+`usuarios`, `tokens`, `ajustes`, `jsons`, `eventos_seguranca`, `equipes` e `equipe_membros` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
 
 ### 5.3 Formato de `registros.dados` (`RecordCodec`)
 
@@ -230,10 +235,12 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | `POST /api/setup` | Cria o banco, o primeiro admin (`usuario`, `senha`, `nome`) e instala `templates`/`importados`; abre a sessão |
 | `POST /api/login`, `/api/logout`, `/api/usuarios/primeiro` | Sessão; criação do primeiro usuário quando não há nenhum |
 | `POST /api/senha/esqueci`, `/api/senha/redefinir`, `/api/email/verificar` | Links por token (limite por IP) |
-| `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Configurações da pessoa. Preferências: `tema`, `fonte`, `pagina_inicial`, `privacidade` e `modulos_ocultos` (slugs desligados no menu dela, até 100) |
+| `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Configurações da pessoa. Preferências: `tema`, `fonte`, `tamanho_fonte`, `github_usuario`, `pagina_inicial`, `privacidade`, `modulos_ocultos` (slugs desligados no menu dela, até 100) e `ordem_menu` (`{dashboards: [ids], modulos: [slugs]}`, até 500 cada: a ordem arrastada na barra lateral) |
 | `GET/PUT /api/admin/ajustes`, `PUT /api/admin/config` | Regras de cadastro; organização e moeda |
 | `GET /api/admin/seguranca`, `POST /api/admin/seguranca/desbloquear` | Checagem da instalação, bloqueios em vigor e os últimos 100 eventos; desbloqueio de um IP (`ip`) ou conta (`conta` = hash) |
-| `GET/POST /api/admin/usuarios`, `PUT/DELETE /api/admin/usuarios/:id`, `POST .../:id/ativo`, `.../senha-temporaria`, `.../link-redefinicao`, `.../email-verificado`, `.../enviar-verificacao` | Gestão de usuários |
+| `GET/POST /api/admin/usuarios`, `PUT/DELETE /api/admin/usuarios/:id`, `POST .../:id/ativo`, `.../senha-temporaria`, `.../link-redefinicao`, `.../email-verificado`, `.../enviar-verificacao` | Gestão de usuários. A lista traz `equipes` de cada um (`[]` = nenhuma); `POST`/`PUT` aceitam `equipes` (ids; define exatamente em quais está, na mesma transação) |
+| `GET/POST /api/admin/equipes`, `PUT/DELETE /api/admin/equipes/:id`, `PUT .../:id/membros` (`usuario_ids`), `POST /api/admin/equipes/teste` | Equipes (`nome`, `descricao`, `empresa`, `exigir_cnpj`, `cnpj`); excluir não apaga as contas. `teste` cria uma empresa de teste com CNPJ fictício |
+| `GET /api/github/contribuicoes[?usuario=]` | Contribuições do último ano (do `github_usuario` salvo, se não vier `usuario`): `dias`, `total`, `dias_ativos`, `sequencia_atual`, `maior_sequencia`, `ultimos_30`. Só `github.com`, usuário validado, cache de 30 min |
 | `GET /api/templates`, `GET /api/templates/:id`, `POST /api/templates/validar`, `POST /api/templates/instalar`, `DELETE /api/templates/:id` (só `salvo-*`) | Galeria |
 | `GET /api/export[?dados=1]`, `GET /api/exportacoes`, `GET/DELETE /api/exportacoes/:id` | Exportação e histórico (guardado em `jsons`) |
 | `GET/POST /api/modulos`, `GET/PUT/DELETE /api/modulos/:slug` | Módulos (o `PUT` preserva slots e reconverte tipos; o `DELETE` remove widgets e registros e compacta) |
@@ -294,14 +301,27 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 
 ## 9. Frontend
 
-SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `fonte`, `api`, `markdown`, `setup`, `login`, `conta`, `config`, `admin`, `modulos`, `notas`, `dashboards`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
+SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `fonte`, `api`, `markdown`, `setup`, `login`, `conta`, `config`, `admin`, `modulos`, `notas`, `dashboards`, `github`, `menu`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
+
+**Ícones:** sem emojis (regra do `CLAUDE.md`, conferida por `test_interface_sem_emojis`). Ícones são SVG de traço por `Util.icone(nome)` (classe `.ico`: cor do texto, tamanho da letra). Marca: cubo 3D em SVG (`.logo-3d`, cores derivadas de `--accent`) à esquerda de "DashZon".
+
+**Barra lateral** (`js/menu.js`):
+
+- **Cascata:** cada seção (Dashboards, Estudos, Módulos) abre e fecha pelo título (`.nav-cascata`, `aria-expanded`); as fechadas ficam no `localStorage`.
+- **Arrastar e soltar:** dashboards e módulos se reordenam pela alça (`.nav-alca`) com Pointer Events, então funciona com mouse e com o dedo (`touch-action: none` só na alça); no teclado, Alt + seta. A ordem é da conta (`ordem_menu`, `App.salvarOrdem`); quem não está na lista vai para o fim. A rota padrão usa a mesma ordem.
+- **Recolher** (só acima de 800px): botão ao lado da marca; a barra vira uma coluna de 64px com o cubo e siglas de duas letras (`.nav-sigla`). Fica no `localStorage`; ao mudar, dispara `resize` para a grade e os gráficos se ajustarem.
+- **Botão direito num dashboard** (no menu ou na tela dele), tecla de menu ou toque longo (550 ms): menu "Fixar" / "Fixado" (`role=menuitemcheckbox`), o mesmo `fixo` do botão "Fixar layout" / "Fixado" do painel, que continua lá. `App.marcarFixo` mantém os dois e o alfinete do menu em sincronia. Quem não pode alterar vê o item desligado. Em campos, links fora do menu ou com texto selecionado fica o menu do navegador. Depois do toque longo, o `mousedown`/`click` de compatibilidade são engolidos (senão fechariam o menu e abririam o link).
+
+**Painel do adm:** botão "Criar" com Usuário, Equipe (pode ser empresa; CNPJ obrigatório ou não), Lote de produção (instala o template) e Empresa de teste. Tabela de equipes (CNPJ mascarado, membros) e coluna "Equipes" na de usuários ("Nenhuma" quando não está em nenhuma). O formulário do usuário e o da equipe marcam a relação nos dois sentidos.
+
+**Contribuições do GitHub** (`#/github`, `js/github.js`, seção Estudos do menu): o usuário fica na conta (`github_usuario`); KPIs do ano e calendário semanal como o do perfil, mostrando só as semanas que cabem na largura (sem rolagem).
 
 **Responsividade** (bloco no fim do `style.css`, para ter precedência):
 
 | Faixa | Comportamento |
 |---|---|
 | ≤ 820px ou `pointer: coarse` | Alvos de toque de 36–44px (o `.dica` tem 36px de área por borda transparente); campos com `font-size` 16px (evita o zoom do iOS) |
-| ≤ 800px | Barra superior fixa (☰, marca, tema) e o menu numa gaveta (`#menu-movel`; `app.js` `ligarMenuMovel`, com `aria-expanded`; fecha em `hashchange`, clique em item e Esc). No desktop o invólucro é `display: contents` |
+| ≤ 800px | Barra superior fixa (botão de menu, cubo, marca, tema) e o menu numa gaveta (`#menu-movel`; `app.js` `ligarMenuMovel`, com `aria-expanded`; fecha em `hashchange`, clique em item e Esc). No desktop o invólucro é `display: contents` |
 | ≤ 640px | Dashboard empilhado (`responsivo.js`); KPIs do módulo 2 por linha; modais em tela cheia (`100dvh`), com rodapé fixo nos que são um `form` único |
 | < 360px | KPIs do dashboard 1 por linha |
 
@@ -357,7 +377,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 142 testes; os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 183 testes (com `equipes`, `github`, `dashboards_acesso`); os do motor dão `skip` se o binário não existir.
 - **Importador (Python):** `python -m unittest discover -s scripts -p "test_*.py"` (13 testes: conversão por tipo, leitura de `.xlsx`/`.csv` e as planilhas de `exemplos/`).
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:
@@ -421,7 +441,7 @@ Melhorias em **como o usuário alimenta** os dashboards são permitidas, desde q
 
 ### 12.6 Frontend
 
-- Sem build e sem CDN.
+- Sem build e sem CDN. Sem emojis: ícones por `Util.icone` (SVG) ou texto.
 - Todo texto do usuário/banco passa por `Util.escapeHtml` antes de `innerHTML` (prefira `textContent`).
 - HTTP só pelo `Api`; erros no formulário (`form-erro`) ou em `Util.aviso`.
 - Cores só por tokens CSS. `localStorage` só para preferências do navegador.
