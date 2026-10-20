@@ -140,9 +140,12 @@ const Admin = (() => {
     else if (!editandoEquipe) dados.cnpj = "";
     try {
       const e = editandoEquipe ? await Api.put(`/api/admin/equipes/${editandoEquipe.id}`, dados) : await Api.post("/api/admin/equipes", dados);
+      // Criada: se os membros falharem, salvar de novo edita esta (não cria outra).
+      const nova = !editandoEquipe;
+      editandoEquipe = e;
       await Api.put(`/api/admin/equipes/${e.id}/membros`, { usuario_ids: marcados("eq-membros") });
       Util.fecharModal("modal-equipe");
-      Util.aviso(editandoEquipe ? "Equipe atualizada" : "Equipe criada");
+      Util.aviso(nova ? "Equipe criada" : "Equipe atualizada");
       await recarregar();
     } catch (er) { erro("equipe-erro", er.message); }
   }

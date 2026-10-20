@@ -61,6 +61,18 @@ class GithubTest < Minitest::Test
     refute Github.usuario_valido?("a" * 40)
   end
 
+  def test_cache_tem_limite_e_sai_o_mais_antigo
+    agora = Time.now
+    (Github::CACHE_MAX + 5).times { |i| Github.contribuicoes("u#{i}", agora: agora + i) }
+    tamanho = Github.instance_variable_get(:@cache).size
+    assert_equal Github::CACHE_MAX, tamanho
+    antes = @chamadas
+    Github.contribuicoes("u#{Github::CACHE_MAX + 4}", agora: agora + 300) # o mais novo continua guardado
+    assert_equal antes, @chamadas
+    Github.contribuicoes("u0", agora: agora + 300) # o mais antigo saiu: busca de novo
+    assert_equal antes + 1, @chamadas
+  end
+
   def test_rota_com_preferencia_e_cache
     configurar!
     get "/api/github/contribuicoes"

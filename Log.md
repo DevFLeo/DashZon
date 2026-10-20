@@ -15,7 +15,8 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 - **Botão direito num dashboard** (no menu ou na tela dele), ou toque longo no celular: **"Fixar" / "Fixado"**. O botão do painel continua lá ("Fixar layout" / "Fixado"), sincronizado; o menu mostra um alfinete nos fixados.
 - **Celular:** alça sempre visível e com área de toque, toque longo para o menu, cascata sem fechar a gaveta, menu de contexto dentro da tela.
 - **Sem emojis:** ícones viraram SVG (`Util.icone`); regra no `CLAUDE.md` e teste `test_interface_sem_emojis`. Símbolo **cubo 3D** à esquerda de "DashZon".
-- Testes: 183 no backend (novos: ordem do menu, sem emojis, equipes, GitHub); ponta a ponta com 61 checagens em duas rodadas com banco zerado (inclui o layout salvo dos dashboards idêntico); auditoria de responsividade: 109 telas, 0 erros, 0 avisos.
+- Revisão: salvar de novo uma equipe recém-criada (se a gravação dos membros falhou) edita a mesma em vez de tentar criar outra; o cache do GitHub guarda no máximo 200 usuários (sai o mais antigo), porque qualquer conta pode consultar qualquer nome.
+- Testes: 184 no backend (novos: ordem do menu, sem emojis, equipes, GitHub, limite do cache); ponta a ponta com 61 checagens em duas rodadas com banco zerado (inclui o layout salvo dos dashboards idêntico); auditoria de responsividade: 109 telas, 0 erros, 0 avisos.
 
 **Por quê:** pedido de grupos de usuários (equipe/empresa, CNPJ opcional), de acompanhar os estudos pelo GitHub, de uma barra lateral reorganizável e recolhível, de fixar pelo botão direito e de tirar os emojis da interface.
 

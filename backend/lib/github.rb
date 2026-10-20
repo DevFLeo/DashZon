@@ -21,6 +21,7 @@ module Github
 
   USUARIO_RE = /\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\z/
   VALIDADE = 30 * 60
+  CACHE_MAX = 200 # usuários guardados; qualquer conta pode consultar qualquer nome
   @cache = {}
   @lock = Mutex.new
 
@@ -40,7 +41,10 @@ module Github
       return c[:dados] if c && agora - c[:quando] < VALIDADE
     end
     dados = resumir(usuario, ler_dias(buscar_html(usuario)), hoje: agora.to_date)
-    @lock.synchronize { @cache[chave] = { quando: agora, dados: dados } }
+    @lock.synchronize do
+      @cache.delete(@cache.min_by { |_, c| c[:quando] }.first) while @cache.size >= CACHE_MAX
+      @cache[chave] = { quando: agora, dados: dados }
+    end
     dados
   end
 
