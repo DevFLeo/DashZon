@@ -136,7 +136,17 @@
       <button type="button" class="icon-btn menu-btn" id="btn-menu" aria-label="Abrir menu" aria-expanded="false" aria-controls="menu-movel">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
+      <!-- Símbolo 3D (cubo isométrico em SVG, cores do tema). -->
+      <svg class="logo-3d" viewBox="0 0 32 32" aria-hidden="true">
+        <polygon class="cubo-topo" points="16,2.5 28,9.2 16,15.9 4,9.2"/>
+        <polygon class="cubo-esq" points="4,9.2 16,15.9 16,29.5 4,22.8"/>
+        <polygon class="cubo-dir" points="28,9.2 28,22.8 16,29.5 16,15.9"/>
+      </svg>
       <div class="brand-nome"><strong>DashZon</strong><small id="org-nome"></small></div>
+      <!-- Só no computador: recolhe a barra lateral para uma coluna estreita. -->
+      <button type="button" class="icon-btn sidebar-recolher" id="btn-recolher" aria-pressed="false" aria-label="Recolher o menu" title="Recolher o menu">
+        <svg class="ico ico-recolher" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M16 10l-2 2 2 2"/></svg>
+      </button>
       <button type="button" class="tema-btn" aria-label="Mudar o tema">
         <svg class="tema-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><g><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></g></svg>
         <svg class="tema-suave" viewBox="0 0 24 24" aria-hidden="true"><circle class="suave-fundo" cx="12" cy="12" r="11.5"/><circle class="suave-sol" cx="9" cy="14" r="4.3"/><path class="suave-lua" d="M18.6 10.1A4.4 4.4 0 0 1 14 5.5a4.4 4.4 0 1 0 4.6 4.6z"/></svg>
@@ -145,13 +155,21 @@
     </div>
     <div class="sidebar-corpo" id="menu-movel">
     <nav class="nav">
+      <!-- Seções em cascata (abrem e fecham pelo título). Dashboards e módulos
+           se reordenam arrastando pela alça; a ordem fica na conta (js/menu.js). -->
       <div class="nav-section">
-        <div class="nav-title">Dashboards <button class="icon-btn" id="btn-novo-dashboard" title="Novo dashboard" aria-label="Novo dashboard">+</button></div>
-        <div id="nav-dashboards"></div>
+        <div class="nav-title"><button type="button" class="nav-cascata" aria-expanded="true" aria-controls="nav-dashboards"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span>Dashboards</span></button> <button class="icon-btn" id="btn-novo-dashboard" title="Novo dashboard" aria-label="Novo dashboard">+</button></div>
+        <div id="nav-dashboards" class="nav-lista" data-lista="dashboards"></div>
       </div>
       <div class="nav-section">
-        <div class="nav-title">Módulos <button class="icon-btn" id="btn-add-modulo" title="Adicionar módulo" aria-label="Adicionar módulo">+</button></div>
-        <div id="nav-modulos"></div>
+        <div class="nav-title"><button type="button" class="nav-cascata" aria-expanded="true" aria-controls="nav-estudos"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span>Estudos</span></button></div>
+        <div id="nav-estudos" class="nav-lista">
+          <a class="nav-item nav-github" href="#/github" id="nav-github" title="Contribuições do GitHub"><span class="nav-alca nav-alca-vazia" aria-hidden="true"></span><span class="nav-sigla" aria-hidden="true">GH</span><span class="nav-texto">Contribuições do GitHub</span><span class="nav-marcas"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span></a>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-title"><button type="button" class="nav-cascata" aria-expanded="true" aria-controls="nav-modulos"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span>Módulos</span></button> <button class="icon-btn" id="btn-add-modulo" title="Adicionar módulo" aria-label="Adicionar módulo">+</button></div>
+        <div id="nav-modulos" class="nav-lista" data-lista="modulos"></div>
       </div>
     </nav>
     <div class="sidebar-footer">
@@ -411,7 +429,15 @@
           <p class="hint">Usuários, senhas e regras de cadastro. Só administradores veem esta tela.</p>
         </div>
         <div class="actions">
-          <button class="btn btn-sm btn-primary" id="btn-novo-usuario">+ Novo usuário</button>
+          <div class="menu-criar">
+            <button class="btn btn-sm btn-primary" id="btn-criar" aria-haspopup="true" aria-expanded="false" aria-controls="menu-criar">Criar ▾</button>
+            <div class="menu-criar-lista" id="menu-criar" role="menu" hidden>
+              <button type="button" role="menuitem" id="btn-novo-usuario"><strong>Usuário</strong><span>Uma pessoa com login e senha para entrar no sistema.</span></button>
+              <button type="button" role="menuitem" id="btn-nova-equipe"><strong>Equipe</strong><span>Um grupo de usuários. Pode ser uma empresa, com CNPJ.</span></button>
+              <button type="button" role="menuitem" id="btn-novo-lote"><strong>Lote de produção</strong><span>Instala o módulo e o dashboard para acompanhar lotes: produto, quantidade, etapa e prazo.</span></button>
+              <button type="button" role="menuitem" id="btn-empresa-teste"><strong>Empresa de teste</strong><span>Uma empresa fictícia, com CNPJ inventado, para testar sem misturar com as reais.</span></button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -453,6 +479,10 @@
         </form>
       </div>
 
+      <h2 class="admin-titulo">Equipes</h2>
+      <p class="hint">Grupos de usuários. Uma pessoa pode estar em nenhuma, uma ou várias equipes.</p>
+      <div id="admin-equipes"></div>
+
       <h2 class="admin-titulo">Usuários</h2>
       <div id="admin-usuarios"></div>
 
@@ -473,6 +503,40 @@
         <p class="hint">Logins, falhas, bloqueios, trocas de senha e acessos recusados (os últimos 100). O login digitado errado não é guardado como texto, para não registrar uma senha digitada no campo errado.</p>
         <div id="seg-eventos"></div>
       </section>
+    </section>
+
+    <!-- Contribuições do GitHub (acompanhar os estudos) -->
+    <section class="view" id="view-github">
+      <header class="page-header">
+        <div>
+          <h1>Contribuições do GitHub</h1>
+          <p class="hint">Para acompanhar os estudos: o calendário de contribuições do último ano de <strong id="gh-titulo-usuario">…</strong>.
+            <a id="gh-link" href="https://github.com" target="_blank" rel="noopener noreferrer">Abrir no GitHub</a></p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-sm" id="gh-atualizar">Atualizar</button>
+        </div>
+      </header>
+      <form class="toolbar gh-form" id="form-gh">
+        <label for="gh-usuario">Usuário do GitHub</label>
+        <input id="gh-usuario" type="text" maxlength="40" autocomplete="off" placeholder="ex.: DevFLeo">
+        <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
+      </form>
+      <div class="form-erro" id="gh-erro" hidden></div>
+      <div class="empty-state" id="gh-vazio" hidden>
+        <h2>Qual é o seu usuário do GitHub?</h2>
+        <div>Digite acima e salve. O painel mostra as contribuições públicas do último ano (o mesmo calendário do seu perfil).</div>
+      </div>
+      <p class="hint" id="gh-carregando" hidden>Buscando no GitHub…</p>
+      <div id="gh-conteudo" hidden>
+        <div class="kpi-row" id="gh-kpis"></div>
+        <div class="gh-bloco">
+          <div id="gh-calendario" class="gh-calendario"></div>
+          <div class="gh-legenda"><span class="hint" id="gh-periodo"></span><span class="gh-escala">Menos
+            <span class="gh-dia" data-nivel="0"></span><span class="gh-dia" data-nivel="1"></span><span class="gh-dia" data-nivel="2"></span><span class="gh-dia" data-nivel="3"></span><span class="gh-dia" data-nivel="4"></span> Mais</span></div>
+        </div>
+        <p class="hint" id="gh-atualizado"></p>
+      </div>
     </section>
 
     <section class="view" id="view-vazio">
@@ -595,9 +659,9 @@
           <input type="hidden" id="w-tipo" value="bar">
           <div class="tipos" id="w-tipos" role="radiogroup" aria-label="Tipo de card">
             <button type="button" class="tipo-card" data-tipo="kpi" role="radio"><span class="tipo-ico">123</span>Número <span class="dica" role="button" tabindex="0" data-dica="card-kpi" aria-label="Ajuda: número">?</span></button>
-            <button type="button" class="tipo-card" data-tipo="bar" role="radio"><span class="tipo-ico">▮▮▯</span>Barras <span class="dica" role="button" tabindex="0" data-dica="card-bar" aria-label="Ajuda: barras">?</span></button>
-            <button type="button" class="tipo-card" data-tipo="line" role="radio"><span class="tipo-ico">╱╲╱</span>Linha <span class="dica" role="button" tabindex="0" data-dica="card-line" aria-label="Ajuda: linha">?</span></button>
-            <button type="button" class="tipo-card" data-tipo="table" role="radio"><span class="tipo-ico">☰</span>Tabela <span class="dica" role="button" tabindex="0" data-dica="card-table" aria-label="Ajuda: tabela">?</span></button>
+            <button type="button" class="tipo-card" data-tipo="bar" role="radio"><span class="tipo-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/></svg></span>Barras <span class="dica" role="button" tabindex="0" data-dica="card-bar" aria-label="Ajuda: barras">?</span></button>
+            <button type="button" class="tipo-card" data-tipo="line" role="radio"><span class="tipo-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 3 4-7 5 5"/></svg></span>Linha <span class="dica" role="button" tabindex="0" data-dica="card-line" aria-label="Ajuda: linha">?</span></button>
+            <button type="button" class="tipo-card" data-tipo="table" role="radio"><span class="tipo-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/></svg></span>Tabela <span class="dica" role="button" tabindex="0" data-dica="card-table" aria-label="Ajuda: tabela">?</span></button>
           </div>
         </div>
 
@@ -758,6 +822,10 @@
         </select>
       </div>
     </div>
+    <fieldset class="field u-equipes-wrap">
+      <legend>Equipes</legend>
+      <div class="lista-marcar" id="u-equipes"></div>
+    </fieldset>
     <div class="field" id="u-senha-wrap">
       <label for="u-senha">Senha inicial</label>
       <input id="u-senha" type="password" autocomplete="new-password" minlength="8" placeholder="Em branco: gera uma senha temporária">
@@ -770,6 +838,42 @@
     </div>
   </form>
 </div>
+
+<!-- ============ Modal: equipe (painel do adm) ============ -->
+<div class="modal-overlay" id="modal-equipe">
+  <form class="modal" id="form-equipe">
+    <h2 id="equipe-titulo">Nova equipe</h2>
+    <div class="field">
+      <label for="eq-nome" class="obrigatorio">Nome da equipe</label>
+      <input id="eq-nome" type="text" maxlength="80" required placeholder="Ex.: Produção, Qualidade, Zon Indústria Ltda">
+    </div>
+    <div class="field">
+      <label for="eq-descricao">Descrição</label>
+      <input id="eq-descricao" type="text" maxlength="300" placeholder="Para que serve esta equipe (opcional)">
+    </div>
+    <label class="field-check"><input type="checkbox" id="eq-empresa"> Esta equipe é uma empresa</label>
+    <div class="eq-empresa-campos" id="eq-empresa-campos" hidden>
+      <label class="field-check"><input type="checkbox" id="eq-exigir-cnpj" checked> CNPJ obrigatório</label>
+      <div class="field">
+        <label for="eq-cnpj" id="eq-cnpj-label">CNPJ</label>
+        <input id="eq-cnpj" type="text" maxlength="18" inputmode="numeric" autocomplete="off" placeholder="00.000.000/0000-00">
+        <div class="ajuda" id="eq-cnpj-atual"></div>
+      </div>
+    </div>
+    <fieldset class="field">
+      <legend>Membros</legend>
+      <div class="lista-marcar" id="eq-membros"></div>
+    </fieldset>
+    <div class="form-erro" id="equipe-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-equipe">Cancelar</button>
+      <button type="submit" class="btn btn-primary" id="equipe-salvar">Criar equipe</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ Menu do botão direito num dashboard (js/menu.js) ============ -->
+<div class="menu-contexto" id="menu-contexto" role="menu" aria-label="Opções do dashboard" tabindex="-1" hidden></div>
 
 <!-- ============ Modal: senha ou link mostrado uma única vez ============ -->
 <div class="modal-overlay" id="modal-segredo">
@@ -830,6 +934,8 @@
 <script src="/js/modulos.js"></script>
 <script src="/js/notas.js"></script>
 <script src="/js/dashboards.js"></script>
+<script src="/js/github.js"></script>
+<script src="/js/menu.js"></script>
 <script src="/js/responsivo.js"></script>
 <script src="/js/app.js"></script>
 </body>

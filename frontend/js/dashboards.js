@@ -93,28 +93,35 @@ const Dashboards = (() => {
       .forEach((id) => { $(id).hidden = !editavel; });
     document.querySelectorAll('#dash-vazio [data-acao="add-widget"]').forEach((b) => { b.hidden = !editavel; });
 
-    $("btn-fixar").textContent = atual.fixo ? "🔓 Liberar movimentação" : "🔒 Fixar layout";
+    // Mesmos rótulos do menu do botão direito na barra lateral (App.menuDashboard).
+    $("btn-fixar").innerHTML = atual.fixo ? `${Util.icone("cadeado")} Fixado` : `${Util.icone("cadeado-aberto")} Fixar layout`;
     $("btn-fixar").setAttribute("aria-pressed", String(atual.fixo));
-    $("btn-fixar").title = atual.fixo ? "Permite arrastar e redimensionar os cards de novo" : "Trava a posição e o tamanho dos cards";
+    $("btn-fixar").title = atual.fixo ? "Fixado. Clique para arrastar e redimensionar os cards de novo" : "Trava a posição e o tamanho dos cards";
 
     const meu = atual.dono_id === App.usuario()?.id;
-    $("dash-selo").textContent = atual.visibilidade === "privado"
-      ? "🔒 Só você vê este dashboard"
-      : `👥 Da equipe${meu ? "" : ` · criado por ${atual.dono_nome || "outra pessoa"}`}${editavel ? "" : " · só leitura"}`;
+    $("dash-selo").innerHTML = atual.visibilidade === "privado"
+      ? `${Util.icone("cadeado")} Só você vê este dashboard`
+      : `${Util.icone("equipe")} Da equipe${meu ? "" : ` · criado por ${esc(atual.dono_nome || "outra pessoa")}`}${editavel ? "" : " · só leitura"}`;
     $("dash-dica").textContent = !editavel
       ? "Você pode ver os cards e lançar registros; só quem criou (ou um administrador) altera este dashboard."
       : atual.fixo
-        ? "Layout fixado: os cards não se movem nem mudam de tamanho. Use \"Liberar movimentação\" para reorganizar."
+        ? "Layout fixado: os cards não se movem nem mudam de tamanho. Clique em \"Fixado\" (ou use o botão direito no dashboard, no menu) para reorganizar."
         : "Arraste os cards pelo título e redimensione pelo canto. Passe o mouse num card para lançar, editar ou remover.";
   }
 
   async function alternarFixo() {
     try {
       await Api.put(`/api/dashboards/${atual.id}`, { fixo: !atual.fixo });
-      atual.fixo = !atual.fixo;
-      aplicarPermissoes();
+      App.marcarFixo(atual.id, !atual.fixo); // atualiza o menu e chama marcarFixo abaixo
       Util.aviso(atual.fixo ? "Layout fixado" : "Movimentação liberada");
     } catch (e) { Util.aviso(e.message, "erro"); }
+  }
+
+  // Fixado/liberado por fora (botão direito no menu): só reflete no aberto.
+  function marcarFixo(id, fixo) {
+    if (!atual || atual.id !== id) return;
+    atual.fixo = fixo;
+    aplicarPermissoes();
   }
 
   async function abrirCompartilhar() {
@@ -166,7 +173,7 @@ const Dashboards = (() => {
           <span class="title">${esc(w.titulo)}</span>
           <span class="tools">
             <button class="icon-btn" data-lancar title="Lançar em ${esc(App.modulo(w.modulo_slug)?.nome || "")}" aria-label="Lançar registro">+</button>
-            <button class="icon-btn" data-editar title="Editar card" aria-label="Editar card">✎</button>
+            <button class="icon-btn" data-editar title="Editar card" aria-label="Editar card">${Util.icone("lapis")}</button>
             <button class="icon-btn" data-remover title="Remover card" aria-label="Remover card">×</button>
           </span>
         </div>
@@ -476,7 +483,7 @@ const Dashboards = (() => {
   function renderSugestoes() {
     const modulo = App.modulo($("w-modulo").value);
     const lista = sugestoes(modulo);
-    const icone = { kpi: "123", bar: "▮▮", line: "╱╲", table: "☰" };
+    const icone = { kpi: "123", bar: Util.icone("barras"), line: Util.icone("linha"), table: Util.icone("tabela") };
     $("w-sugestoes").innerHTML = lista.map((s, i) =>
       `<button type="button" class="sugestao" data-i="${i}"><span class="tipo-ico">${icone[s.tipo]}</span>${esc(s.rotulo)}</button>`).join("");
     $("w-sugestoes").querySelectorAll(".sugestao").forEach((b) => b.addEventListener("click", () => {
@@ -745,5 +752,5 @@ const Dashboards = (() => {
     $("nd-aba-branco").addEventListener("submit", criarEmBranco);
   }
 
-  return { init, abrir, abrirNovo, novoWidget: () => abrirFormulario() };
+  return { init, abrir, abrirNovo, marcarFixo, aberto: () => atual, novoWidget: () => abrirFormulario() };
 })();

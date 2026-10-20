@@ -219,10 +219,31 @@ const Util = (() => {
     return null;
   }
 
+  // Ícones em SVG (regra do CLAUDE.md: nada de emoji). Traço na cor do texto
+  // (currentColor) e no tamanho da letra (1em); o CSS está em .ico.
+  const ICONES = {
+    cadeado: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    "cadeado-aberto": '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.6-1.7"/>',
+    equipe: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3a6.5 6.5 0 0 1 3.5 5.7"/>',
+    alfinete: '<path d="M9 3h6l-1 6 4 4H6l4-4z"/><path d="M12 13v8"/>',
+    atividade: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+    lapis: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    certo: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    tabela: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/>',
+    barras: '<path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/>',
+    linha: '<path d="M3 17l5-6 4 3 4-7 5 5"/>',
+    alca: '<circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/>',
+    seta: '<path d="M6 9l6 6 6-6"/>',
+    recolher: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M16 10l-2 2 2 2"/>',
+    expandir: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M14 10l2 2-2 2"/>'
+  };
+  const icone = (nome, rotulo = "") =>
+    `<svg class="ico ico-${nome}" viewBox="0 0 24 24" ${rotulo ? `role="img" aria-label="${escapeHtml(rotulo)}"` : 'aria-hidden="true"'}>${ICONES[nome] || ""}</svg>`;
+
   return {
     NUMERICOS, DIMENSOES, SERIES,
     setMoeda, fmtNumero, fmtMoeda, fmtCompacto, fmtData, fmtMes, fmtValor, rotuloChave, opcoesDe,
     hojeISO, resolverToken, cssVar, corSerie, escapeHtml, desescapar, baixar, nomeArquivo, zip, semAcento, debounce,
-    abrirModal, fecharModal, aviso, lerArquivo, storage, resumoInstalacao
+    abrirModal, fecharModal, aviso, lerArquivo, storage, resumoInstalacao, icone
   };
 })();

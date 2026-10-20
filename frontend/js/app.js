@@ -11,7 +11,19 @@ const App = (() => {
   const modulo = (slug) => modulos.find((m) => m.slug === slug);
   // Módulos que a pessoa desligou em Configurações > Módulos saem do menu dela.
   const ocultos = () => new Set(usuario?.preferencias?.modulos_ocultos || []);
-  const modulosVisiveis = () => modulos.filter((m) => !ocultos().has(m.slug));
+  // Ordem pessoal arrastada na barra lateral (preferência ordem_menu, js/menu.js):
+  // quem está na lista vem primeiro, nessa ordem; o resto segue na ordem normal.
+  const ordemMenu = () => usuario?.preferencias?.ordem_menu || { dashboards: [], modulos: [] };
+  function ordenar(lista, ordem = [], chave) {
+    const pos = new Map(ordem.map((k, i) => [k, i]));
+    return lista.map((x, i) => [pos.has(chave(x)) ? pos.get(chave(x)) : ordem.length + i, x])
+      .sort((a, b) => a[0] - b[0]).map(([, x]) => x);
+  }
+  const modulosVisiveis = () => ordenar(modulos.filter((m) => !ocultos().has(m.slug)), ordemMenu().modulos, (m) => m.slug);
+  const dashboardsOrdenados = () => ordenar(dashboards, ordemMenu().dashboards, (d) => d.id);
+  // Duas letras para a barra recolhida ("Fluxo de caixa" -> "FC").
+  const sigla = (nome) => (nome.trim().split(/\s+/).filter((p) => p.length > 2 || /^[A-Z0-9]/.test(p)).slice(0, 2)
+    .map((p) => p[0]).join("") || nome.slice(0, 2)).toUpperCase();
 
   function rotaAtual() {
     const [, tipo, id, extra] = location.hash.split("/");
@@ -25,22 +37,44 @@ const App = (() => {
 
   function renderNav() {
     const rota = rotaAtual();
+    // Alça para arrastar (js/menu.js), sigla (barra recolhida), nome e marcas.
+    const alca = `<span class="nav-alca" title="Arraste para mudar a ordem">${Util.icone("alca")}</span>`;
     $("nav-dashboards").innerHTML = dashboards.length
-      ? dashboards.map((d) => {
-          // 🔒 só meu · 👥 da equipe (com o dono no título, se não for meu)
+      ? dashboardsOrdenados().map((d) => {
+          // Cadeado: só meu · pessoas: da equipe (com o dono, se não for meu) · alfinete: layout fixado
           const meu = d.dono_id === usuario?.id;
-          const marca = d.visibilidade === "privado" ? "🔒" : "👥";
           const dica = d.visibilidade === "privado" ? "Só você vê" : meu ? "Compartilhado com a equipe" : `Da equipe, criado por ${d.dono_nome || "outra pessoa"}`;
-          return `<a class="nav-item ${rota.tipo === "d" && rota.id === String(d.id) ? "active" : ""}" href="#/d/${d.id}" title="${esc(dica)}">
-            <span>${esc(d.nome)}</span><span class="nav-marca" aria-label="${esc(dica)}">${marca}</span></a>`;
+          const marcas = (d.fixo ? Util.icone("alfinete", "Layout fixado") : "") + Util.icone(d.visibilidade === "privado" ? "cadeado" : "equipe", dica);
+          return `<a class="nav-item ${rota.tipo === "d" && rota.id === String(d.id) ? "active" : ""}" href="#/d/${d.id}" data-ordem="${d.id}" data-dashboard="${d.id}"
+            title="${esc(d.nome)} (${esc(dica)}${d.fixo ? ", fixado" : ""})">${alca}<span class="nav-sigla" aria-hidden="true">${esc(sigla(d.nome))}</span>
+            <span class="nav-texto">${esc(d.nome)}</span><span class="nav-marcas">${marcas}</span></a>`;
         }).join("")
       : '<div class="nav-empty">Nenhum dashboard</div>';
     const visiveis = modulosVisiveis();
     $("nav-modulos").innerHTML = visiveis.length
-      ? visiveis.map((m) => `<a class="nav-item ${rota.tipo === "m" && rota.id === m.slug ? "active" : ""}" href="#/m/${encodeURIComponent(m.slug)}">
-          <span>${esc(m.nome)}</span><span class="count">${m.total}</span></a>`).join("")
+      ? visiveis.map((m) => `<a class="nav-item ${rota.tipo === "m" && rota.id === m.slug ? "active" : ""}" href="#/m/${encodeURIComponent(m.slug)}" data-ordem="${esc(m.slug)}" title="${esc(m.nome)}">
+          ${alca}<span class="nav-sigla" aria-hidden="true">${esc(sigla(m.nome))}</span><span class="nav-texto">${esc(m.nome)}</span><span class="count">${m.total}</span></a>`).join("")
       : `<div class="nav-empty">${modulos.length ? '<a href="#/config/modulos">Todos desligados: ligue em Configurações</a>' : "Nenhum módulo"}</div>`;
+    $("nav-github").classList.toggle("active", rota.tipo === "github");
     $("link-config").classList.toggle("active", rota.tipo === "config");
+  }
+
+  // Layout fixado/liberado (pelo botão do dashboard ou pelo botão direito no menu).
+  function marcarFixo(id, fixo) {
+    const d = dashboards.find((x) => x.id === id);
+    if (d) d.fixo = fixo;
+    renderNav();
+    Dashboards.marcarFixo(id, fixo);
+  }
+
+  // Nova ordem arrastada na barra lateral: vale na hora e fica salva na conta.
+  async function salvarOrdem(lista, chaves) {
+    const ordem = { ...ordemMenu(), [lista]: lista === "dashboards" ? chaves.map(Number) : chaves };
+    usuario.preferencias = { ...usuario.preferencias, ordem_menu: ordem };
+    renderNav();
+    try {
+      await Api.put("/api/eu/preferencias", { ordem_menu: ordem });
+    } catch (e) { Util.aviso(e.message, "erro"); }
   }
 
   function mostrar(view) {
@@ -49,7 +83,7 @@ const App = (() => {
 
   function rotaPadrao() {
     if (!modulos.length) return "#/inicio";
-    if (dashboards.length) return `#/d/${dashboards[0].id}`;
+    if (dashboards.length) return `#/d/${dashboardsOrdenados()[0].id}`;
     const primeiro = modulosVisiveis()[0] || modulos[0];
     return `#/m/${encodeURIComponent(primeiro.slug)}`;
   }
@@ -85,6 +119,9 @@ const App = (() => {
       } else if (tipo === "config") {
         mostrar("view-config");
         await Config.abrir(id);
+      } else if (tipo === "github") {
+        mostrar("view-github");
+        await Github.abrir();
       } else if (tipo === "admin" && usuario?.admin) {
         mostrar("view-admin");
         await Admin.abrir(usuario.id);
@@ -153,7 +190,7 @@ const App = (() => {
     ligarMenuMovel();
   }
 
-  // Celular: o menu lateral vira uma gaveta aberta pelo botão ☰ (no computador
+  // Celular: o menu lateral vira uma gaveta aberta pelo botão de menu (no computador
   // o botão fica escondido e o menu sempre à vista). Fecha ao navegar, ao
   // escolher qualquer item e com Esc.
   function ligarMenuMovel() {
@@ -211,6 +248,8 @@ const App = (() => {
     Modulos.init();
     Conta.init(status);
     Admin.init();
+    Github.init();
+    Menu.init();
 
     await recarregarNav();
     window.addEventListener("hashchange", rotear);
@@ -231,5 +270,8 @@ const App = (() => {
 
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { modulo, modulos: () => modulos, modulosVisiveis, dashboards: () => dashboards, usuario: () => usuario, recarregarNav, ir, irPadrao, atualizarUsuario };
+  return {
+    modulo, modulos: () => modulos, modulosVisiveis, dashboards: () => dashboards, usuario: () => usuario,
+    recarregarNav, ir, irPadrao, atualizarUsuario, marcarFixo, salvarOrdem
+  };
 })();

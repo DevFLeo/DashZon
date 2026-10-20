@@ -1,13 +1,17 @@
 // Painel do administrador (#/admin): regras de cadastro, organização e
 // usuários (criar, editar, ativar/desativar, senha temporária, link de
-// redefinição, confirmar e-mail, excluir). Só aparece para administradores;
+// redefinição, confirmar e-mail, excluir), equipes (grupos de usuários, que
+// podem ser empresa) e o menu "Criar" (usuário, equipe, lote de produção,
+// empresa de teste). Só aparece para administradores;
 // o backend barra /api/admin/* para os demais de qualquer forma.
 const Admin = (() => {
   const $ = (id) => document.getElementById(id);
   const esc = Util.escapeHtml;
   let ajustes = null;
   let usuarios = [];
+  let equipes = [];
   let editando = null;
+  let editandoEquipe = null;
   let euId = null;
 
   function erro(id, msg) {
@@ -18,7 +22,7 @@ const Admin = (() => {
   // ------------------------------------------------------------ tela ----
   async function abrir(meuId) {
     euId = meuId;
-    [ajustes, usuarios] = await Promise.all([Api.get("/api/admin/ajustes"), Api.get("/api/admin/usuarios")]);
+    [ajustes, usuarios, equipes] = await Promise.all([Api.get("/api/admin/ajustes"), Api.get("/api/admin/usuarios"), Api.get("/api/admin/equipes")]);
     $("aj-documento").value = ajustes.exigir_documento;
     $("aj-email").checked = ajustes.exigir_email === "1";
     $("aj-email-verificado").checked = ajustes.exigir_email_verificado === "1";
@@ -30,8 +34,126 @@ const Admin = (() => {
     $("u-cargos").innerHTML = ajustes.cargos_sugeridos.map((c) => `<option value="${esc(c)}">`).join("");
     erro("aj-erro", "");
     erro("org-erro", "");
+    renderEquipes();
     renderUsuarios();
     await carregarSeguranca();
+  }
+
+  // ------------------------------------------------------- menu Criar ----
+  function abrirMenuCriar(abrir) {
+    $("menu-criar").hidden = !abrir;
+    $("btn-criar").setAttribute("aria-expanded", String(abrir));
+    if (abrir) $("menu-criar").querySelector("button")?.focus();
+  }
+
+  async function criarLote() {
+    if (!confirm('Instalar o módulo "Lotes de produção" e o dashboard "Produção" (com 8 lotes de exemplo)?\n' +
+      "O dashboard fica compartilhado com a equipe; o módulo é visto por todos.")) return;
+    try {
+      const r = await Api.post("/api/templates/instalar", { template_id: "lote-producao", com_exemplos: true, visibilidade: "equipe" });
+      Util.aviso(Util.resumoInstalacao(r));
+      await App.recarregarNav();
+      if (r.dashboards?.length) App.ir(`#/d/${r.dashboards[0]}`);
+    } catch (e) { Util.aviso(e.message, "erro"); }
+  }
+
+  async function criarEmpresaTeste() {
+    try {
+      const e = await Api.post("/api/admin/equipes/teste", {});
+      Util.aviso(`"${e.nome}" criada (CNPJ fictício ${e.cnpj}). Exclua quando não precisar mais.`);
+      await recarregar();
+    } catch (er) { Util.aviso(er.message, "erro"); }
+  }
+
+  // ------------------------------------------------------------ equipes ----
+  function renderEquipes() {
+    if (!equipes.length) {
+      $("admin-equipes").innerHTML = '<div class="empty-state empty-state-baixo">Nenhuma equipe ainda. Use <strong>Criar ▾ → Equipe</strong>.</div>';
+      return;
+    }
+    const linhas = equipes.map((e) => {
+      const selos = [e.empresa ? '<span class="chip">Empresa</span>' : "", e.teste ? '<span class="chip chip-teste">Teste</span>' : ""].join(" ");
+      const membros = e.membros.length
+        ? e.membros.map((m) => `<span class="chip">${esc(m.nome)}</span>`).join(" ")
+        : '<span class="hint">Nenhum membro</span>';
+      return `<tr>
+        <td><strong>${esc(e.nome)}</strong> ${selos}${e.descricao ? `<div class="hint">${esc(e.descricao)}</div>` : ""}</td>
+        <td>${e.cnpj ? `<span class="nowrap">CNPJ ${esc(e.cnpj)}</span>` : e.empresa ? '<span class="hint">sem CNPJ</span>' : '<span class="hint">—</span>'}</td>
+        <td class="membros">${membros}</td>
+        <td><div class="row-actions">
+          <button class="btn btn-sm" data-eq-editar="${e.id}">Editar</button>
+          <button class="btn btn-sm" data-eq-usuario="${e.id}">+ Usuário</button>
+          <button class="btn btn-sm btn-danger" data-eq-excluir="${e.id}">Excluir</button>
+        </div></td>
+      </tr>`;
+    }).join("");
+    $("admin-equipes").innerHTML = `<div class="table-wrap"><table class="data">
+      <thead><tr><th>Equipe</th><th>CNPJ</th><th>Membros</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`;
+    const acha = (id) => equipes.find((e) => String(e.id) === id);
+    $("admin-equipes").querySelectorAll("[data-eq-editar]").forEach((b) => b.addEventListener("click", () => abrirEquipe(acha(b.dataset.eqEditar))));
+    $("admin-equipes").querySelectorAll("[data-eq-usuario]").forEach((b) => b.addEventListener("click", () => abrirFormulario(null, [Number(b.dataset.eqUsuario)])));
+    $("admin-equipes").querySelectorAll("[data-eq-excluir]").forEach((b) => b.addEventListener("click", () => excluirEquipe(acha(b.dataset.eqExcluir))));
+  }
+
+  // Lista de caixinhas (equipes no cadastro de usuário, membros no de equipe).
+  function listaMarcar(alvo, itens, jaMarcados) {
+    $(alvo).innerHTML = itens.length
+      ? itens.map((i) => `<label class="field-check"><input type="checkbox" value="${i.id}" ${jaMarcados.includes(i.id) ? "checked" : ""}> ${esc(i.rotulo)}</label>`).join("")
+      : '<span class="hint">Nenhuma ainda.</span>';
+  }
+  const marcados = (alvo) => [...document.querySelectorAll(`#${alvo} input:checked`)].map((c) => Number(c.value));
+
+  function atualizarCamposEmpresa() {
+    const empresa = $("eq-empresa").checked;
+    $("eq-empresa-campos").hidden = !empresa;
+    $("eq-cnpj-label").classList.toggle("obrigatorio", empresa && $("eq-exigir-cnpj").checked);
+  }
+
+  function abrirEquipe(e = null) {
+    editandoEquipe = e;
+    $("form-equipe").reset();
+    $("equipe-titulo").textContent = e ? `Editar ${e.nome}` : "Nova equipe";
+    $("equipe-salvar").textContent = e ? "Salvar" : "Criar equipe";
+    $("eq-nome").value = e?.nome || "";
+    $("eq-descricao").value = e?.descricao || "";
+    $("eq-empresa").checked = Boolean(e?.empresa);
+    $("eq-exigir-cnpj").checked = e ? Boolean(e.exigir_cnpj) : true;
+    $("eq-cnpj").placeholder = e?.cnpj ? "Deixe em branco para manter" : "00.000.000/0000-00";
+    $("eq-cnpj-atual").textContent = e?.cnpj ? `Cadastrado: ${e.cnpj}` : "";
+    listaMarcar("eq-membros", usuarios.map((u) => ({ id: u.id, rotulo: `${u.nome || u.login} (${u.login})` })), (e?.membros || []).map((m) => m.id));
+    atualizarCamposEmpresa();
+    erro("equipe-erro", "");
+    Util.abrirModal("modal-equipe");
+    $("eq-nome").focus();
+  }
+
+  async function salvarEquipe(ev) {
+    ev.preventDefault();
+    erro("equipe-erro", "");
+    const dados = {
+      nome: $("eq-nome").value.trim(),
+      descricao: $("eq-descricao").value.trim(),
+      empresa: $("eq-empresa").checked,
+      exigir_cnpj: $("eq-empresa").checked && $("eq-exigir-cnpj").checked
+    };
+    if ($("eq-cnpj").value.trim()) dados.cnpj = $("eq-cnpj").value.trim();
+    else if (!editandoEquipe) dados.cnpj = "";
+    try {
+      const e = editandoEquipe ? await Api.put(`/api/admin/equipes/${editandoEquipe.id}`, dados) : await Api.post("/api/admin/equipes", dados);
+      await Api.put(`/api/admin/equipes/${e.id}/membros`, { usuario_ids: marcados("eq-membros") });
+      Util.fecharModal("modal-equipe");
+      Util.aviso(editandoEquipe ? "Equipe atualizada" : "Equipe criada");
+      await recarregar();
+    } catch (er) { erro("equipe-erro", er.message); }
+  }
+
+  async function excluirEquipe(e) {
+    if (!confirm(`Excluir a equipe "${e.nome}"? As ${e.membros.length} pessoa(s) continuam com as contas; só deixam de estar nesta equipe.`)) return;
+    try {
+      await Api.del(`/api/admin/equipes/${e.id}`);
+      Util.aviso("Equipe excluída");
+      await recarregar();
+    } catch (er) { Util.aviso(er.message, "erro"); }
   }
 
   // ------------------------------------------------------------ segurança ----
@@ -48,7 +170,7 @@ const Admin = (() => {
     const s = await Api.get("/api/admin/seguranca");
     $("seg-checagens").innerHTML = s.checagens.map((c) => {
       const classe = c.ok === true ? "ok" : c.ok === false ? "alerta" : "info";
-      const sinal = c.ok === true ? "✓" : c.ok === false ? "!" : "i";
+      const sinal = c.ok === true ? Util.icone("certo") : c.ok === false ? "!" : "i";
       return `<li class="checagem ${classe}"><span class="checagem-sinal" aria-hidden="true">${sinal}</span>
         <div><strong>${esc(c.titulo)}</strong><div class="hint">${esc(c.detalhe)}</div></div></li>`;
     }).join("");
@@ -97,6 +219,7 @@ const Admin = (() => {
         <td>${u.admin ? '<span class="chip chip-entrada">Administrador</span>' : "Usuário"}</td>
         <td>${email}</td>
         <td>${u.documento ? `<span class="nowrap">${esc(u.documento_tipo.toUpperCase())} ${esc(u.documento)}</span>` : '<span class="hint">—</span>'}</td>
+        <td>${u.equipes?.length ? u.equipes.map((e) => `<span class="chip${e.teste ? " chip-teste" : ""}">${esc(e.nome)}</span>`).join(" ") : '<span class="hint">Nenhuma</span>'}</td>
         <td>${status}</td>
         <td><div class="row-actions">
           <button class="btn btn-sm" data-acao="editar" data-id="${u.id}">Editar</button>
@@ -115,7 +238,7 @@ const Admin = (() => {
     }).join("");
 
     $("admin-usuarios").innerHTML = `<div class="table-wrap"><table class="data">
-      <thead><tr><th>Nome / login</th><th>Cargo</th><th>Perfil</th><th>E-mail</th><th>Documento</th><th>Situação</th><th></th></tr></thead>
+      <thead><tr><th>Nome / login</th><th>Cargo</th><th>Perfil</th><th>E-mail</th><th>Documento</th><th>Equipes</th><th>Situação</th><th></th></tr></thead>
       <tbody>${linhas}</tbody></table></div>`;
     $("admin-usuarios").querySelectorAll('[data-acao="editar"]').forEach((b) => b.addEventListener("click", () => {
       abrirFormulario(usuarios.find((u) => String(u.id) === b.dataset.id));
@@ -128,7 +251,8 @@ const Admin = (() => {
   }
 
   async function recarregar() {
-    usuarios = await Api.get("/api/admin/usuarios");
+    [usuarios, equipes] = await Promise.all([Api.get("/api/admin/usuarios"), Api.get("/api/admin/equipes")]);
+    renderEquipes();
     renderUsuarios();
   }
 
@@ -194,7 +318,8 @@ const Admin = (() => {
     $("u-email-label").classList.toggle("obrigatorio", ajustes.exigir_email === "1");
   }
 
-  function abrirFormulario(u = null) {
+  // `equipesIniciais`: equipes já marcadas (ex.: "+ Usuário" numa equipe).
+  function abrirFormulario(u = null, equipesIniciais = []) {
     editando = u;
     $("form-usuario").reset();
     rotulosObrigatorios();
@@ -215,6 +340,8 @@ const Admin = (() => {
       $("u-documento").placeholder = "";
       $("u-documento-atual").textContent = "";
     }
+    listaMarcar("u-equipes", equipes.map((e) => ({ id: e.id, rotulo: e.nome + (e.teste ? " (teste)" : "") })),
+      u ? (u.equipes || []).map((e) => e.id) : equipesIniciais);
     erro("usuario-erro", "");
     Util.abrirModal("modal-usuario");
     $("u-nome").focus();
@@ -228,7 +355,8 @@ const Admin = (() => {
       login: $("u-login").value.trim(),
       email: $("u-email").value.trim(),
       cargo: $("u-cargo").value.trim(),
-      perfil: $("u-perfil").value
+      perfil: $("u-perfil").value,
+      equipes: marcados("u-equipes")
     };
     if ($("u-documento").value.trim()) dados.documento = $("u-documento").value.trim();
     else if (!editando) dados.documento = "";
@@ -280,7 +408,19 @@ const Admin = (() => {
   }
 
   function init() {
-    $("btn-novo-usuario").addEventListener("click", () => abrirFormulario());
+    $("btn-criar").addEventListener("click", (ev) => { ev.stopPropagation(); abrirMenuCriar($("menu-criar").hidden); });
+    document.addEventListener("click", (ev) => { if (!ev.target.closest(".menu-criar")) abrirMenuCriar(false); });
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape" && !$("menu-criar").hidden) { abrirMenuCriar(false); $("btn-criar").focus(); }
+    });
+    const item = (id, fn) => $(id).addEventListener("click", () => { abrirMenuCriar(false); fn(); });
+    item("btn-novo-usuario", () => abrirFormulario());
+    item("btn-nova-equipe", () => abrirEquipe());
+    item("btn-novo-lote", criarLote);
+    item("btn-empresa-teste", criarEmpresaTeste);
+    $("form-equipe").addEventListener("submit", salvarEquipe);
+    $("eq-empresa").addEventListener("change", atualizarCamposEmpresa);
+    $("eq-exigir-cnpj").addEventListener("change", atualizarCamposEmpresa);
     $("form-usuario").addEventListener("submit", salvar);
     $("form-ajustes").addEventListener("submit", salvarAjustes);
     $("form-org").addEventListener("submit", salvarOrg);
