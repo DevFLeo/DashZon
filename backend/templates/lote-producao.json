@@ -1,0 +1,64 @@
+{
+  "formato": "dashzon-template",
+  "versao": 1,
+  "id": "lote-producao",
+  "ordem": 7,
+  "nome": "Lotes de produção",
+  "icone": "producao",
+  "descricao": "Acompanhe cada lote do planejamento até a entrega: produto, quantidade, etapa, responsável, prazo e inspeção de qualidade.",
+  "modulos": [
+    {
+      "slug": "lotes_producao",
+      "nome": "Lotes de produção",
+      "icone": "producao",
+      "descricao": "Um registro por lote: o que está sendo produzido, quanto, em que etapa e até quando.",
+      "rotulo": "codigo",
+      "campos": [
+        { "id": "codigo", "nome": "Código do lote", "tipo": "texto", "obrigatorio": true, "ajuda": "Ex.: L-2026-001" },
+        { "id": "produto", "nome": "Produto", "tipo": "texto", "obrigatorio": true },
+        { "id": "quantidade", "nome": "Quantidade", "tipo": "numero", "obrigatorio": true },
+        { "id": "unidade", "nome": "Unidade", "tipo": "selecao", "opcoes": ["un", "kg", "L", "m", "cx"], "padrao": "un" },
+        { "id": "status", "nome": "Etapa", "tipo": "selecao", "obrigatorio": true,
+          "opcoes": ["Planejado", "Em produção", "Em inspeção", "Finalizado", "Cancelado"], "padrao": "Planejado" },
+        { "id": "linha", "nome": "Linha / setor", "tipo": "selecao", "opcoes": ["Linha 1", "Linha 2", "Linha 3", "Montagem", "Embalagem"] },
+        { "id": "responsavel", "nome": "Responsável", "tipo": "texto" },
+        { "id": "inicio", "nome": "Início", "tipo": "data", "padrao": "$hoje" },
+        { "id": "prazo", "nome": "Prazo de entrega", "tipo": "data" },
+        { "id": "aprovado", "nome": "Aprovado na inspeção", "tipo": "booleano", "padrao": false },
+        { "id": "perdas", "nome": "Perdas (refugo)", "tipo": "numero", "ajuda": "Quantidade descartada, na mesma unidade do lote" },
+        { "id": "observacoes", "nome": "Observações", "tipo": "texto_longo", "lista": false }
+      ],
+      "resumo": [
+        { "titulo": "Lotes", "agregacao": "contagem" },
+        { "titulo": "Em produção", "agregacao": "contagem", "filtro": { "status": "Em produção" } },
+        { "titulo": "Em inspeção", "agregacao": "contagem", "filtro": { "status": "Em inspeção" } },
+        { "titulo": "Quantidade finalizada", "agregacao": "soma", "campo": "quantidade", "filtro": { "status": "Finalizado" } }
+      ],
+      "seed": [
+        { "codigo": "L-2026-001", "produto": "Parafuso M8", "quantidade": 5000, "unidade": "un", "status": "Finalizado", "linha": "Linha 1", "responsavel": "Carlos", "inicio": "$hoje-40", "prazo": "$hoje-30", "aprovado": true, "perdas": 35 },
+        { "codigo": "L-2026-002", "produto": "Porca M8", "quantidade": 5000, "unidade": "un", "status": "Finalizado", "linha": "Linha 1", "responsavel": "Carlos", "inicio": "$hoje-35", "prazo": "$hoje-25", "aprovado": true, "perdas": 12 },
+        { "codigo": "L-2026-003", "produto": "Resina A", "quantidade": 800, "unidade": "kg", "status": "Finalizado", "linha": "Linha 2", "responsavel": "Marina", "inicio": "$hoje-28", "prazo": "$hoje-20", "aprovado": true, "perdas": 9 },
+        { "codigo": "L-2026-004", "produto": "Caixa 40x30", "quantidade": 1200, "unidade": "cx", "status": "Em inspeção", "linha": "Embalagem", "responsavel": "Paulo", "inicio": "$hoje-12", "prazo": "$hoje+2", "aprovado": false, "perdas": 20 },
+        { "codigo": "L-2026-005", "produto": "Suporte metálico", "quantidade": 300, "unidade": "un", "status": "Em produção", "linha": "Montagem", "responsavel": "Marina", "inicio": "$hoje-6", "prazo": "$hoje+5", "aprovado": false, "perdas": 4 },
+        { "codigo": "L-2026-006", "produto": "Resina B", "quantidade": 650, "unidade": "kg", "status": "Em produção", "linha": "Linha 2", "responsavel": "Carlos", "inicio": "$hoje-4", "prazo": "$hoje+8", "aprovado": false, "perdas": 0 },
+        { "codigo": "L-2026-007", "produto": "Parafuso M10", "quantidade": 4000, "unidade": "un", "status": "Planejado", "linha": "Linha 3", "responsavel": "Paulo", "inicio": "$hoje+3", "prazo": "$hoje+15", "aprovado": false },
+        { "codigo": "L-2026-008", "produto": "Lubrificante", "quantidade": 200, "unidade": "L", "status": "Cancelado", "linha": "Linha 3", "responsavel": "Marina", "inicio": "$hoje-20", "prazo": "$hoje-10", "aprovado": false, "observacoes": "Cancelado por falta de matéria-prima." }
+      ]
+    }
+  ],
+  "dashboards": [
+    {
+      "nome": "Produção",
+      "widgets": [
+        { "titulo": "Lotes", "tipo": "kpi", "modulo": "lotes_producao", "x": 0, "y": 0, "w": 3, "h": 2, "config": { "agregacao": "contagem" } },
+        { "titulo": "Em produção", "tipo": "kpi", "modulo": "lotes_producao", "x": 3, "y": 0, "w": 3, "h": 2, "config": { "agregacao": "contagem", "filtro": { "status": "Em produção" } } },
+        { "titulo": "Em inspeção", "tipo": "kpi", "modulo": "lotes_producao", "x": 6, "y": 0, "w": 3, "h": 2, "config": { "agregacao": "contagem", "filtro": { "status": "Em inspeção" } } },
+        { "titulo": "Perdas (total)", "tipo": "kpi", "modulo": "lotes_producao", "x": 9, "y": 0, "w": 3, "h": 2, "config": { "agregacao": "soma", "campo": "perdas" } },
+        { "titulo": "Lotes por etapa", "tipo": "bar", "modulo": "lotes_producao", "x": 0, "y": 2, "w": 6, "h": 4, "config": { "agregacao": "contagem", "agrupar_por": "status" } },
+        { "titulo": "Quantidade por linha", "tipo": "bar", "modulo": "lotes_producao", "x": 6, "y": 2, "w": 6, "h": 4, "config": { "agregacao": "soma", "campo": "quantidade", "agrupar_por": "linha" } },
+        { "titulo": "Lotes por responsável", "tipo": "table", "modulo": "lotes_producao", "x": 0, "y": 6, "w": 6, "h": 3, "config": { "agregacao": "contagem", "agrupar_por": "responsavel" } },
+        { "titulo": "Lotes iniciados por mês", "tipo": "line", "modulo": "lotes_producao", "x": 6, "y": 6, "w": 6, "h": 3, "config": { "agregacao": "contagem", "agrupar_por": "inicio" } }
+      ]
+    }
+  ]
+}

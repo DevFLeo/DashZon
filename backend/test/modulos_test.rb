@@ -17,6 +17,16 @@ class ModulosTest < Minitest::Test
     assert_equal ["Demandas", "Demandas (2)"], resposta.map { |d| d["nome"] }.select { |n| n.start_with?("Demandas") }
   end
 
+  def test_template_lote_de_producao
+    configurar!
+    post_json "/api/templates/instalar", { "template_id" => "lote-producao", "com_exemplos" => true }
+    assert_equal 200, last_response.status, last_response.body
+    get "/api/modulos/lotes_producao/registros"
+    assert_equal 8, resposta["count"]
+    get "/api/dashboards"
+    assert(resposta.any? { |d| d["nome"] == "Produção" })
+  end
+
   def test_nome_de_modulo_duplicado_recusado
     configurar!
     post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => false }

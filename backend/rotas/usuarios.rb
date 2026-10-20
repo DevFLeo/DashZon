@@ -280,8 +280,10 @@ put "/api/admin/config" do
   json ok: true
 end
 
+# Cada usuário vem com as equipes dele ([] = em nenhuma).
 get "/api/admin/usuarios" do
-  json Usuarios.todos
+  equipes = Equipes.por_usuario
+  json(Usuarios.todos.map { |u| u.merge("equipes" => equipes[u["id"]] || []) })
 end
 
 # Cria o usuário. Sem senha informada, gera uma temporária (devolvida uma única
@@ -290,7 +292,12 @@ post "/api/admin/usuarios" do
   d = body_json
   informada = d["senha"].to_s
   senha = informada.empty? ? Usuarios.senha_temporaria : informada
-  id = Usuarios.criar!(d, senha: senha, deve_trocar: informada.empty? || d["deve_trocar_senha"] != false)
+  equipes = d.key?("equipes") ? Equipes.ids_de_equipes!(d["equipes"]) : nil
+  id = nil
+  Database.transaction do
+    id = Usuarios.criar!(d, senha: senha, deve_trocar: informada.empty? || d["deve_trocar_senha"] != false)
+    Equipes.definir_equipes_do_usuario!(id, equipes) if equipes
+  end
   u = Usuarios.por_id(id)
   json({ usuario: Usuarios.publico(u), senha_temporaria: informada.empty? ? senha : nil }, 201)
 end
@@ -300,7 +307,13 @@ put "/api/admin/usuarios/:id" do
   d = body_json
   rebaixando = d.key?("perfil") && d["perfil"] != "admin" && alvo["perfil"] == "admin"
   nao_em_si_mesmo!(alvo, "tirar o perfil de administrador de") if rebaixando
-  json Usuarios.publico(Usuarios.atualizar!(alvo["id"], d, por_admin: true))
+  equipes = d.key?("equipes") ? Equipes.ids_de_equipes!(d["equipes"]) : nil
+  u = nil
+  Database.transaction do
+    u = Usuarios.atualizar!(alvo["id"], d, por_admin: true)
+    Equipes.definir_equipes_do_usuario!(alvo["id"], equipes) if equipes
+  end
+  json Usuarios.publico(u)
 end
 
 post "/api/admin/usuarios/:id/ativo" do

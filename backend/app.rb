@@ -10,6 +10,8 @@ require_relative "lib/dados_ficticios"
 require_relative "lib/segredo"
 require_relative "lib/correio"
 require_relative "lib/usuarios"
+require_relative "lib/equipes"
+require_relative "lib/github"
 require_relative "lib/desempenho"
 require_relative "lib/seguranca"
 
@@ -189,6 +191,10 @@ error Usuarios::Erro do
   json({ error: env["sinatra.error"].message }, env["sinatra.error"].status)
 end
 
+error Github::Erro do
+  json({ error: env["sinatra.error"].message }, env["sinatra.error"].status)
+end
+
 error Correio::Falha do
   json({ error: env["sinatra.error"].message }, 502)
 end
@@ -344,6 +350,17 @@ end
 
 # Login, minha conta e painel do administrador.
 require_relative "rotas/usuarios"
+require_relative "rotas/equipes"
+
+# Painel "Contribuições do GitHub": ?usuario=... ou o usuário salvo nas
+# preferências da conta (lib/github.rb; resultado guardado 30 min).
+get "/api/github/contribuicoes" do
+  usuario = params[:usuario].to_s.strip.delete_prefix("@")
+  usuario = Usuarios.preferencias(usuario_atual)["github_usuario"].to_s if usuario.empty?
+  halt json({ error: "Informe o seu usuário do GitHub", sem_usuario: true }, 422) if usuario.empty?
+
+  json Github.contribuicoes(usuario)
+end
 
 
 # ------------------------------------------------------------- templates ---

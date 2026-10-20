@@ -288,7 +288,7 @@ class MigracaoTest < Minitest::Test
 
   def test_migracao_comprime_exportacoes_e_templates_antigos_sem_mudar_o_conteudo
     criar_banco_v2!
-    exportacao = JSON.generate("nome" => "Backup ✓", "modulos" => Array.new(400) { |i| { "slug" => "m#{i}", "dados" => ["linha #{i}", i, "Ação"] * 6 } })
+    exportacao = JSON.generate("nome" => "Backup ✓", "modulos" => Array.new(1200) { |i| { "slug" => "m#{i}", "dados" => ["linha #{i}", i, "Ação"] * 6 } })
     template = JSON.generate("nome" => "Template antigo", "modulos" => [{ "slug" => "x", "nome" => "X", "campos" => [{ "id" => "a", "nome" => "A", "tipo" => "texto" }] }], "dashboards" => [])
     db = SQLite3::Database.new(caminho)
     db.execute_batch(<<~SQL)

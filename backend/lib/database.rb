@@ -139,6 +139,30 @@ module Database
     CREATE INDEX IF NOT EXISTS idx_eventos_ip ON eventos_seguranca(ip, quando);
     CREATE INDEX IF NOT EXISTS idx_eventos_conta ON eventos_seguranca(conta, quando);
     CREATE INDEX IF NOT EXISTS idx_eventos_quando ON eventos_seguranca(quando);
+
+    -- Equipes (grupos de usuários; podem ser uma empresa, com CNPJ). Um usuário
+    -- pode estar em nenhuma, uma ou várias (equipe_membros). CNPJ só em hash +
+    -- máscara, como o CPF/CNPJ das contas. Ver lib/equipes.rb.
+    CREATE TABLE IF NOT EXISTS equipes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL,
+      descricao TEXT,
+      empresa INTEGER NOT NULL DEFAULT 0,
+      exigir_cnpj INTEGER NOT NULL DEFAULT 0,
+      cnpj_hash TEXT,
+      cnpj_mascara TEXT,
+      teste INTEGER NOT NULL DEFAULT 0,
+      criado_em TEXT NOT NULL,
+      atualizado_em TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS equipe_membros (
+      equipe_id INTEGER NOT NULL REFERENCES equipes(id) ON DELETE CASCADE,
+      usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      criado_em TEXT NOT NULL,
+      PRIMARY KEY (equipe_id, usuario_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_equipe_membros_usuario ON equipe_membros(usuario_id);
   SQL
 
   # Uma única conexão para o processo, serializada por um Monitor (reentrante,

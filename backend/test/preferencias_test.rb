@@ -7,8 +7,35 @@ class PreferenciasTest < Minitest::Test
   def test_padrao
     configurar!
     get "/api/eu"
-    assert_equal({ "tema" => "sistema", "fonte" => "inter", "tamanho_fonte" => "normal", "pagina_inicial" => "", "privacidade" => false, "modulos_ocultos" => [] },
+    assert_equal({ "tema" => "sistema", "fonte" => "inter", "tamanho_fonte" => "normal", "github_usuario" => "", "pagina_inicial" => "", "privacidade" => false, "modulos_ocultos" => [],
+                   "ordem_menu" => { "dashboards" => [], "modulos" => [] } },
                  resposta["preferencias"])
+  end
+
+  def test_ordem_do_menu_arrastada_na_barra_lateral
+    configurar!
+    put_json "/api/eu/preferencias", { "ordem_menu" => { "dashboards" => [3, 1, 3], "modulos" => %w[notas financas] } }
+    assert_equal 200, last_response.status, last_response.body
+    assert_equal({ "dashboards" => [3, 1], "modulos" => %w[notas financas] }, resposta["preferencias"]["ordem_menu"])
+    put_json "/api/eu/preferencias", { "tema" => "escuro" } # mudar outra coisa não perde a ordem
+    assert_equal [3, 1], resposta["preferencias"]["ordem_menu"]["dashboards"]
+
+    [{ "dashboards" => ["1; DROP"] }, { "modulos" => ["../x"] }, { "outra" => [] }, [1, 2], { "dashboards" => Array.new(501) { |i| i + 1 } }].each do |ruim|
+      put_json "/api/eu/preferencias", { "ordem_menu" => ruim }
+      assert_equal 422, last_response.status, ruim.inspect
+    end
+  end
+
+  # Regra do CLAUDE.md: sem emojis na interface (ícones são SVG ou texto).
+  def test_interface_sem_emojis
+    emoji = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/
+    raiz = File.expand_path("../..", __dir__)
+    arquivos = Dir[File.join(raiz, "frontend/{index.html,js/*.js,css/*.css}")] + Dir[File.join(raiz, "backend/templates/*.json")]
+    achados = arquivos.flat_map do |f|
+      File.readlines(f, encoding: "UTF-8").each_with_index.select { |l, _| l.match?(emoji) }
+          .map { |l, i| "#{File.basename(f)}:#{i + 1}: #{l.strip[0, 80]}" }
+    end
+    assert_empty achados
   end
 
   def test_tamanho_de_fonte

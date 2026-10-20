@@ -45,6 +45,20 @@ module Documento
       dv.call([6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]) == n[13]
   end
 
+  # CNPJ fictício, mas com dígitos verificadores válidos (para a "Empresa de
+  # teste"): 8 dígitos aleatórios + filial 0001 + os dois verificadores.
+  def gerar_cnpj_ficticio(rng = Random.new)
+    n = Array.new(8) { rng.rand(10) } + [0, 0, 0, 1]
+    dv = lambda do |pesos|
+      r = pesos.each_with_index.sum { |p, i| n[i] * p } % 11
+      r < 2 ? 0 : 11 - r
+    end
+    n << dv.call([5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+    n << dv.call([6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+    d = n.join
+    cnpj_valido?(d) ? d : gerar_cnpj_ficticio(rng) # 8 dígitos iguais: sorteia de novo
+  end
+
   # CPF: ***.456.789-** · CNPJ: **.***.678/0001-**
   def mascarar(tipo, d)
     if tipo == "cpf"
