@@ -6,6 +6,24 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimento-empresa` · Protótipos em React e Next.js; publicação
+
+**O que:**
+- **Protótipos** em `prototipos/`: o DashZon em React (Vite) e em Next.js (App Router), usando a mesma API Ruby por proxy e os mesmos componentes (`prototipos/ui`):
+  - login, barra lateral com o cubo e tema claro/escuro;
+  - os cards (número, meta, barras, linha, pizza, tabela, calendário) na grade de 12 colunas;
+  - lista de registros de um módulo.
+  São só leitura. O frontend oficial não muda e continua sem build.
+- **Prints** das mesmas telas no atual, no React e no Next, em `prototipos/prints/`: login, Estudos, Finanças, tema claro, módulo e celular. Nenhum erro de JavaScript nas três versões.
+- **Publicação:**
+  - a branch `desenvolvimento-empresa` foi enviada ao GitHub (44 commits, conferidos sem banco, `.env`, `data/` nem `segredo.key`);
+  - uma página privada compara as três versões lado a lado.
+- Medido na compilação: React ~126 KB de JS (gzip); Next ~174 KB na primeira carga.
+
+**Por quê:** pedido de uma versão de teste de como o DashZon ficaria com React e com Next, com prints para comparar, e de publicar o resultado.
+
+---
+
 ## 2026-10-21 · `desenvolvimento-empresa` · Correções do relatório de testes
 
 **O que** (os 9 problemas do `relatorio.md`):

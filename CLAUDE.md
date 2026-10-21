@@ -31,6 +31,16 @@ git pull && docker compose up -d --build                         # atualizar (da
 - **PC de casa via DuckDNS (Windows):** `deploy/publico.env` (modelo `deploy/publico.env.example`), uma vez `deploy/instalar.ps1` como administrador, depois `deploy/iniciar-publico.ps1` ou `deploy/parar-publico.ps1`.
 - Passo a passo para pessoas: `servidor.md` e `docs/PUBLICAR-DUCKDNS.md`.
 
+## Protótipos React e Next (experimento)
+
+```powershell
+cd prototipos; npm install
+npm run react    # http://localhost:5173 (só localhost)
+npm run next     # http://localhost:3000
+```
+
+Usam a API da instância de **teste** (`DASHZON_API`, padrão `http://127.0.0.1:4571`), nunca o banco real. O frontend oficial continua em `frontend/`, sem build. Detalhes: `prototipos/README.md`.
+
 ## Se falhar
 
 A saída do `rodar.ps1` já traz o fim do log. Se precisar, leia só a cauda de `log/dashzon.log` ou `docker compose logs --tail 30 dashzon`.

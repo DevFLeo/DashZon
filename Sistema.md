@@ -82,6 +82,7 @@ deploy/                    Caddyfile (DuckDNS), Caddyfile.servidor (Docker), scr
 scripts/                   rodar.ps1 (Windows), auditar-responsivo.ps1/.js (responsividade), gerar-previews.js,
                            importar_planilha.py (+ test_importar_planilha.py)
 exemplos/                  cronograma-estudos.xlsx/.csv (planilha modelo) e gerar_exemplos.py
+prototipos/                experimento: DashZon em React (Vite) e em Next.js, com a mesma API (ver §9.1)
 Dockerfile, docker-compose.yml, .env.example
 data/                      (fora do git) dashzon.db, segredo.key, cópias *.bak
 log/                       (fora do git) logs do rodar.ps1
@@ -395,6 +396,22 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
   - Textos de até 12px têm piso de 11px (`max(11px, …)`): o tamanho pequeno não os deixa ilegíveis.
   - `scripts/auditar-responsivo.ps1 -TamanhoFonte muito_grande` audita com o texto maior.
 - **Cantos:** `--radius-sm` 8px (botões, campos), `--radius-md` 14px (cartões), `--radius-lg` 20px (janelas). Nos gráficos (a pedido, sem mudar dados nem ordem): linhas com `cubicInterpolationMode: "monotone"` (suaves sem passar dos pontos), barras com `borderRadius` 6, legenda e tooltip arredondados.
+
+### 9.1 Protótipos em React e Next.js (`prototipos/`)
+
+Experimento, fora do frontend oficial (que continua sem build e sem CDN, §12.6). Workspace npm com três pacotes:
+
+| Pacote | O que é |
+|---|---|
+| `ui` (`@dashzon/ui`) | Componentes e lógica compartilhados: `Telas.jsx` (login, moldura com barra lateral, dashboard, módulo, tema), `Card.jsx` (número, meta, barras, linha, pizza, tabela, calendário com `react-chartjs-2`), `logica.js` (cópia de `valorDe`, `formatador`, `ordenar`, cores) e `estilo.css` (tokens do DashZon) |
+| `react` | Vite + React 19: rotas por `#hash`; proxy `/api` no `vite.config.js` |
+| `next` | Next.js 15 (App Router): rotas `/entrar`, `/d/[id]`, `/m/[slug]`; proxy em `app/api/[...caminho]/route.js` |
+
+- **Só leitura:** não arrastam nem editam cards, e não têm painel do adm, configurações, notas nem aprovações.
+- **API:** os dois proxies trocam o `Origin` pelo do backend (o `Seguranca::Protecao` recusa escrita de outra origem) e repassam o cookie de sessão. O padrão é a instância de teste (`DASHZON_API`, 4571), nunca o banco real.
+- **Lógica:** a de `ui/logica.js` é cópia: a referência continua sendo `frontend/js/dashboards.js` (REGRA §12.1).
+- **Comparação:** prints em `prototipos/prints/` e comparação no `prototipos/README.md`.
+- **Comandos:** `cd prototipos; npm install; npm run react` (porta 5173, só em `localhost`) ou `npm run next` (porta 3000).
 
 ## 10. Implantação
 
