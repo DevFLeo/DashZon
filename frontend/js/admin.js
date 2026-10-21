@@ -331,6 +331,8 @@ const Admin = (() => {
     $("usuario-titulo").textContent = u ? `Editar ${u.nome || u.login}` : "Novo usuário";
     $("usuario-salvar").textContent = u ? "Salvar" : "Criar usuário";
     $("u-senha-wrap").hidden = Boolean(u);
+    $("u-trocar").checked = true;
+    $("u-trocar-wrap").hidden = true;
     if (u) {
       $("u-nome").value = u.nome || "";
       $("u-login").value = u.login;
@@ -374,14 +376,17 @@ const Admin = (() => {
         Util.aviso("Usuário atualizado");
         if (editando.id === euId) App.atualizarUsuario(await Api.get("/api/eu"));
       } else {
-        if ($("u-senha").value) dados.senha = $("u-senha").value;
+        if ($("u-senha").value) {
+          dados.senha = $("u-senha").value;
+          dados.deve_trocar_senha = $("u-trocar").checked; // relatório, problema 5
+        }
         const r = await Api.post("/api/admin/usuarios", dados);
         Util.fecharModal("modal-usuario");
         if (r.senha_temporaria) {
           mostrarSegredo(`Senha temporária de ${dados.nome}`,
             `Usuário criado. Login: ${dados.login}. No primeiro acesso, ${dados.nome} vai criar a própria senha.`, r.senha_temporaria);
         } else {
-          Util.aviso("Usuário criado. No primeiro acesso ele(a) vai trocar a senha.");
+          Util.aviso(dados.deve_trocar_senha ? "Usuário criado. No primeiro acesso ele(a) vai trocar a senha." : "Usuário criado. Já entra com a senha informada.");
         }
       }
       await recarregar();
@@ -457,6 +462,8 @@ const Admin = (() => {
     $("eq-empresa").addEventListener("change", atualizarCamposEmpresa);
     $("eq-exigir-cnpj").addEventListener("change", atualizarCamposEmpresa);
     $("form-usuario").addEventListener("submit", salvar);
+    // Só com senha informada faz sentido escolher (a temporária sempre é trocada).
+    $("u-senha").addEventListener("input", () => { $("u-trocar-wrap").hidden = !$("u-senha").value; });
     $("form-ajustes").addEventListener("submit", salvarAjustes);
     $("form-regras-senha").addEventListener("submit", salvarRegrasSenha);
     $("form-regras-senha").addEventListener("input", resumirRegrasSenha);
