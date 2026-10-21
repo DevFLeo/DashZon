@@ -2,7 +2,7 @@
 // Um card do dashboard, desenhado a partir de GET /api/widgets/:id/data.
 // Mesmos tipos do oficial: número (com ou sem meta), barras, linha, pizza,
 // tabela e calendário.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArcElement, BarElement, CategoryScale, Chart as ChartJS, Legend, LinearScale, LineElement, PointElement, Tooltip } from "chart.js";
 import { Bar, Doughnut, Line } from "react-chartjs-2";
 import { Api, campoDe, corDe, corUnica, cssVar, descricao, fmtData, fmtNumero, formatador, ordenar, rotuloChave, valorDe } from "./logica.js";
@@ -133,28 +133,150 @@ function Pizza({ w, d, modulo, moeda }) {
   );
 }
 
+// Calendário: um quadradinho por dia, como o de contribuições do GitHub.
+// Os números são os do oficial (renderCalendario em frontend/js/dashboards.js):
+// valor do dia por valorDe, 4 níveis por valor/máximo, semanas em colunas com
+// as mais recentes à direita (só as que cabem na largura) e as sequências.
+// O que muda é a apresentação: meses e dias da semana, hoje marcado, dica na
+// hora, teclado (setas, Home, End) e o resumo do período.
+const MESES_CAL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const SEMANA_CAL = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const ROTULO_CAL = 30; // coluna dos dias da semana
+const VAO_CAL = 4;
+
+// Largura do elemento, atualizada quando o card muda de tamanho.
+function useLargura(ref) {
+  const [largura, setLargura] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([e]) => setLargura(Math.floor(e.contentRect.width)));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [ref]);
+  return largura;
+}
+
+const isoCal = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+const dataLonga = (iso) => { const [a, m, d] = iso.split("-"); return `${Number(d)} de ${MESES_CAL[Number(m) - 1]} de ${a}`; };
+
 function Calendario({ d, modulo, moeda }) {
   const cfg = d.config;
   const fmt = formatador(cfg, modulo, moeda);
-  const valores = new Map(d.result.map((r) => [r.key, valorDe(cfg, r)]));
-  const semanas = 26;
-  const hoje = new Date();
-  const dia = new Date(hoje);
-  dia.setDate(hoje.getDate() - hoje.getDay() - (semanas - 1) * 7);
-  const dias = [];
-  for (; dia <= hoje; dia.setDate(dia.getDate() + 1)) {
-    const iso = `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, "0")}-${String(dia.getDate()).padStart(2, "0")}`;
-    dias.push({ iso, v: valores.get(iso) || 0 });
+  const ref = useRef(null);
+  const largura = useLargura(ref);
+  // Células maiores em card largo; no celular, menores para caber mais semanas.
+  const cel = largura >= 760 ? 14 : 13;
+  const semanas = Math.max(8, Math.min(53, Math.floor((largura - ROTULO_CAL + VAO_CAL) / (cel + VAO_CAL))));
+
+  const cal = useMemo(() => {
+    const valores = new Map(d.result.map((r) => [r.key, valorDe(cfg, r)]));
+    const hoje = new Date();
+    hoje.setHours(12, 0, 0, 0);
+    const dia = new Date(hoje);
+    dia.setDate(hoje.getDate() - hoje.getDay() - (semanas - 1) * 7);
+    const dias = [];
+    for (; dia <= hoje; dia.setDate(dia.getDate() + 1)) dias.push({ data: isoCal(dia), sem: dia.getDay(), v: valores.get(isoCal(dia)) || 0 });
+    const max = Math.max(0, ...dias.map((x) => x.v));
+    const nivel = (v) => (v <= 0 || !max ? 0 : Math.min(4, Math.ceil((v / max) * 4)));
+    // Sequências: dias seguidos com valor (hoje ainda zerado conta até ontem).
+    let atual = 0;
+    for (let i = dias.length - 1 - (dias.at(-1)?.v > 0 ? 0 : 1); i >= 0 && dias[i].v > 0; i--) atual++;
+    let maior = 0;
+    let corrente = 0;
+    dias.forEach((x) => { corrente = x.v > 0 ? corrente + 1 : 0; maior = Math.max(maior, corrente); });
+    const melhor = dias.reduce((m, x) => (x.v > (m?.v || 0) ? x : m), null);
+    // Rótulo do mês na primeira semana (domingo) em que ele aparece.
+    const meses = [];
+    let anterior = -1;
+    dias.forEach((x, i) => {
+      if (x.sem !== 0) return;
+      const mes = Number(x.data.slice(5, 7)) - 1;
+      if (mes !== anterior && i > 0) meses.push({ col: Math.floor(i / 7), nome: MESES_CAL[mes] });
+      anterior = mes;
+    });
+    return {
+      dias: dias.map((x) => ({ ...x, nivel: nivel(x.v) })), meses, atual, maior, melhor,
+      ativos: dias.filter((x) => x.v > 0).length, total: dias.reduce((t, x) => t + x.v, 0)
+    };
+  }, [d, cfg, semanas]);
+
+  const ultimo = cal.dias.length - 1;
+  // Dia que recebe o Tab (pela data, porque o número de semanas muda com a
+  // largura). Começa em hoje.
+  const [dataFoco, setDataFoco] = useState(null);
+  const achado = cal.dias.findIndex((x) => x.data === dataFoco);
+  const foco = achado >= 0 ? achado : ultimo;
+  const [dica, setDica] = useState(null);
+
+  const rotulo = (x) => `${x.v > 0 ? fmt(x.v) : "Nada registrado"}, ${SEMANA_CAL[x.sem]}, ${dataLonga(x.data)}`;
+  // Perto das bordas a dica encosta no lado de dentro, para não sair do card.
+  const mostrar = (i, el) => {
+    const x = el.offsetLeft + cel / 2;
+    const lado = x < 60 ? "esq" : x > el.offsetParent.clientWidth - 60 ? "dir" : "";
+    setDica({ i, x, y: el.offsetTop, lado });
+  };
+
+  // Teclado: as linhas são os dias da semana e as colunas, as semanas.
+  function tecla(e) {
+    const passo = { ArrowUp: -1, ArrowDown: 1, ArrowLeft: -7, ArrowRight: 7 }[e.key];
+    let novo = passo === undefined ? null : foco + passo;
+    if (e.key === "Home") novo = 0;
+    if (e.key === "End") novo = ultimo;
+    if (novo === null) return;
+    e.preventDefault();
+    novo = Math.max(0, Math.min(ultimo, novo));
+    setDataFoco(cal.dias[novo].data);
+    e.currentTarget.querySelector(`[data-i="${novo}"]`)?.focus();
   }
-  const max = Math.max(0, ...dias.map((x) => x.v));
-  const nivel = (v) => (v <= 0 || !max ? 0 : Math.min(4, Math.ceil((v / max) * 4)));
-  const ativos = dias.filter((x) => x.v > 0).length;
+
+  const resumo = cal.ativos
+    ? `${fmt(cal.total)} em ${cal.ativos} dia${cal.ativos === 1 ? "" : "s"} nas últimas ${semanas} semanas`
+    : `Nada registrado nas últimas ${semanas} semanas`;
+
   return (
-    <div className="calendario" style={{ "--cal-cor": corUnica(cfg) }}>
-      <div className="cal-grade">
-        {dias.map((x) => <span key={x.iso} className="cal-dia" data-nivel={nivel(x.v)} title={`${x.v > 0 ? fmt(x.v) : "Nada"} em ${fmtData(x.iso)}`} />)}
-      </div>
-      <div className="card-sub">{fmt(dias.reduce((t, x) => t + x.v, 0))} em {ativos} dia{ativos === 1 ? "" : "s"}</div>
+    <div className="calendario" ref={ref} style={{ "--cal-cor": corUnica(cfg), "--cel": `${cel}px` }}>
+      {largura > 0 && (
+        <>
+          <div className="cal-area">
+            <div className="cal-grade" role="grid" aria-label={`Calendário: ${resumo}`}
+              onKeyDown={tecla} style={{ gridTemplateColumns: `${ROTULO_CAL - VAO_CAL}px repeat(${semanas}, var(--cel))` }}>
+              {cal.meses.map((m) => <span key={`${m.col}-${m.nome}`} className="cal-mes" aria-hidden="true" style={{ gridColumn: m.col + 2 }}>{m.nome}</span>)}
+              {[1, 3, 5].map((s) => <span key={s} className="cal-sem" aria-hidden="true" style={{ gridRow: s + 2 }}>{SEMANA_CAL[s].slice(0, 3)}</span>)}
+              {/* Uma linha por dia da semana (display: contents): a posição vem do grid-column/row. */}
+              {[0, 1, 2, 3, 4, 5, 6].map((s) => (
+                <div key={s} role="row" className="cal-linha">
+                  {cal.dias.map((x, i) => (x.sem !== s ? null : (
+                    <span key={x.data} role="gridcell" data-i={i} className="cal-dia" data-nivel={x.nivel} data-hoje={i === ultimo || undefined}
+                      tabIndex={i === foco ? 0 : -1} aria-label={rotulo(x)} aria-current={i === ultimo ? "date" : undefined}
+                      style={{ gridColumn: Math.floor(i / 7) + 2, gridRow: s + 2 }}
+                      onMouseEnter={(e) => mostrar(i, e.currentTarget)} onMouseLeave={() => setDica(null)}
+                      onFocus={(e) => { setDataFoco(x.data); mostrar(i, e.currentTarget); }} onBlur={() => setDica(null)} />
+                  )))}
+                </div>
+              ))}
+            </div>
+            {dica && (
+              <div className={`cal-dica ${dica.lado}`} role="presentation" style={{ left: dica.x, top: dica.y }}>
+                <strong>{cal.dias[dica.i].v > 0 ? fmt(cal.dias[dica.i].v) : "Nada"}</strong>
+                <span>{SEMANA_CAL[cal.dias[dica.i].sem].slice(0, 3)}, {fmtData(cal.dias[dica.i].data)}</span>
+              </div>
+            )}
+          </div>
+          <div className="cal-rodape">
+            <dl className="cal-numeros">
+              <div><dt>Total</dt><dd>{fmt(cal.total)}</dd></div>
+              <div><dt>Dias ativos</dt><dd>{cal.ativos}</dd></div>
+              <div><dt>Sequência atual</dt><dd>{cal.atual} {cal.atual === 1 ? "dia" : "dias"}</dd></div>
+              <div><dt>Maior sequência</dt><dd>{cal.maior} {cal.maior === 1 ? "dia" : "dias"}</dd></div>
+              {cal.melhor && <div><dt>Melhor dia</dt><dd>{fmt(cal.melhor.v)} <small>{fmtData(cal.melhor.data).slice(0, 5)}</small></dd></div>}
+            </dl>
+            <span className="cal-escala" aria-hidden="true">
+              Menos {[0, 1, 2, 3, 4].map((n) => <span key={n} className="cal-dia" data-nivel={n} />)} Mais
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
