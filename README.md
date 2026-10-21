@@ -38,6 +38,9 @@ A inspiração veio de projetos open source de finanças como o [OpenMonetis](ht
 - **Ajuda (?) com imagem:** no criador de card e na criação de módulos, passar o mouse mostra um print de exemplo; clicar abre um popup com explicação e imagens (`frontend/preview/`).
 - **Menu lateral do seu jeito:** seções em cascata que abrem e fecham, dashboards e módulos que você **arrasta para a ordem que quiser** (com o mouse, com o dedo ou com Alt + seta; a ordem fica na sua conta) e um botão para **recolher** o menu numa coluna estreita.
 - **Fixar pelo botão direito:** clique com o botão direito num dashboard (no menu ou na tela dele), ou segure o dedo no celular, e escolha **Fixar** / **Fixado**. O botão "Fixar layout" do painel continua lá.
+- **Quem vê o quê:** cada dashboard e cada módulo pode ser só seu, de equipes escolhidas ou de todos. O admin cria um painel para a Equipe Vermelha e só ela vê.
+- **Perfil Visualizador com aprovação:** quem só deve olhar pode pedir alterações; o dono do módulo aprova ou nega na tela **Aprovações**, vendo o antes e o depois.
+- **Diário completo no Painel do adm:** além dos acessos, quem criou, alterou ou excluiu usuários, equipes, dashboards e módulos.
 - **Equipes e empresas:** no Painel do adm, **Criar** monta grupos de usuários. Uma equipe pode ser uma empresa, com CNPJ obrigatório ou não. Cada pessoa fica em nenhuma, uma ou várias equipes, e a tabela de usuários mostra em quais.
 - **Acompanhamento de estudos dentro do dashboard:** no "Estudos", um calendário com um quadradinho por dia (horas estudadas), a meta de horas do mês com quanto falta, e as matérias estudadas em pizza. Os mesmos tipos de card (Calendário, Pizza e Número com meta) servem para qualquer módulo.
 - **Cores do seu jeito:** no editor de card, escolha uma paleta (Oceano, Pôr do sol, Neon, Galáxia...), a cor de cada categoria, ou clique em **Surpreenda-me** para uma combinação nova com nome.
