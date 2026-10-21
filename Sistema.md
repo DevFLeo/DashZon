@@ -68,7 +68,6 @@ backend/
   lib/desempenho.rb        CacheResultados (motor) e CacheEstaticos (cabeçalhos)
   lib/usuarios.rb          contas, senhas, tokens, preferências, ajustes
   lib/equipes.rb           equipes e membros; CNPJ em HMAC + máscara; empresa de teste
-  lib/github.rb            calendário público de contribuições do GitHub (cache de 30 min)
   lib/segredo.rb           chave do servidor (sessão e HMAC)
   lib/documento.rb         CPF/CNPJ: validação, máscara, HMAC
   lib/correio.rb           SMTP opcional
@@ -127,16 +126,17 @@ Docker Compose (`.env`): `DASHZON_DOMINIO` vira `DASHZON_HOSTS` e o domínio do 
 | `modulos` | `id`, `slug` UNIQUE, `nome`, `descricao`, `icone`, `schema` (JSON: `campos`, `rotulo`, `resumo`, `slots`), `template_origem`, `ordem`, `criado_em` | Nome único sem diferenciar maiúsculas (comparado em Ruby, por causa dos acentos) |
 | `registros` | `id` INTEGER PK, `modulo_id` → modulos ON DELETE CASCADE, `dados` (array JSON compacto), `criado_em` INTEGER (epoch), `atualizado_em` INTEGER NULL | Índice `idx_registros_modulo` |
 | `dashboards` | `id`, `nome`, `criado_em`, `atualizado_em`, `dono_id`, `visibilidade` (`privado`/`equipe`), `fixo` (0/1) | Colunas novas por `ALTER TABLE` (`migrar_dashboards!`); os que já existiam viram `equipe` do primeiro admin |
-| `widgets` | `id`, `dashboard_id` → dashboards CASCADE, `titulo`, `tipo` (kpi/bar/line/table), `modulo_slug`, `config` (JSON), `x`, `y`, `w`, `h` | Índice `idx_widgets_dashboard`; grade de 12 colunas |
+| `widgets` | `id`, `dashboard_id` → dashboards CASCADE, `titulo`, `tipo` (kpi/bar/line/table/pie/calendario), `modulo_slug`, `config` (JSON), `x`, `y`, `w`, `h` | Índice `idx_widgets_dashboard`; grade de 12 colunas |
 | `usuarios` | `id`, `login` UNIQUE, `senha_hash`, `sal`, `nome`, `email`, `email_verificado_em`, `documento_tipo`, `documento_hash`, `documento_mascara`, `cargo`, `perfil` (`admin`/`usuario`), `ativo`, `deve_trocar_senha`, `sessao_versao`, `ultimo_login_em`, `criado_em`, `atualizado_em`, `preferencias` (JSON) | Criada sob demanda; colunas novas por `ALTER TABLE` (`migrar_usuarios!`) |
 | `tokens` | `id`, `usuario_id` → usuarios CASCADE, `tipo` (`redefinir_senha` 24 h, `verificar_email` 7 dias), `token_hash` UNIQUE (SHA-256), `dado`, `expira_em`, `usado_em`, `criado_em` | Uso único |
-| `ajustes` | `chave` PK, `valor` | `exigir_documento` (nao/cpf/cnpj/qualquer), `exigir_email`, `exigir_email_verificado` |
+| `ajustes` | `chave` PK, `valor` | `exigir_documento` (nao/cpf/cnpj/qualquer), `exigir_email`, `exigir_email_verificado`; regras de senha: `senha_minima` (6 a 64, padrão 8), `senha_forte`, `senha_maiuscula`, `senha_numero`, `senha_simbolo` ("0"/"1", desligadas por padrão) |
+| `registros_exemplo` | `registro_id` PK → registros CASCADE, `modulo_id` → modulos CASCADE | Dados de exemplo que vieram com um template. Marcados na instalação; editar um registro tira a marca. Bancos antigos: na criação da tabela, `marcar_exemplos_antigos!` marca os registros nunca editados criados até 5 s do módulo de template |
 | `eventos_seguranca` | `id`, `quando` INTEGER (epoch), `tipo`, `ip`, `conta` (HMAC do login digitado, 32 hex), `usuario_id`, `detalhe` | Diário de segurança e base da contagem de falhas (§8). Índices por `(ip, quando)`, `(conta, quando)` e `quando`. Guardado por 180 dias |
 | `jsons` | `id`, `tipo` (`template`/`exportacao`), `nome`, `conteudo` (BLOB zlib), `criado_em` | Índice `idx_jsons_tipo` |
 | `equipes` | `id`, `nome`, `descricao`, `empresa` (0/1), `exigir_cnpj` (0/1), `cnpj_hash` (HMAC), `cnpj_mascara`, `teste` (0/1), `criado_em`, `atualizado_em` | Grupo de usuários. Empresa pode exigir CNPJ ou não; CNPJ único (pelo HMAC). `teste` = empresa de teste com CNPJ fictício |
 | `equipe_membros` | `equipe_id` → equipes CASCADE, `usuario_id` → usuarios CASCADE, `criado_em`; PK (equipe, usuário) | Um usuário em nenhuma, uma ou várias equipes. Índice `idx_equipe_membros_usuario` |
 
-`usuarios`, `tokens`, `ajustes`, `jsons`, `eventos_seguranca`, `equipes` e `equipe_membros` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
+`usuarios`, `tokens`, `ajustes`, `jsons`, `eventos_seguranca`, `equipes`, `equipe_membros` e `registros_exemplo` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
 
 ### 5.3 Formato de `registros.dados` (`RecordCodec`)
 
@@ -235,12 +235,11 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | `POST /api/setup` | Cria o banco, o primeiro admin (`usuario`, `senha`, `nome`) e instala `templates`/`importados`; abre a sessão |
 | `POST /api/login`, `/api/logout`, `/api/usuarios/primeiro` | Sessão; criação do primeiro usuário quando não há nenhum |
 | `POST /api/senha/esqueci`, `/api/senha/redefinir`, `/api/email/verificar` | Links por token (limite por IP) |
-| `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Configurações da pessoa. Preferências: `tema`, `fonte`, `tamanho_fonte`, `github_usuario`, `pagina_inicial`, `privacidade`, `modulos_ocultos` (slugs desligados no menu dela, até 100) e `ordem_menu` (`{dashboards: [ids], modulos: [slugs]}`, até 500 cada: a ordem arrastada na barra lateral) |
+| `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Configurações da pessoa. Preferências: `tema`, `fonte`, `tamanho_fonte`, `pagina_inicial`, `privacidade`, `modulos_ocultos` (slugs desligados no menu dela, até 100) e `ordem_menu` (`{dashboards: [ids], modulos: [slugs]}`, até 500 cada: a ordem arrastada na barra lateral) |
 | `GET/PUT /api/admin/ajustes`, `PUT /api/admin/config` | Regras de cadastro; organização e moeda |
 | `GET /api/admin/seguranca`, `POST /api/admin/seguranca/desbloquear` | Checagem da instalação, bloqueios em vigor e os últimos 100 eventos; desbloqueio de um IP (`ip`) ou conta (`conta` = hash) |
 | `GET/POST /api/admin/usuarios`, `PUT/DELETE /api/admin/usuarios/:id`, `POST .../:id/ativo`, `.../senha-temporaria`, `.../link-redefinicao`, `.../email-verificado`, `.../enviar-verificacao` | Gestão de usuários. A lista traz `equipes` de cada um (`[]` = nenhuma); `POST`/`PUT` aceitam `equipes` (ids; define exatamente em quais está, na mesma transação) |
 | `GET/POST /api/admin/equipes`, `PUT/DELETE /api/admin/equipes/:id`, `PUT .../:id/membros` (`usuario_ids`), `POST /api/admin/equipes/teste` | Equipes (`nome`, `descricao`, `empresa`, `exigir_cnpj`, `cnpj`); excluir não apaga as contas. `teste` cria uma empresa de teste com CNPJ fictício |
-| `GET /api/github/contribuicoes[?usuario=]` | Contribuições do último ano (do `github_usuario` salvo, se não vier `usuario`): `dias`, `total`, `dias_ativos`, `sequencia_atual`, `maior_sequencia`, `ultimos_30`. Só `github.com`, usuário validado, cache de 30 min |
 | `GET /api/templates`, `GET /api/templates/:id`, `POST /api/templates/validar`, `POST /api/templates/instalar`, `DELETE /api/templates/:id` (só `salvo-*`) | Galeria |
 | `GET /api/export[?dados=1]`, `GET /api/exportacoes`, `GET/DELETE /api/exportacoes/:id` | Exportação e histórico (guardado em `jsons`) |
 | `GET/POST /api/modulos`, `GET/PUT/DELETE /api/modulos/:slug` | Módulos (o `PUT` preserva slots e reconverte tipos; o `DELETE` remove widgets e registros e compacta) |
@@ -250,6 +249,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | `PATCH /api/modulos/:slug/registros/:id` | Altera só os campos enviados; o resto vem do banco, e o registro inteiro passa por `coerce_registro!` (checklist) |
 | `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD validado por `coerce_registro!` |
 | `GET/POST /api/dashboards`, `GET/PUT/DELETE /api/dashboards/:id` | Dashboards **por usuário**: a lista traz os seus e os da equipe (com `dono_nome`, `fixo`, `editavel`); o privado de outra pessoa responde 404; `PUT` parcial (`nome`, `fixo`, `visibilidade`; `dono_id` só admin); alterar exige ser o dono ou admin num da equipe (403). O `GET :id` traz os widgets |
+| `GET /api/dashboards/:id/exemplos`, `DELETE /api/dashboards/:id?exemplos=1`, `DELETE /api/modulos/:slug/exemplos` | Dados de exemplo: quantos os módulos do dashboard ainda têm; excluir o dashboard levando só esses registros; apagar os exemplos de um módulo. `/api/modulos` e `GET /api/modulos/:slug` trazem `exemplos` |
 | `POST /api/dashboards/:id/widgets`, `PUT/DELETE /api/widgets/:id`, `PUT /api/widgets/:id/layout` | Widgets (o `layout` altera só x/y/w/h) |
 | `GET /api/widgets/:id/data` | Dados do card (`aggregate`, revalidado contra o schema atual, projetado, com cache) |
 | `POST /api/widgets/preview` | Prévia sobre 72 registros fictícios (nada gravado) |
@@ -282,7 +282,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
   - o login digitado é gravado só como HMAC (alguém pode digitar a senha no campo errado);
   - IP e conta vão ao SQLite sempre como TEXT (`Seguranca.texto`): o driver grava texto binário como BLOB, e BLOB nunca é igual a TEXT.
 - **Diário de segurança:** login, saída, falhas, bloqueios, desbloqueios, trocas e redefinições de senha, "sair dos outros", escrita de outro site e excesso de requisições (os dois últimos no máximo 1 vez por minuto por IP). Aparece no Painel do adm, junto da checagem da instalação: HTTPS, cookie seguro, quantidade de admins, senhas temporárias, logins errados em 24 h e validade da sessão.
-- **Senhas fracas:** além de 8 a 200 caracteres, são recusadas a senha igual ao login, as ~60 mais comuns (`12345678`, `senha123`, nomes de time...), um caractere repetido e as sequências (`abcdefgh`, `87654321`). Vale para setup, cadastro, troca e redefinição.
+- **Regras de senha** (Painel do adm > Regras de senha; `Usuarios.regras_senha`): só o tamanho é regra fixa (mínimo de 6 a 64, padrão 8; máximo 200). São **opções** do administrador, desligadas por padrão: "senha forte" (recusa a igual ao login, as ~60 mais comuns como `12345678` e `senha123`, um caractere repetido e as sequências `abcdefgh`/`87654321`), maiúsculas e minúsculas, letras e números, e um símbolo. Vale para cadastro, troca e redefinição; o setup usa o padrão (o banco ainda não existe). A senha temporária gerada cumpre as regras em vigor. `/api/status` expõe `regras_senha`, e as telas mostram "mínimo N, com..." e ajustam o `minlength`.
 - **Sessão:** cai depois de `DASHZON_SESSAO_HORAS` (12) sem uso e, no máximo, em `DASHZON_SESSAO_DIAS` (30); cada login começa uma sessão nova.
 - **`Seguranca::Protecao`** (middleware, por fora do app):
   - cabeçalhos em toda resposta:
@@ -301,20 +301,32 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 
 ## 9. Frontend
 
-SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `fonte`, `api`, `markdown`, `setup`, `login`, `conta`, `config`, `admin`, `modulos`, `notas`, `dashboards`, `github`, `menu`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
+SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `fonte`, `api`, `markdown`, `setup`, `login`, `conta`, `config`, `admin`, `modulos`, `notas`, `dashboards`, `menu`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
 
-**Ícones:** sem emojis (regra do `CLAUDE.md`, conferida por `test_interface_sem_emojis`). Ícones são SVG de traço por `Util.icone(nome)` (classe `.ico`: cor do texto, tamanho da letra). Marca: cubo 3D em SVG (`.logo-3d`, cores derivadas de `--accent`) à esquerda de "DashZon".
+**Ícones:** sem emojis (regra do `CLAUDE.md`, conferida por `test_interface_sem_emojis`). Ícones são SVG de traço por `Util.icone(nome)` (classe `.ico`: cor do texto, tamanho da letra). Marca: cubo 3D transparente girando à esquerda de "DashZon" (`.logo-3d`: seis faces em CSS 3D com `preserve-3d`, cores de `--accent`, núcleo que pulsa; acelera com o mouse; parado com `prefers-reduced-motion`).
 
 **Barra lateral** (`js/menu.js`):
 
-- **Cascata:** cada seção (Dashboards, Estudos, Módulos) abre e fecha pelo título (`.nav-cascata`, `aria-expanded`); as fechadas ficam no `localStorage`.
+- **Cascata:** cada seção (Dashboards, Módulos) abre e fecha pelo título (`.nav-cascata`, `aria-expanded`); as fechadas ficam no `localStorage`.
 - **Arrastar e soltar:** dashboards e módulos se reordenam pela alça (`.nav-alca`) com Pointer Events, então funciona com mouse e com o dedo (`touch-action: none` só na alça); no teclado, Alt + seta. A ordem é da conta (`ordem_menu`, `App.salvarOrdem`); quem não está na lista vai para o fim. A rota padrão usa a mesma ordem.
 - **Recolher** (só acima de 800px): botão ao lado da marca; a barra vira uma coluna de 64px com o cubo e siglas de duas letras (`.nav-sigla`). Fica no `localStorage`; ao mudar, dispara `resize` para a grade e os gráficos se ajustarem.
 - **Botão direito num dashboard** (no menu ou na tela dele), tecla de menu ou toque longo (550 ms): menu "Fixar" / "Fixado" (`role=menuitemcheckbox`), o mesmo `fixo` do botão "Fixar layout" / "Fixado" do painel, que continua lá. `App.marcarFixo` mantém os dois e o alfinete do menu em sincronia. Quem não pode alterar vê o item desligado. Em campos, links fora do menu ou com texto selecionado fica o menu do navegador. Depois do toque longo, o `mousedown`/`click` de compatibilidade são engolidos (senão fechariam o menu e abririam o link).
 
 **Painel do adm:** botão "Criar" com Usuário, Equipe (pode ser empresa; CNPJ obrigatório ou não), Lote de produção (instala o template) e Empresa de teste. Tabela de equipes (CNPJ mascarado, membros) e coluna "Equipes" na de usuários ("Nenhuma" quando não está em nenhuma). O formulário do usuário e o da equipe marcam a relação nos dois sentidos.
 
-**Contribuições do GitHub** (`#/github`, `js/github.js`, seção Estudos do menu): o usuário fica na conta (`github_usuario`); KPIs do ano e calendário semanal como o do perfil, mostrando só as semanas que cabem na largura (sem rolagem).
+**Tipos de card** (`dashboards.js`, um só despacho `desenhar()` para o dashboard e a prévia):
+
+| Tipo | Config | Desenho |
+|---|---|---|
+| `kpi` | o de sempre; com `meta` (> 0), `periodo` (`tudo`, `mes`, `semana`) e `campo_data` vira card de meta | `renderKpi`; com meta, `renderMeta`: valor, "de N", barra de progresso, quanto falta ou passou. Por mês/semana o servidor agrupa por dia (`agrupar_por` = `campo_data`, sem formato) e o navegador soma só os dias do período atual |
+| `bar`, `line` | o de sempre | `renderGrafico` |
+| `table` | o de sempre | `renderTabela` |
+| `pie` | exige `agrupar_por` | `renderPizza`: rosca, número de categorias no centro (plugin do Chart.js), legenda à direita ou embaixo. Sem paleta, uma cor do tema por fatia |
+| `calendario` | `agrupar_por` = campo de data, `formato_grupo` nulo (um valor por dia) | `renderCalendario`: um quadradinho por dia, 4 níveis de intensidade, semanas que cabem na largura, dias ativos e sequências; redesenha em `resize`/`resizestop` |
+
+**Cores do card** (editor > passo "Cores"; `config.paleta`, `config.cores` {categoria: "#rrggbb"}, `config.cor`): 9 paletas nomeadas (`Util.PALETAS`), cor por categoria ou série com `<input type=color>`, e "Surpreenda-me" (`Util.paletaSurpresa`: matizes pelo ângulo de ouro, com um nome). `Util.corDe` = escolhida > paleta > identidade de sempre (`corSerie`); `Util.corUnica` para número, linha e calendário. Sem cores escolhidas, o desenho é idêntico ao de antes. O servidor valida (`normalize_aparencia!`) e não usa isso na consulta.
+
+**Dados de exemplo:** ao excluir um dashboard, uma janela lista os módulos dele com dados de exemplo e oferece apagá-los junto (`DELETE /api/dashboards/:id?exemplos=1`). Na tela do módulo, "Apagar dados de exemplo (N)" (`DELETE /api/modulos/:slug/exemplos`).
 
 **Responsividade** (bloco no fim do `style.css`, para ter precedência):
 
@@ -377,7 +389,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 183 testes (com `equipes`, `github`, `dashboards_acesso`); os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 188 testes (com `equipes`, `dashboards_acesso`, `cores`, `cards_estudo`, `exemplos`); os do motor dão `skip` se o binário não existir.
 - **Importador (Python):** `python -m unittest discover -s scripts -p "test_*.py"` (13 testes: conversão por tipo, leitura de `.xlsx`/`.csv` e as planilhas de `exemplos/`).
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:
@@ -396,7 +408,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 Não alterar a lógica de funcionamento nem a fórmula de organização dos dashboards e gráficos sem pedido explícito:
 
 - **Motor C++** (`engine-cpp/src/main.cpp`): `aggregate`, `multi`, `search`, a forma de agrupar, somar, contar, calcular saldo e montar séries, e o formato da resposta (`result`, `series_keys`, `total_*`).
-- **Consulta** (`backend/lib/module_schema.rb`): `normalize_consulta!`, `normalize_widget!` e `engine_query`, isto é, o formato do `config` (`agregacao`, `campo`, `agrupar_por`, `formato_grupo`, `serie_por`, `filtro`).
+- **Consulta** (`backend/lib/module_schema.rb`): `normalize_consulta!`, `normalize_widget!` e `engine_query`, isto é, o formato do `config` (`agregacao`, `campo`, `agrupar_por`, `formato_grupo`, `serie_por`, `filtro`). Acrescentados a pedido em 21/10/2026: os tipos `pie` e `calendario`, a meta do `kpi` (`meta`, `periodo`, `campo_data`) e a aparência (`paleta`, `cores`, `cor`), sem mudar o motor nem o resultado dos cards antigos.
 - **Desenho e ordem** (`frontend/js/dashboards.js`):
   - funções `valorDe`, `formatador`, `descricao`, `ordenar`, `renderKpi`, `renderTabela`, `renderGrafico`;
   - comportamento: cores por identidade, séries lado a lado até 2 e empilhadas acima disso, limite de grupos;

@@ -6,6 +6,21 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimento-empresa` · Cubo animado, regras de senha, cores, estudos no dashboard e relatório de testes
+
+**O que:**
+- **Cubo 3D:** virou um cubo transparente de verdade (seis faces em CSS 3D), girando devagar, com um núcleo que pulsa; parado para quem pede menos movimento.
+- **Senha:** só o tamanho mínimo é regra (6 a 64, padrão 8). "Senha forte" (sem as mais comuns, sequências e igual ao login), maiúsculas, números e símbolo viraram opções no Painel do adm, desligadas por padrão. A senha temporária cumpre as regras; as telas mostram o mínimo em vigor.
+- **Cores dos cards:** passo "Cores" no editor, com 9 paletas, cor por categoria e "Surpreenda-me". Sem escolha, os gráficos ficam como antes; o resultado do motor é o mesmo (testado).
+- **Estudos dentro do dashboard:** o painel do GitHub saiu. Entraram os cards Calendário (um quadradinho por dia), Pizza e Número com meta (do mês ou da semana, com quanto falta), e o dashboard "Estudos" do template ganhou "Calendário de estudo", "Meta de horas do mês" e "Matérias estudadas".
+- **Dados de exemplo:** marcados na instalação (e reconhecidos nos bancos que já existiam). Excluir um dashboard oferece apagá-los junto; o módulo tem "Apagar dados de exemplo".
+- **Relatório:** `relatorio.md` com os testes pedidos (perfil admin, criação de usuários e equipes, regras por perfil, CNPJ, logs, funções novas, gráficos), feitos numa cópia do banco real. Os problemas encontrados foram só anotados.
+- Testes: 188 no backend; ponta a ponta com 61 checagens em duas rodadas com banco zerado; auditoria de responsividade: 109 telas, 0 erros, 0 avisos.
+
+**Por quê:** pedidos do dia: cubo transparente em movimento, senhas fáceis permitidas (forte como opção), cores fáceis de escolher nos cards, acompanhamento de estudos (horas, meta, matérias) no próprio dashboard em vez do GitHub, poder apagar os dados de exemplo junto com o dashboard e um relatório de testes do sistema.
+
+---
+
 ## 2026-10-19 · `desenvolvimento-empresa` · Equipes, GitHub, barra lateral em cascata e sem emojis
 
 **O que:**
