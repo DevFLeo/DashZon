@@ -56,7 +56,7 @@
         </div>
         <div class="field">
           <label for="setup-senha" class="obrigatorio">Senha (mínimo 8 caracteres)</label>
-          <input id="setup-senha" type="password" autocomplete="new-password" minlength="8" required>
+          <input id="setup-senha" type="password" autocomplete="new-password" minlength="8" required data-senha-nova>
         </div>
       </div>
     </div>
@@ -114,12 +114,12 @@
     <p id="link-texto"></p>
     <div id="link-campos" hidden>
       <div class="field">
-        <label for="link-senha">Nova senha (mínimo 8)</label>
-        <input id="link-senha" type="password" autocomplete="new-password" minlength="8">
+        <label for="link-senha">Nova senha (<span data-regra-senha>mínimo 8</span>)</label>
+        <input id="link-senha" type="password" autocomplete="new-password" minlength="8" data-senha-nova>
       </div>
       <div class="field">
         <label for="link-confirmar">Repita a nova senha</label>
-        <input id="link-confirmar" type="password" autocomplete="new-password" minlength="8">
+        <input id="link-confirmar" type="password" autocomplete="new-password" minlength="8" data-senha-nova>
       </div>
     </div>
     <div class="form-erro" id="link-erro" hidden></div>
@@ -327,12 +327,12 @@
             </div>
             <div class="field-row">
               <div class="field">
-                <label for="senha-nova">Nova senha (mínimo 8)</label>
-                <input id="senha-nova" type="password" autocomplete="new-password" minlength="8" required>
+                <label for="senha-nova">Nova senha (<span data-regra-senha>mínimo 8</span>)</label>
+                <input id="senha-nova" type="password" autocomplete="new-password" minlength="8" required data-senha-nova>
               </div>
               <div class="field">
                 <label for="senha-confirmar">Repita a nova senha</label>
-                <input id="senha-confirmar" type="password" autocomplete="new-password" minlength="8" required>
+                <input id="senha-confirmar" type="password" autocomplete="new-password" minlength="8" required data-senha-nova>
               </div>
             </div>
             <div class="form-erro" id="senha-erro" hidden></div>
@@ -460,6 +460,23 @@
           <p class="hint" id="aj-smtp"></p>
           <div class="form-erro" id="aj-erro" hidden></div>
           <div class="modal-actions"><button type="submit" class="btn btn-primary btn-sm">Salvar regras</button></div>
+        </form>
+
+        <!-- Regras de senha: só o tamanho mínimo é fixo; o resto é opção. -->
+        <form class="admin-bloco" id="form-regras-senha">
+          <h2>Regras de senha</h2>
+          <p class="hint">Só o tamanho mínimo vale sempre. As outras regras são opcionais: ligue se quiser senhas mais difíceis de adivinhar.</p>
+          <div class="field">
+            <label for="rs-minima">Tamanho mínimo (6 a 64 caracteres)</label>
+            <input id="rs-minima" type="number" min="6" max="64" step="1" inputmode="numeric" required>
+          </div>
+          <label class="field-check"><input type="checkbox" id="rs-forte"> Senha forte: recusar as mais comuns (12345678, senha123...), sequências, um caractere repetido e igual ao login</label>
+          <label class="field-check"><input type="checkbox" id="rs-maiuscula"> Exigir letras maiúsculas e minúsculas</label>
+          <label class="field-check"><input type="checkbox" id="rs-numero"> Exigir letras e números</label>
+          <label class="field-check"><input type="checkbox" id="rs-simbolo"> Exigir ao menos um símbolo (! @ # $ ...)</label>
+          <p class="hint" id="rs-resumo"></p>
+          <div class="form-erro" id="rs-erro" hidden></div>
+          <div class="modal-actions"><button type="submit" class="btn btn-primary btn-sm">Salvar regras de senha</button></div>
         </form>
 
         <form class="admin-bloco" id="form-org">
@@ -768,12 +785,12 @@
     </div>
     <div class="field-row">
       <div class="field">
-        <label for="troca-nova">Nova senha (mínimo 8)</label>
-        <input id="troca-nova" type="password" autocomplete="new-password" minlength="8" required>
+        <label for="troca-nova">Nova senha (<span data-regra-senha>mínimo 8</span>)</label>
+        <input id="troca-nova" type="password" autocomplete="new-password" minlength="8" required data-senha-nova>
       </div>
       <div class="field">
         <label for="troca-confirmar">Repita a nova senha</label>
-        <input id="troca-confirmar" type="password" autocomplete="new-password" minlength="8" required>
+        <input id="troca-confirmar" type="password" autocomplete="new-password" minlength="8" required data-senha-nova>
       </div>
     </div>
     <div class="form-erro" id="troca-erro" hidden></div>
@@ -830,7 +847,7 @@
     </fieldset>
     <div class="field" id="u-senha-wrap">
       <label for="u-senha">Senha inicial</label>
-      <input id="u-senha" type="password" autocomplete="new-password" minlength="8" placeholder="Em branco: gera uma senha temporária">
+      <input id="u-senha" type="password" autocomplete="new-password" minlength="8" data-senha-nova placeholder="Em branco: gera uma senha temporária">
       <div class="ajuda">Com senha temporária, a pessoa cria a própria senha no primeiro acesso.</div>
     </div>
     <div class="form-erro" id="usuario-erro" hidden></div>

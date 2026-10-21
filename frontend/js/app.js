@@ -219,6 +219,7 @@ const App = (() => {
 
   async function iniciarApp() {
     let status = await Api.get("/api/status");
+    Util.aplicarRegrasSenha(status.regras_senha); // antes da troca obrigatória de senha
     // Entrou com senha temporária: cria a própria antes de qualquer outra coisa.
     if (status.usuario.deve_trocar_senha) {
       await Conta.trocaObrigatoria(status.usuario);

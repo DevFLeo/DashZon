@@ -32,8 +32,10 @@ const Admin = (() => {
     $("org-nome-input").value = ajustes.org_name || "";
     $("org-moeda").value = ajustes.moeda || "BRL";
     $("u-cargos").innerHTML = ajustes.cargos_sugeridos.map((c) => `<option value="${esc(c)}">`).join("");
+    preencherRegrasSenha();
     erro("aj-erro", "");
     erro("org-erro", "");
+    erro("rs-erro", "");
     renderEquipes();
     renderUsuarios();
     await carregarSeguranca();
@@ -401,6 +403,36 @@ const Admin = (() => {
     } catch (e) { erro("aj-erro", e.message); }
   }
 
+  // ------------------------------------------------------ regras de senha ----
+  const OPCOES_SENHA = { "rs-forte": "senha_forte", "rs-maiuscula": "senha_maiuscula", "rs-numero": "senha_numero", "rs-simbolo": "senha_simbolo" };
+  const regrasDosAjustes = (a) => ({ minima: Number(a.senha_minima), forte: a.senha_forte === "1", maiuscula: a.senha_maiuscula === "1",
+    numero: a.senha_numero === "1", simbolo: a.senha_simbolo === "1" });
+
+  function preencherRegrasSenha() {
+    $("rs-minima").value = ajustes.senha_minima;
+    Object.entries(OPCOES_SENHA).forEach(([id, chave]) => { $(id).checked = ajustes[chave] === "1"; });
+    resumirRegrasSenha();
+  }
+
+  function resumirRegrasSenha() {
+    const r = { minima: Number($("rs-minima").value) || 8 };
+    Object.entries(OPCOES_SENHA).forEach(([id, chave]) => { r[chave.replace("senha_", "")] = $(id).checked; });
+    $("rs-resumo").textContent = `Novas senhas: ${Util.descreverRegrasSenha(r)}. Vale para quem criar ou trocar a senha daqui em diante.`;
+  }
+
+  async function salvarRegrasSenha(ev) {
+    ev.preventDefault();
+    erro("rs-erro", "");
+    const corpo = { senha_minima: Number($("rs-minima").value) };
+    Object.entries(OPCOES_SENHA).forEach(([id, chave]) => { corpo[chave] = $(id).checked; });
+    try {
+      const r = await Api.put("/api/admin/ajustes", corpo);
+      Object.assign(ajustes, r);
+      Util.aplicarRegrasSenha(regrasDosAjustes(r));
+      Util.aviso("Regras de senha salvas");
+    } catch (e) { erro("rs-erro", e.message); }
+  }
+
   async function salvarOrg(ev) {
     ev.preventDefault();
     erro("org-erro", "");
@@ -426,6 +458,8 @@ const Admin = (() => {
     $("eq-exigir-cnpj").addEventListener("change", atualizarCamposEmpresa);
     $("form-usuario").addEventListener("submit", salvar);
     $("form-ajustes").addEventListener("submit", salvarAjustes);
+    $("form-regras-senha").addEventListener("submit", salvarRegrasSenha);
+    $("form-regras-senha").addEventListener("input", resumirRegrasSenha);
     $("form-org").addEventListener("submit", salvarOrg);
     $("segredo-copiar").addEventListener("click", async () => {
       try {

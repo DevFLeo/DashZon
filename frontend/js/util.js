@@ -237,6 +237,19 @@ const Util = (() => {
     recolher: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M16 10l-2 2 2 2"/>',
     expandir: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M14 10l2 2-2 2"/>'
   };
+  // Regras de senha em vigor (/api/status): texto "mínimo 8, com número..."
+  // nos rótulos [data-regra-senha] e o minlength dos campos [data-senha-nova].
+  function descreverRegrasSenha(r) {
+    if (!r) return "mínimo 8";
+    const extras = [r.maiuscula && "maiúscula e minúscula", r.numero && "letras e números", r.simbolo && "um símbolo"].filter(Boolean);
+    return `mínimo ${r.minima}${extras.length ? `, com ${extras.join(", ")}` : ""}${r.forte ? ", sem senhas comuns" : ""}`;
+  }
+  function aplicarRegrasSenha(r) {
+    if (!r) return;
+    document.querySelectorAll("[data-regra-senha]").forEach((el) => { el.textContent = descreverRegrasSenha(r); });
+    document.querySelectorAll("[data-senha-nova]").forEach((el) => { el.minLength = r.minima; });
+  }
+
   const icone = (nome, rotulo = "") =>
     `<svg class="ico ico-${nome}" viewBox="0 0 24 24" ${rotulo ? `role="img" aria-label="${escapeHtml(rotulo)}"` : 'aria-hidden="true"'}>${ICONES[nome] || ""}</svg>`;
 
@@ -244,6 +257,6 @@ const Util = (() => {
     NUMERICOS, DIMENSOES, SERIES,
     setMoeda, fmtNumero, fmtMoeda, fmtCompacto, fmtData, fmtMes, fmtValor, rotuloChave, opcoesDe,
     hojeISO, resolverToken, cssVar, corSerie, escapeHtml, desescapar, baixar, nomeArquivo, zip, semAcento, debounce,
-    abrirModal, fecharModal, aviso, lerArquivo, storage, resumoInstalacao, icone
+    abrirModal, fecharModal, aviso, lerArquivo, storage, resumoInstalacao, icone, descreverRegrasSenha, aplicarRegrasSenha
   };
 })();
