@@ -20,6 +20,6 @@ Como registrar: uma entrada por entrega, com data, branch, commits, o que mudou 
 - **Tela:** Classificar por; Quadro estilo Trello por departamento; Agenda e calendário com -15/+15, -30, +30, -30/+30; expansão da dashboard (clicar e ver os registros); excluir e compartilhar caderno de anotações; temas floresta dia, tarde e noite.
 - **Correções:** motor não executava com a pasta do projeto com espaços (todo card dava 500); `Start-Process` do Caddy com caminho com espaços; CSV com vírgula decimal no importador; "Sair" não encerrava a sessão se um cookie antigo voltasse de uma requisição em voo.
 - **Testes:** 207 no Ruby (novo `prefeitura_test.rb`), 13 do importador, 73 checagens de ponta a ponta (`scripts/e2e-prefeitura.mjs`, duas rodadas com banco zerado), 151 auditorias de responsividade (0 erros).
-- **Banco:** o banco anterior foi guardado como `.bak` e o sistema começa zerado, só com o ADMTOTAL.
+- **Banco:** o banco anterior foi apagado, a pedido; o sistema começa zerado, só com o ADMTOTAL.
 
 **Por quê:** pedido de adaptar o sistema para a prefeitura (SEMEC / SUPLAN / DGEO), com cascata de privilégios por unidade, produtividade imparcial por unidade e as melhorias de visualização. Decisões e riscos no `relatorio-PDZ1.md`.

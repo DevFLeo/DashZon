@@ -14,7 +14,7 @@ O que foi definido, como foi definido, como alterar, como foi testado, onde deu 
 | 0 | Nome Prefeitura DashZ | Telas, título, setup, documentos. Nomes internos (`DASHZON_*`, `dashzon.db`, `dashzon_engine`) mantidos para não quebrar Docker, scripts e dados |
 | 0 | Mapeamento de dados e Gestão de demandas para a prefeitura | `mapeamento-setor.json` (unidades, SEI!, LAI, LGPD, dados abertos) e `gestao-demandas.json` |
 | 0 | SEI! (ciência, número, como está) | Módulo **Processos SEI** (nº, assunto, tipo, unidade, situação, ciência e data, onde está, prazo, último andamento, link) e campo "Nº Processo SEI" nas demandas |
-| 0 | Banco zerado e ADMTOTAL | Banco anterior guardado como `.bak` (seção 6); sistema novo só com o ADMTOTAL |
+| 0 | Banco zerado e ADMTOTAL | Banco anterior apagado (seção 6); sistema novo só com o ADMTOTAL |
 | 1 | Secretaria / subsecretaria / departamento / divisão e cascata de privilégios | Estrutura em árvore + papel membro/gestor; regras em `backend/lib/acesso.rb` |
 | 2 | Excluir a aba de Anotações com a mesma regra | Botão **Excluir caderno** (e Compartilhar) no caderno; vale a cascata |
 | 3 | Tema floresta dia, tarde e noite | Configurações > Aparência e o botão do tema |
@@ -104,7 +104,7 @@ Prints das duas rodadas em `log/e2e/` e da auditoria em `log/responsivo/` (fora 
 
 ## 6. Banco de dados e ADMTOTAL
 
-- O banco anterior (`data/dashzon.db`, do DashZon) **não foi apagado**: foi renomeado para `data/dashzon.db.antes-prefeitura-*.bak`, porque o `CLAUDE.md` proíbe apagar banco e as outras branches ainda usam esses dados. Se não precisar mais dele, apague o `.bak` você mesmo.
+- O banco anterior (`data/dashzon.db`, do DashZon) foi **apagado**, a pedido ("apague o banco de dados atual, será outro sistema"). As cópias `.bak` antigas que já existiam em `data/` (de setembro e outubro, feitas antes desta versão) não foram tocadas.
 - O sistema novo começou zerado: setup com o login **ADMTOTAL** (administrador, acesso a tudo), os três modelos instalados **sem** dados de exemplo e nenhuma unidade (crie em Painel do adm > Criar > Estrutura modelo, ou à mão).
 - A `segredo.key` foi mantida (ela é por pasta, não por banco).
 
