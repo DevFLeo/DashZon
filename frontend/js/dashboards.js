@@ -50,6 +50,16 @@ const Dashboards = (() => {
       previaAtrasada();
     });
     $("btn-lancar").addEventListener("click", escolherLancar);
+    $("w-paletas").addEventListener("click", (e) => { const b = e.target.closest(".paleta"); if (b) escolherPaleta(b.dataset.paleta); });
+    $("w-surpresa").addEventListener("click", surpreender);
+    $("w-cores-lista").addEventListener("input", (e) => {
+      const el = e.target;
+      if (el.dataset.unica !== undefined) aparencia.cor = el.value;
+      else if (el.dataset.chave !== undefined) aparencia.cores = { ...aparencia.cores, [el.dataset.chave]: el.value };
+      else return;
+      $("w-paletas").querySelectorAll(".paleta").forEach((b) => b.setAttribute("aria-checked", "false"));
+      previaAtrasada();
+    });
     initNovo();
 
     // Troca de tema claro/escuro: redesenha os gráficos com as novas cores.
@@ -261,8 +271,10 @@ const Dashboards = (() => {
     const valor = cfg.agregacao === "contagem" ? d.total_count : cfg.agregacao === "media" ? d.total_avg : d.total_sum;
     const moeda = campoDe(modulo, cfg.campo)?.tipo === "moeda";
     const sinal = cfg.agregacao === "saldo" ? (valor >= 0 ? "positivo" : "negativo") : "";
+    // Cor escolhida no editor (o saldo mantém verde/vermelho). Validada no servidor (#rrggbb).
+    const cor = cfg.cor && !sinal ? ` style="color:${cfg.cor}"` : "";
     corpo.innerHTML = `
-      <div class="widget-kpi value ${sinal} ${moeda ? "sensivel" : ""}">${formatador(cfg, modulo)(valor)}</div>
+      <div class="widget-kpi value ${sinal} ${moeda ? "sensivel" : ""}"${cor}>${formatador(cfg, modulo)(valor)}</div>
       <div class="widget-sub">${esc(descricao(cfg, modulo))}</div>`;
   }
 
@@ -314,14 +326,19 @@ const Dashboards = (() => {
     if (serieCampo) {
       const ordem = Util.opcoesDe(serieCampo).map((o) => o.v);
       const chaves = [...d.series_keys].sort((a, b) => (ordem.indexOf(a) + 1 || 999) - (ordem.indexOf(b) + 1 || 999));
-      datasets = chaves.map((k) => ({
+      // Cores: escolhidas no editor > paleta > identidade da opção (Util.corDe).
+      datasets = chaves.map((k, i) => ({
         label: Util.rotuloChave(serieCampo, k),
         data: linhas.map((r) => valorDe(cfg, r.series?.[k])),
-        ...estilo(Util.corSerie(serieCampo, k)),
+        ...estilo(Util.corDe(cfg, serieCampo, k, i)),
         ...(empilhar ? { borderRadius: 0, borderColor: superficie, borderWidth: { top: 2 } } : {})
       }));
     } else {
-      datasets = [{ label: w.titulo, data: linhas.map((r) => valorDe(cfg, r)), ...estilo(Util.cssVar("--series-1")) }];
+      // Barras por categoria ganham uma cor cada só quando o card tem paleta ou
+      // cores escolhidas; sem isso, uma cor só, como sempre.
+      const porCategoria = !linha && grupo && grupo.tipo !== "data" && (cfg.paleta || Object.keys(cfg.cores || {}).length);
+      const cor = porCategoria ? linhas.map((r, i) => Util.corDe(cfg, grupo, r.key, i)) : Util.corUnica(cfg);
+      datasets = [{ label: w.titulo, data: linhas.map((r) => valorDe(cfg, r)), ...estilo(cor) }];
     }
 
     const moeda = campoDe(modulo, cfg.campo)?.tipo === "moeda";
@@ -437,6 +454,75 @@ const Dashboards = (() => {
     atualizarVisibilidade();
   }
 
+  // ------------------------------------------------------------ cores ----
+  // Aparência do card (a pedido): paleta, cor por categoria e cor única. Vai
+  // no config (paleta/cores/cor), não muda a consulta, e o desenho lê com
+  // Util.corDe/corUnica.
+  let aparencia = { paleta: null, cores: {}, cor: null };
+  let ultimaPrevia = null;
+  let assinaturaCores = "";
+
+  // O que ganha cor: as séries, as categorias (barras, pizza) ou uma cor só.
+  function alvoCores() {
+    const modulo = App.modulo($("w-modulo").value);
+    const tipo = $("w-tipo").value;
+    const serie = tipo === "bar" || tipo === "line" ? campoDe(modulo, $("w-serie").value) : null;
+    const grupo = ["bar", "pie"].includes(tipo) ? campoDe(modulo, $("w-agrupar").value) : null;
+    const campo = serie || (grupo && grupo.tipo !== "data" ? grupo : null);
+    if (!campo) return { campo: null, chaves: [] };
+    let chaves = campo.tipo === "movimento" ? ["entrada", "saida"] : campo.tipo === "booleano" ? ["true", "false"] : (campo.opcoes || []);
+    if (!chaves.length && ultimaPrevia) chaves = serie ? ultimaPrevia.series_keys || [] : (ultimaPrevia.result || []).map((x) => x.key);
+    return { campo, chaves: chaves.slice(0, 24) };
+  }
+
+  function renderPaletas() {
+    const tema = [1, 2, 3, 4, 5].map((i) => Util.cssVar(`--series-${i}`));
+    $("w-paletas").innerHTML = Object.entries(Util.PALETAS).map(([id, p]) => {
+      const amostra = (Util.coresDaPaleta(id) || tema).slice(0, 5).map((c) => `<i style="background:${c}"></i>`).join("");
+      return `<button type="button" class="paleta" role="radio" data-paleta="${id}" aria-checked="false"><span class="paleta-amostra" aria-hidden="true">${amostra}</span>${esc(p.nome)}</button>`;
+    }).join("");
+  }
+
+  function renderCores(forcar = false) {
+    const tipo = $("w-tipo").value;
+    $("w-cores-passo").hidden = tipo === "table";
+    const atualPaleta = aparencia.paleta || (Object.keys(aparencia.cores).length || aparencia.cor ? "" : "padrao");
+    $("w-paletas").querySelectorAll(".paleta").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.paleta === atualPaleta)));
+
+    const { campo, chaves } = alvoCores();
+    const assinatura = JSON.stringify([tipo, campo?.id, chaves]);
+    if (!forcar && assinatura === assinaturaCores) return;
+    assinaturaCores = assinatura;
+    const cfg = { ...aparencia };
+    const lista = $("w-cores-lista");
+    if (!campo) {
+      lista.innerHTML = `<label class="cor-cat"><input type="color" data-unica value="${Util.paraHex(Util.corUnica(cfg))}"><span>Cor do card</span></label>`;
+      return;
+    }
+    lista.innerHTML = chaves.map((k, i) => `<label class="cor-cat"><input type="color" data-chave="${esc(k)}" value="${Util.paraHex(Util.corDe(cfg, campo, k, i))}">
+      <span>${esc(Util.rotuloChave(campo, k))}</span></label>`).join("") || '<p class="hint">As categorias aparecem quando houver dados.</p>';
+  }
+
+  function escolherPaleta(id) {
+    aparencia = { paleta: id === "padrao" ? null : id, cores: {}, cor: null };
+    $("w-cores-dica").textContent = "";
+    renderCores(true);
+    previaAtrasada();
+  }
+
+  function surpreender() {
+    const { chaves } = alvoCores();
+    const s = Util.paletaSurpresa(Math.max(chaves.length, 1));
+    aparencia = { paleta: null, cores: Object.fromEntries(chaves.map((k, i) => [k, s.cores[i]])), cor: s.cores[0] };
+    $("w-cores-dica").textContent = `Combinação "${s.nome}". Gostou? É só salvar. Quer outra? Clique de novo.`;
+    renderCores(true);
+    const lista = $("w-cores-lista");
+    lista.classList.remove("surpresa");
+    void lista.offsetWidth; // reinicia a animação
+    lista.classList.add("surpresa");
+    previaAtrasada();
+  }
+
   function montarCorpo() {
     const tipo = $("w-tipo").value;
     const agregacao = $("w-agregacao").value;
@@ -452,7 +538,10 @@ const Dashboards = (() => {
         campo: agregacao === "contagem" ? null : $("w-campo").value,
         agrupar_por: tipo === "kpi" ? null : $("w-agrupar").value || null,
         serie_por: tipo === "bar" || tipo === "line" ? $("w-serie").value || null : null,
-        filtro
+        filtro,
+        paleta: aparencia.paleta,
+        cores: aparencia.cores,
+        cor: aparencia.cor
       }
     };
   }
@@ -548,6 +637,8 @@ const Dashboards = (() => {
     try {
       const d = await Api.post("/api/widgets/preview", c);
       if (seq !== previaSeq) return; // chegou uma resposta mais nova
+      ultimaPrevia = d;
+      renderCores(); // categorias de texto livre só se conhecem pelos dados
       corpo.className = "widget-body";
       corpo.dataset.tipo = c.tipo;
       charts.previa?.destroy();
@@ -566,6 +657,7 @@ const Dashboards = (() => {
   function aoMudar(limparAtalho = true, titulo = null) {
     if (limparAtalho) $("w-sugestoes").querySelectorAll(".sugestao.selected").forEach((x) => x.classList.remove("selected"));
     if (!tituloManual) $("w-titulo").value = titulo || tituloSugerido();
+    renderCores();
     previaAtrasada();
   }
 
@@ -586,6 +678,11 @@ const Dashboards = (() => {
     $("widget-modal-titulo").textContent = w ? "Editar card" : "Criar card";
     $("w-salvar").textContent = w ? "Salvar card" : "Adicionar ao dashboard";
     $("w-titulo").value = w ? w.titulo : "";
+    aparencia = { paleta: w?.config.paleta || null, cores: { ...(w?.config.cores || {}) }, cor: w?.config.cor || null };
+    ultimaPrevia = null;
+    assinaturaCores = "";
+    $("w-cores-dica").textContent = "";
+    renderPaletas();
 
     // Sugere o módulo que o dashboard já usa mais.
     const usados = (atual?.widgets || []).map((x) => x.modulo_slug);

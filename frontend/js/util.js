@@ -98,6 +98,79 @@ const Util = (() => {
     return i >= 0 && i < 8 ? cssVar(`--series-${i + 1}`) : cssVar("--text-muted");
   }
 
+  // ---- Cores escolhidas no card (editor > Cores) ----
+  // Paletas nomeadas (8 cores cada). "padrao" = cores do tema; "mono" =
+  // tons da cor de destaque. Sem paleta nem cores, tudo fica como sempre foi
+  // (corSerie / --series-1).
+  const PALETAS = {
+    padrao: { nome: "Do tema" },
+    oceano: { nome: "Oceano", cores: ["#0b6e99", "#14b8c4", "#2dd4a7", "#0e4d64", "#5eb1ef", "#1f9e89", "#93d5f1", "#3a5a98"] },
+    por_do_sol: { nome: "Pôr do sol", cores: ["#ff6b4a", "#ffb347", "#e8487b", "#ffd166", "#c2408f", "#ff8c61", "#8f3b76", "#f9a03f"] },
+    floresta: { nome: "Floresta", cores: ["#2d6a4f", "#74a942", "#b5c99a", "#1b4332", "#95d5b2", "#6f4e37", "#40916c", "#d4a373"] },
+    neon: { nome: "Neon", cores: ["#00e5c7", "#ff3d9a", "#ffe14d", "#2fb8ff", "#a259ff", "#ff6a3d", "#39ff88", "#ff4d4d"] },
+    pastel: { nome: "Pastel", cores: ["#8fb8ff", "#ffa8a8", "#a7e3a1", "#ffd59e", "#c3b4ff", "#93e4ee", "#f6e58d", "#f5b7e8"] },
+    terra: { nome: "Terra", cores: ["#9c4f2e", "#d08c45", "#7d8a4e", "#c8553d", "#5e3a2b", "#e3b26b", "#4f6d4a", "#a67c52"] },
+    galaxia: { nome: "Galáxia", cores: ["#6c3ce0", "#3f8efc", "#25c3e8", "#b04bdf", "#4b5bd6", "#53e0c3", "#ef6ad1", "#8a7bff"] },
+    mono: { nome: "Tons de destaque" }
+  };
+  const NOMES_SURPRESA = ["Aurora boreal", "Feira de frutas", "Fundo do mar", "Fim de tarde", "Jardim secreto", "Cidade à noite",
+    "Café com leite", "Carnaval", "Neblina de inverno", "Pedras preciosas", "Primavera", "Vitral"];
+
+  // Qualquer cor do CSS (#abc, rgb(), nome) -> "#rrggbb", para o <input type=color>.
+  function paraHex(cor) {
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.fillStyle = "#000000";
+    ctx.fillStyle = cor || "#000000";
+    const v = ctx.fillStyle;
+    if (v.startsWith("#")) return v;
+    const m = v.match(/\d+/g) || [0, 0, 0];
+    return `#${m.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`;
+  }
+
+  const hsl = (h, s, l) => {
+    const a = (s / 100) * Math.min(l / 100, 1 - l / 100);
+    const f = (n) => { const k = (n + h / 30) % 12; return l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+    return `#${[f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("")}`;
+  };
+
+  function coresDaPaleta(nome) {
+    if (nome === "mono") {
+      // Tons da cor de destaque: p > 0 clareia (mistura com branco), p < 0 escurece.
+      const base = paraHex(cssVar("--accent")).slice(1).match(/../g).map((x) => parseInt(x, 16));
+      return [0, 18, 36, 54, -14, 9, 27, 45].map((p) => `#${base.map((c) => {
+        const alvo = p >= 0 ? 255 : 0;
+        return Math.round(c + (alvo - c) * Math.abs(p) / 100).toString(16).padStart(2, "0");
+      }).join("")}`);
+    }
+    return PALETAS[nome]?.cores || null;
+  }
+
+  // "Surpreenda-me": cores harmônicas a partir de um matiz sorteado (ângulo
+  // de ouro: vizinhas sempre bem diferentes) e um nome para a combinação.
+  function paletaSurpresa(n = 8) {
+    const h0 = Math.random() * 360;
+    const s = 62 + Math.random() * 18;
+    const cores = Array.from({ length: Math.max(n, 1) }, (_, i) => hsl((h0 + i * 137.508) % 360, s, 48 + (i % 3) * 7));
+    return { nome: NOMES_SURPRESA[Math.floor(Math.random() * NOMES_SURPRESA.length)], cores };
+  }
+
+  // Cor de uma categoria/série: escolhida à mão > paleta > a de sempre.
+  function corDe(cfg, campo, chave, i = 0) {
+    const escolhida = cfg?.cores?.[chave];
+    if (escolhida) return escolhida;
+    const paleta = cfg?.paleta && coresDaPaleta(cfg.paleta);
+    if (paleta) {
+      const pos = campo ? (campo.tipo === "movimento" ? ["entrada", "saida"] : campo.tipo === "booleano" ? ["true", "false"] : campo.opcoes || []).indexOf(chave) : -1;
+      return paleta[(pos >= 0 ? pos : i) % paleta.length];
+    }
+    return corSerie(campo, chave);
+  }
+
+  // Cor única (número, linha ou barras sem categoria).
+  function corUnica(cfg) {
+    return cfg?.cor || (cfg?.paleta && coresDaPaleta(cfg.paleta)?.[0]) || cssVar("--series-1");
+  }
+
   function escapeHtml(str) {
     return String(str ?? "").replace(/[&<>"']/g, (c) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -257,6 +330,6 @@ const Util = (() => {
     NUMERICOS, DIMENSOES, SERIES,
     setMoeda, fmtNumero, fmtMoeda, fmtCompacto, fmtData, fmtMes, fmtValor, rotuloChave, opcoesDe,
     hojeISO, resolverToken, cssVar, corSerie, escapeHtml, desescapar, baixar, nomeArquivo, zip, semAcento, debounce,
-    abrirModal, fecharModal, aviso, lerArquivo, storage, resumoInstalacao, icone, descreverRegrasSenha, aplicarRegrasSenha
+    abrirModal, fecharModal, aviso, lerArquivo, storage, resumoInstalacao, icone, PALETAS, coresDaPaleta, paletaSurpresa, corDe, corUnica, paraHex, descreverRegrasSenha, aplicarRegrasSenha
   };
 })();
