@@ -765,16 +765,46 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 .tipo-card .tipo-ico .ico { width: 20px; height: 20px; }
 #btn-fixar, .dash-selo { display: inline-flex; align-items: center; gap: 6px; }
 
-/* ---------- Marca: cubo 3D (cores do tema) ---------- */
+/* ---------- Marca: cubo 3D transparente girando (cores do tema) ----------
+   Seis faces translúcidas com transform-style: preserve-3d; o núcleo brilha
+   no centro e aparece através das faces. Passar o mouse acelera o giro. */
 .logo-3d {
+  --cubo: 18px;
   width: 30px; height: 30px; flex-shrink: 0; margin-top: 1px;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .18)); transition: transform .35s ease;
+  display: grid; place-items: center; perspective: 140px;
 }
-.logo-3d polygon { stroke: color-mix(in srgb, var(--accent) 50%, #000); stroke-width: .6; stroke-linejoin: round; }
-.logo-3d .cubo-topo { fill: color-mix(in srgb, var(--accent) 40%, #fff); }
-.logo-3d .cubo-esq { fill: var(--accent); }
-.logo-3d .cubo-dir { fill: color-mix(in srgb, var(--accent) 62%, #000); }
-.brand:hover .logo-3d { transform: rotate(-8deg) scale(1.06); }
+.logo-3d .cubo {
+  position: relative; width: var(--cubo); height: var(--cubo); transform-style: preserve-3d;
+  animation: cubo-girar 10s linear infinite;
+}
+.logo-3d .face {
+  position: absolute; inset: 0; border-radius: 3px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 6px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.logo-3d .f-frente { transform: translateZ(calc(var(--cubo) / 2)); }
+.logo-3d .f-tras { transform: rotateY(180deg) translateZ(calc(var(--cubo) / 2)); }
+.logo-3d .f-dir { transform: rotateY(90deg) translateZ(calc(var(--cubo) / 2)); }
+.logo-3d .f-esq { transform: rotateY(-90deg) translateZ(calc(var(--cubo) / 2)); }
+.logo-3d .f-topo { transform: rotateX(90deg) translateZ(calc(var(--cubo) / 2)); background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.logo-3d .f-base { transform: rotateX(-90deg) translateZ(calc(var(--cubo) / 2)); }
+.logo-3d .nucleo {
+  position: absolute; inset: 30%; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0, var(--accent) 45%, transparent 75%);
+  animation: cubo-pulsar 2.6s ease-in-out infinite;
+}
+@keyframes cubo-girar {
+  0% { transform: rotateX(-24deg) rotateY(0deg); }
+  50% { transform: rotateX(24deg) rotateY(180deg); }
+  100% { transform: rotateX(-24deg) rotateY(360deg); }
+}
+@keyframes cubo-pulsar { 50% { opacity: .55; transform: scale(.8); } }
+.brand:hover .logo-3d .cubo { animation-duration: 2.5s; }
+@media (prefers-reduced-motion: reduce) {
+  .logo-3d .cubo { animation: none; transform: rotateX(-24deg) rotateY(38deg); }
+  .logo-3d .nucleo { animation: none; }
+}
 
 /* ---------- Barra lateral: cascata, arrastar e soltar ---------- */
 .nav-cascata {
@@ -1007,7 +1037,7 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 }
 @media (max-width: 800px) {
   .sidebar-recolher { display: none; }
-  .logo-3d { width: 26px; height: 26px; margin-top: 0; }
+  .logo-3d { --cubo: 16px; width: 26px; height: 26px; margin-top: 0; }
 }
 /* Toque: a alça de arrastar fica sempre à vista e com área para o dedo. */
 @media (hover: none), (pointer: coarse) {
