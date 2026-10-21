@@ -403,11 +403,16 @@ Experimento, fora do frontend oficial (que continua sem build e sem CDN, §12.6)
 
 | Pacote | O que é |
 |---|---|
-| `ui` (`@dashzon/ui`) | Componentes e lógica compartilhados: `Telas.jsx` (login, moldura com barra lateral, dashboard, módulo, tema), `Card.jsx` (número, meta, barras, linha, pizza, tabela, calendário com `react-chartjs-2`), `logica.js` (cópia de `valorDe`, `formatador`, `ordenar`, cores) e `estilo.css` (tokens do DashZon) |
+| `ui` (`@dashzon/ui`) | Componentes e lógica compartilhados: `Telas.jsx` (login, moldura com barra lateral, dashboard, tema), `Registros.jsx` (tela do módulo e formulário de registro), `Base.jsx` (ícones SVG, avisos, janela `<dialog>`, confirmação), `Card.jsx` (número, meta, barras, linha, pizza, tabela, calendário com `react-chartjs-2`), `logica.js` (cópia de `valorDe`, `formatador`, `ordenar`, cores, `opcoesDe`, `resolverToken`) e `estilo.css` (tokens do DashZon) |
 | `react` | Vite + React 19: rotas por `#hash`; proxy `/api` no `vite.config.js` |
-| `next` | Next.js 15 (App Router): rotas `/entrar`, `/d/[id]`, `/m/[slug]`; proxy em `app/api/[...caminho]/route.js` |
+| `next` | Next.js 15 (App Router): `/entrar` e o grupo `(app)` (`/`, `/d/[id]`, `/m/[slug]`), cujo `layout.jsx` é a moldura e fica montado entre as rotas (sessão em `contexto.js`); proxy em `app/api/[...caminho]/route.js` |
 
-- **Só leitura:** não arrastam nem editam cards, e não têm painel do adm, configurações, notas nem aprovações.
+- **O que fazem:**
+  - **Registros:** resumo, busca (300 ms depois da última tecla, resposta atrasada descartada), até 4 filtros, checklist (`PATCH` só do campo, desfeito se falhar), "Carregar mais", criar/editar/excluir. O formulário sai do schema como no oficial (padrões `$hoje`, opção removida mantida, erro 422 no formulário), "Editar" lê o registro do banco, e o 202 do visualizador vira aviso.
+  - **Moldura:** seções que abrem e fecham, barra recolhida (68px, siglas), ordem e módulos ocultos da conta (`ordem_menu`, `modulos_ocultos`), tema que segue o sistema, cada uma no `localStorage`.
+  - **Celular:** até 800px barra no topo e menu em gaveta (fecha com Esc, no véu ou ao navegar); até 640px dashboard em 2 colunas na ordem `y*12 + x` (meia largura para `w <= 3`, só CSS como o `responsivo.js`) e registros em cartões; janelas em tela cheia.
+- **O que não fazem:** arrastar e editar cards, editar a estrutura de módulos, painel do adm, configurações, notas (o módulo de notas aparece como tabela) e aprovações.
+- **Teste:** o roteiro de ponta a ponta usa as checagens do `scripts/auditar-responsivo.js` (seletores trocados para `dialog[open]` e `.grade > .card`) em 1280, 768 e 390px.
 - **API:** os dois proxies trocam o `Origin` pelo do backend (o `Seguranca::Protecao` recusa escrita de outra origem) e repassam o cookie de sessão. O padrão é a instância de teste (`DASHZON_API`, 4571), nunca o banco real.
 - **Lógica:** a de `ui/logica.js` é cópia: a referência continua sendo `frontend/js/dashboards.js` (REGRA §12.1).
 - **Comparação:** prints em `prototipos/prints/` e comparação no `prototipos/README.md`.
@@ -507,6 +512,6 @@ Melhorias em **como o usuário alimenta** os dashboards são permitidas, desde q
 ### 12.7 Testes, git e documentação
 
 - Funcionalidade nova no backend vem com teste. Nunca testar contra `data/dashzon.db`. Sintaxe: `ruby -c`, `node --check frontend/js/*.js`.
-- Branches: `desenvolvimento` (trabalho), `main` (estável), `producao` (servidor). Push só quando pedido.
+- Branches: `desenvolvimento` (trabalho), `main` (estável), `producao` (servidor); `desenvolvimentoUI-UX` para a interface dos protótipos React e Next. Push só quando pedido.
 - Commits em pt-BR, um por parte pronta (`feat(área)`, `fix(área)`, `test`, `docs`), com o README por último.
 - Manter `docs/DESENVOLVIMENTO.md`, `Sistema.md` e `Log.md` em dia. Comentários explicam o porquê.

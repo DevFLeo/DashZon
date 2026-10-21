@@ -6,6 +6,23 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimentoUI-UX` · Protótipos React e Next: registros e celular
+
+**O que:**
+- **Branch nova** `desenvolvimentoUI-UX`, a partir da `desenvolvimento-empresa`, para a interface dos protótipos.
+- **Tela do módulo** (React e Next, mesmo código em `prototipos/ui/Registros.jsx`): resumo, busca, filtros, checklist, "Carregar mais" e criar/editar/excluir registro, com o formulário montado pelo schema e as mesmas regras do `frontend/js/modulos.js`.
+- **Peças de interface** (`ui/Base.jsx`): ícones SVG (sem emojis), avisos que somem sozinhos e janela `<dialog>` com Esc, foco no primeiro campo e confirmação própria no lugar do `confirm()`.
+- **Moldura:** seções do menu que abrem e fecham, barra recolhida com siglas, ordem e módulos ocultos da conta, tema que segue o sistema.
+- **Celular:** barra no topo e menu em gaveta até 800px; dashboard empilhado na ordem da posição salva e registros em cartões até 640px; formulário em tela cheia.
+- **Next:** a moldura virou o layout do grupo `(app)`, então trocar de tela não recarrega a sessão nem pisca "Carregando…".
+- **Prints** novos em `prototipos/prints/` (formulário, módulo e menu no celular) e os de login, Finanças, módulo e celular refeitos.
+
+**Validação:** roteiro de ponta a ponta no Chrome headless com 19 passos por app (login, busca, filtro, criar, validar, editar, checklist, excluir, Esc, tema, barra recolhida, gaveta, ordem no celular, auditoria responsiva em 1280/768/390px sem erros, nenhum erro de JavaScript), em duas rodadas, a segunda com banco zerado; `rake test` 197/197 (backend sem mudança).
+
+**Por quê:** pedido de dar continuidade aos protótipos em React e Next numa branch de UI/UX. A lógica dos cards não mudou (REGRA do `CLAUDE.md`): só a apresentação no celular, que lê o layout salvo sem alterá-lo.
+
+---
+
 ## 2026-10-21 · `desenvolvimento-empresa` · Protótipos em React e Next.js; publicação
 
 **O que:**
