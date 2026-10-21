@@ -994,6 +994,9 @@ const Dashboards = (() => {
     if (id === "nd-aba-branco") $("nd-nome").focus();
   }
 
+  // "privado" (padrão) ou "equipe": a escolha do topo da janela.
+  const visibilidadeNova = () => document.querySelector('input[name="nd-visibilidade"]:checked')?.value || "privado";
+
   async function concluirNovo(hash) {
     Util.fecharModal("modal-novo-dashboard");
     await App.recarregarNav();
@@ -1005,16 +1008,17 @@ const Dashboards = (() => {
     const nome = $("nd-nome").value.trim();
     if (!nome) { erroNovo("Informe o nome do dashboard."); return; }
     try {
-      const { id } = await Api.post("/api/dashboards", { nome, visibilidade: $("nd-compartilhar").checked ? "equipe" : "privado" });
+      const { id } = await Api.post("/api/dashboards", { nome, visibilidade: visibilidadeNova() });
       await concluirNovo(`#/d/${id}`);
     } catch (e) { erroNovo(e.message); }
   }
 
   async function criarDeTemplate(t) {
-    if (!confirm(`Criar um dashboard com o template "${t.nome}"? Ele instala os módulos: ${t.modulos.map((m) => m.nome).join(", ")}.`)) return;
+    const quem = visibilidadeNova() === "equipe" ? "que todos veem" : "só seu";
+    if (!confirm(`Criar um dashboard ${quem} com o template "${t.nome}"? Ele instala os módulos: ${t.modulos.map((m) => m.nome).join(", ")}.`)) return;
     try {
       const res = await Api.post("/api/templates/instalar", {
-        template_id: t.id, com_exemplos: $("nd-exemplos").checked, visibilidade: $("nd-compartilhar").checked ? "equipe" : "privado"
+        template_id: t.id, com_exemplos: $("nd-exemplos").checked, visibilidade: visibilidadeNova()
       });
       Util.aviso(Util.resumoInstalacao(res));
       await concluirNovo(res.dashboards.length ? `#/d/${res.dashboards[0]}` : `#/m/${encodeURIComponent(res.modulos[0])}`);
@@ -1031,7 +1035,8 @@ const Dashboards = (() => {
       criarDeTemplate(templates.find((x) => x.id === card.dataset.id));
     }));
     $("nd-nome").value = "";
-    $("nd-compartilhar").checked = false; // por padrão o dashboard novo é só de quem cria
+    // Por padrão o dashboard novo é só de quem cria; "Todos veem" é escolha de cada vez.
+    document.querySelector('input[name="nd-visibilidade"][value="privado"]').checked = true;
     trocarAbaNovo("nd-aba-template");
     Util.abrirModal("modal-novo-dashboard");
   }

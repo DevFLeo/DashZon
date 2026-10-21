@@ -623,6 +623,14 @@
 <div class="modal-overlay" id="modal-novo-dashboard">
   <div class="modal modal-lg">
     <h2>Novo dashboard</h2>
+    <!-- Escolha explícita e antes do template: um clique no card já instala. -->
+    <fieldset class="nd-quem">
+      <legend>Quem vê este dashboard?</legend>
+      <label class="opcao-radio"><input type="radio" name="nd-visibilidade" value="privado" checked>
+        <span><strong>Só eu</strong><span class="hint">Bom para testes. Os módulos do template também ficam só seus, com os próprios dados.</span></span></label>
+      <label class="opcao-radio"><input type="radio" name="nd-visibilidade" value="equipe">
+        <span><strong>Todos veem</strong><span class="hint">Usa os módulos de todos; só você e os administradores alteram o dashboard.</span></span></label>
+    </fieldset>
     <div class="tabs" role="tablist">
       <button type="button" class="active" data-aba="nd-aba-template">A partir de um template</button>
       <button type="button" data-aba="nd-aba-branco">Em branco</button>
@@ -640,7 +648,6 @@
       <p class="hint">Um canvas vazio: depois é só criar cards a partir dos módulos que já existem.</p>
       <div class="modal-actions"><button type="submit" class="btn btn-primary">Criar dashboard</button></div>
     </form>
-    <label class="field-check nd-compartilhar"><input type="checkbox" id="nd-compartilhar"> Compartilhar com a equipe (todos veem; só você e os administradores alteram)</label>
     <div class="form-erro" id="nd-erro" hidden></div>
     <div class="modal-actions"><button type="button" class="btn" data-fechar="modal-novo-dashboard">Fechar</button></div>
   </div>
