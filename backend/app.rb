@@ -296,7 +296,8 @@ get "/api/status" do
 
   cfg = Database.config
   u = usuario_atual
-  base = { configured: true, org_name: cfg["org_name"], email_configurado: Correio.configurado? }
+  # regras_senha: as telas mostram o mínimo e o que é exigido (nada secreto).
+  base = { configured: true, org_name: cfg["org_name"], email_configurado: Correio.configurado?, regras_senha: Usuarios.regras_senha }
   if u
     json base.merge(usuario: Usuarios.publico(u), moeda: cfg["moeda"])
   else

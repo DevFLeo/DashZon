@@ -253,14 +253,53 @@ class SegurancaTest < Minitest::Test
     end
     assert_match(/igual ao login/, Seguranca.motivo_senha_fraca("Maria.Silva", "maria.silva"))
 
-    post_json "/api/setup", { "usuario" => "dono", "senha" => "12345678", "templates" => [] }
-    assert_equal 422, last_response.status
-    refute Database.configured?, "o banco não nasce com senha fraca recusada"
+    # Senha forte é opção do administrador (desligada por padrão).
     configurar!
+    put_json "/api/admin/ajustes", { "senha_forte" => true }
+    assert_equal 200, last_response.status, last_response.body
     put_json "/api/eu/senha", { "senha_atual" => "senha-forte-1", "senha_nova" => "dono" * 2 }
     assert_equal 200, last_response.status, "'donodono' não é igual ao login"
     put_json "/api/eu/senha", { "senha_atual" => "donodono", "senha_nova" => "password123" }
     assert_equal 422, last_response.status
+  end
+
+  # Só o tamanho mínimo é regra fixa; o resto o administrador liga se quiser.
+  def test_regras_de_senha_sao_opcoes_do_admin
+    post_json "/api/setup", { "usuario" => "dono", "senha" => "1234567", "templates" => [] }
+    assert_equal 422, last_response.status
+    refute Database.configured?, "senha curta recusada antes de criar o banco"
+    post_json "/api/setup", { "usuario" => "dono", "senha" => "12345678", "templates" => [] }
+    assert_equal 200, last_response.status, "sem 'senha forte', senha fácil é aceita"
+
+    get "/api/status"
+    assert_equal({ "minima" => 8, "forte" => false, "maiuscula" => false, "numero" => false, "simbolo" => false }, resposta["regras_senha"])
+
+    novo = ->(login, senha) { post_json "/api/admin/usuarios", { "login" => login, "nome" => login, "senha" => senha, "deve_trocar_senha" => false } }
+    novo.("facil", "123ZX456")
+    assert_equal 201, last_response.status, last_response.body
+
+    put_json "/api/admin/ajustes", { "senha_minima" => 10, "senha_maiuscula" => true, "senha_numero" => true, "senha_simbolo" => true }
+    assert_equal 200, last_response.status, last_response.body
+    assert_equal "1", resposta["senha_maiuscula"]
+    assert_equal "nao", resposta["exigir_documento"], "o que não veio continua igual"
+    { "Abc12345!" => /ao menos 10/, "abcdefgh12!" => /maiúsculas/, "Abcdefghij!" => /números/, "Abcdefgh123" => /símbolo/ }.each do |senha, erro|
+      novo.("x#{senha.length}#{rand(1000)}", senha)
+      assert_equal 422, last_response.status, senha
+      assert_match erro, resposta["error"], senha
+    end
+    novo.("forte", "Abcdefgh12!")
+    assert_equal 201, last_response.status, last_response.body
+
+    # Sem senha informada, a temporária gerada cumpre as regras em vigor.
+    post_json "/api/admin/usuarios", { "login" => "temp", "nome" => "Temp" }
+    assert_equal 201, last_response.status, last_response.body
+    assert_operator resposta["senha_temporaria"].length, :>=, 12
+    assert_match(/[^A-Za-z0-9]/, resposta["senha_temporaria"])
+
+    [5, 65, "abc"].each do |ruim|
+      put_json "/api/admin/ajustes", { "senha_minima" => ruim }
+      assert_equal 422, last_response.status, ruim.inspect
+    end
   end
 
   def test_painel_de_seguranca_so_para_admin

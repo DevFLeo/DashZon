@@ -55,8 +55,17 @@ module Usuarios
   AJUSTES_PADRAO = {
     "exigir_documento" => "nao",      # nao | cpf | cnpj | qualquer
     "exigir_email" => "0",            # e-mail obrigatório no cadastro
-    "exigir_email_verificado" => "0"  # só entra quem verificou o e-mail (admin sempre entra)
+    "exigir_email_verificado" => "0", # só entra quem verificou o e-mail (admin sempre entra)
+    # Regras de senha (Painel do adm > Regras de senha). Só o tamanho mínimo
+    # vale sempre; o resto é opção do administrador, desligada por padrão.
+    "senha_minima" => SENHA_MINIMA.to_s,
+    "senha_forte" => "0",     # recusa as mais comuns, sequências, um caractere repetido e igual ao login
+    "senha_maiuscula" => "0", # letras maiúsculas e minúsculas
+    "senha_numero" => "0",    # letras e números
+    "senha_simbolo" => "0"    # ao menos um símbolo (! @ # $ ...)
   }.freeze
+  SENHA_MINIMA_FAIXA = (6..64).freeze
+  OPCOES_SENHA = %w[senha_forte senha_maiuscula senha_numero senha_simbolo].freeze
   VALIDADE = { "redefinir_senha" => 24 * 3600, "verificar_email" => 7 * 24 * 3600 }.freeze
   # Hash de uma senha qualquer, usado quando o login não existe: a resposta
   # leva o mesmo tempo, então não dá para descobrir logins pelo relógio.
@@ -198,13 +207,25 @@ module Usuarios
     AJUSTES_PADRAO.merge(salvos.slice(*AJUSTES_PADRAO.keys))
   end
 
+  # Campos ausentes mantêm o valor atual (o formulário de cadastro e o de
+  # senha salvam separados).
   def salvar_ajustes!(d)
+    atual = ajustes
     novos = {
-      "exigir_documento" => d["exigir_documento"].to_s,
-      "exigir_email" => d["exigir_email"] ? "1" : "0",
-      "exigir_email_verificado" => d["exigir_email_verificado"] ? "1" : "0"
+      "exigir_documento" => (d.key?("exigir_documento") ? d["exigir_documento"] : atual["exigir_documento"]).to_s,
+      "exigir_email" => d.key?("exigir_email") ? (d["exigir_email"] ? "1" : "0") : atual["exigir_email"],
+      "exigir_email_verificado" => d.key?("exigir_email_verificado") ? (d["exigir_email_verificado"] ? "1" : "0") : atual["exigir_email_verificado"]
     }
     raise Erro, "Opção de documento inválida" unless EXIGIR_DOCUMENTO.include?(novos["exigir_documento"])
+    if d.key?("senha_minima")
+      minima = Integer(d["senha_minima"].to_s, exception: false)
+      unless minima && SENHA_MINIMA_FAIXA.cover?(minima)
+        raise Erro, "Tamanho mínimo da senha: de #{SENHA_MINIMA_FAIXA.min} a #{SENHA_MINIMA_FAIXA.max} caracteres"
+      end
+
+      novos["senha_minima"] = minima.to_s
+    end
+    OPCOES_SENHA.each { |k| novos[k] = d[k] ? "1" : "0" if d.key?(k) }
     # Verificar e-mail sem exigir e-mail deixaria quem não tem e-mail trancado.
     novos["exigir_email"] = "1" if novos["exigir_email_verificado"] == "1"
 
@@ -216,16 +237,37 @@ module Usuarios
 
   # --- validação de cadastro -----------------------------------------------------
 
-  # `login`: recusa a senha igual ao próprio login. Também recusa as senhas
-  # mais comuns e sequências (Seguranca.motivo_senha_fraca).
+  # Regras de senha em vigor. Antes do setup não há banco (e ele não pode ser
+  # criado só para ler isto): valem os padrões.
+  def regras_senha
+    a = Database.configured? ? ajustes : AJUSTES_PADRAO
+    minima = a["senha_minima"].to_i
+    {
+      "minima" => SENHA_MINIMA_FAIXA.cover?(minima) ? minima : SENHA_MINIMA,
+      "forte" => a["senha_forte"] == "1",
+      "maiuscula" => a["senha_maiuscula"] == "1",
+      "numero" => a["senha_numero"] == "1",
+      "simbolo" => a["senha_simbolo"] == "1"
+    }
+  end
+
+  # Só o tamanho é regra fixa. Senha forte (`login`: recusa a igual ao próprio
+  # login, as mais comuns e sequências; Seguranca.motivo_senha_fraca),
+  # maiúsculas, números e símbolos valem quando o administrador liga.
   def validar_senha!(senha, login: nil)
     s = senha.to_s
-    raise Erro, "A senha precisa ter ao menos #{SENHA_MINIMA} caracteres" if s.length < SENHA_MINIMA
+    r = regras_senha
+    raise Erro, "A senha precisa ter ao menos #{r['minima']} caracteres" if s.length < r["minima"]
     raise Erro, "A senha pode ter no máximo #{SENHA_MAXIMA} caracteres" if s.length > SENHA_MAXIMA
     raise Erro, "A senha não pode ser só espaços" if s.strip.empty?
 
-    motivo = Seguranca.motivo_senha_fraca(s, login)
-    raise Erro, motivo if motivo
+    if r["forte"]
+      motivo = Seguranca.motivo_senha_fraca(s, login)
+      raise Erro, motivo if motivo
+    end
+    raise Erro, "A senha precisa ter letras maiúsculas e minúsculas" if r["maiuscula"] && !(s.match?(/\p{Lu}/) && s.match?(/\p{Ll}/))
+    raise Erro, "A senha precisa ter letras e números" if r["numero"] && !(s.match?(/\p{L}/) && s.match?(/\d/))
+    raise Erro, "A senha precisa ter ao menos um símbolo (como ! @ # $ %)" if r["simbolo"] && !s.match?(/[^\p{L}\d\s]/)
 
     s
   end
@@ -420,9 +462,20 @@ module Usuarios
   end
 
   # 12 caracteres sem os que se confundem (0/O, 1/l/I).
+  # Cumpre as regras de senha em vigor: maiúscula, minúscula e número sempre,
+  # símbolo se exigido, e o tamanho mínimo (pelo menos 12).
   def senha_temporaria
-    alfabeto = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789".chars
-    Array.new(12) { alfabeto[SecureRandom.random_number(alfabeto.size)] }.join
+    r = regras_senha
+    sorteia = ->(l) { l[SecureRandom.random_number(l.size)] }
+    maiusc = "ABCDEFGHJKLMNPQRSTUVWXYZ".chars
+    minusc = "abcdefghijkmnpqrstuvwxyz".chars
+    numeros = "23456789".chars
+    simbolos = "!@#$%&*?".chars
+    alfabeto = maiusc + minusc + numeros
+    base = [sorteia.(maiusc), sorteia.(minusc), sorteia.(numeros)]
+    base << sorteia.(simbolos) if r["simbolo"]
+    base += Array.new([12, r["minima"]].max - base.size) { sorteia.(alfabeto) }
+    base.shuffle(random: SecureRandom).join
   end
 
   # --- links de uso único ------------------------------------------------------------
