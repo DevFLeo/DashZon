@@ -20,6 +20,11 @@ module ModuleSchema
   SERIES = %w[selecao movimento booleano].freeze
   AGREGACOES = %w[contagem soma media saldo].freeze
   WIDGET_TIPOS = %w[kpi bar line table].freeze
+  # Aparência do card (a pedido: escolher cores no editor). Não entra na
+  # consulta: o motor e o resultado são os mesmos com ou sem cores.
+  PALETAS = %w[padrao oceano por_do_sol floresta neon pastel terra galaxia mono].freeze
+  COR_RE = /\A#[0-9a-fA-F]{6}\z/
+  CORES_MAX = 60
   MOVIMENTO = %w[entrada saida].freeze
   RESERVADOS = %w[id _criado_em _atualizado_em].freeze
   ID_RE = /\A[a-z][a-z0-9_]{0,39}\z/
@@ -292,8 +297,10 @@ module ModuleSchema
     tipo = w["tipo"].to_s
     raise Error, "Tipo de widget '#{tipo}' inválido (use: #{WIDGET_TIPOS.join(', ')})" unless WIDGET_TIPOS.include?(tipo)
 
-    cfg = normalize_consulta!(w["config"].is_a?(Hash) ? w["config"] : w, schema["campos"], "Widget '#{titulo}'")
+    entrada = w["config"].is_a?(Hash) ? w["config"] : w
+    cfg = normalize_consulta!(entrada, schema["campos"], "Widget '#{titulo}'")
     cfg.delete("serie_por") if %w[kpi table].include?(tipo)
+    cfg.merge!(normalize_aparencia!(entrada, "Widget '#{titulo}'"))
 
     {
       "titulo" => titulo,
@@ -304,6 +311,37 @@ module ModuleSchema
       "w" => [(w["w"] || 4).to_i, 1].max,
       "h" => [(w["h"] || 3).to_i, 1].max
     }
+  end
+
+  # Cores escolhidas no editor de card: `paleta` (nome), `cores` (cor por
+  # categoria/série, {chave => "#rrggbb"}) e `cor` (cor única: número, linha
+  # ou barras sem categoria). Só o que veio e é válido entra no config.
+  def normalize_aparencia!(cfg, contexto)
+    out = {}
+    paleta = cfg["paleta"].to_s
+    unless paleta.empty? || paleta == "padrao"
+      raise Error, "#{contexto}: paleta '#{paleta}' inválida" unless PALETAS.include?(paleta)
+
+      out["paleta"] = paleta
+    end
+    cor = cfg["cor"].to_s
+    unless cor.empty?
+      raise Error, "#{contexto}: cor '#{cor[0, 20]}' inválida (use #rrggbb)" unless cor.match?(COR_RE)
+
+      out["cor"] = cor.downcase
+    end
+    if cfg["cores"].is_a?(Hash) && !cfg["cores"].empty?
+      raise Error, "#{contexto}: no máximo #{CORES_MAX} cores por card" if cfg["cores"].size > CORES_MAX
+
+      out["cores"] = cfg["cores"].to_h do |k, v|
+        raise Error, "#{contexto}: cor inválida para '#{k.to_s[0, 40]}' (use #rrggbb)" unless v.to_s.match?(COR_RE) && k.to_s.length <= 100
+
+        [k.to_s, v.to_s.downcase]
+      end
+    elsif cfg.key?("cores") && !cfg["cores"].nil? && !cfg["cores"].is_a?(Hash)
+      raise Error, "#{contexto}: 'cores' deve ser um objeto {categoria: cor}"
+    end
+    out
   end
 
   # Configuração comum a widgets e itens de resumo: o que medir, como agrupar,
