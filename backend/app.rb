@@ -463,8 +463,12 @@ helpers do
   def nome_do_alvo(alvo, chave)
     case alvo
     when :usuario then (u = Usuarios.por_id(chave)) && "usuário #{u['login']}"
-    when :equipe then (e = Database.row("SELECT nome FROM equipes WHERE id = ?", [chave.to_i])) && "equipe #{e['nome']}"
-    when :dashboard then (d = Database.row("SELECT nome FROM dashboards WHERE id = ?", [chave.to_i])) && "dashboard #{d['nome']}"
+    when :equipe
+      e = Database.row("SELECT nome FROM equipes WHERE id = ?", [chave.to_i])
+      e && "equipe #{e['nome']}"
+    when :dashboard
+      d = Database.row("SELECT nome FROM dashboards WHERE id = ?", [chave.to_i])
+      d && "dashboard #{d['nome']}"
     when :modulo then (m = Database.modulo(chave)) && "módulo #{m['nome']}"
     when :pedido
       s = Database.row("SELECT s.acao, m.nome FROM solicitacoes s LEFT JOIN modulos m ON m.id = s.modulo_id WHERE s.id = ?", [chave.to_i])
