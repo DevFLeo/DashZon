@@ -410,6 +410,7 @@ Experimento, fora do frontend oficial (que continua sem build e sem CDN, §12.6)
 - **O que fazem:**
   - **Registros:** resumo, busca (300 ms depois da última tecla, resposta atrasada descartada), até 4 filtros, checklist (`PATCH` só do campo, desfeito se falhar), "Carregar mais", criar/editar/excluir. O formulário sai do schema como no oficial (padrões `$hoje`, opção removida mantida, erro 422 no formulário), "Editar" lê o registro do banco, e o 202 do visualizador vira aviso.
   - **Moldura:** seções que abrem e fecham, barra recolhida (68px, siglas), ordem e módulos ocultos da conta (`ordem_menu`, `modulos_ocultos`), tema que segue o sistema, cada uma no `localStorage`.
+  - **Calendário:** mesmos números do `renderCalendario` (semanas que cabem na largura, `valorDe`, 4 níveis, sequências); acrescenta hoje marcado, dica na hora, `role=grid` com um dia no Tab (setas, Home, End) e o resumo (total, dias ativos, sequências, melhor dia).
   - **Celular:** até 800px barra no topo e menu em gaveta (fecha com Esc, no véu ou ao navegar); até 640px dashboard em 2 colunas na ordem `y*12 + x` (meia largura para `w <= 3`, só CSS como o `responsivo.js`) e registros em cartões; janelas em tela cheia.
 - **O que não fazem:** arrastar e editar cards, editar a estrutura de módulos, painel do adm, configurações, notas (o módulo de notas aparece como tabela) e aprovações.
 - **Teste:** o roteiro de ponta a ponta usa as checagens do `scripts/auditar-responsivo.js` (seletores trocados para `dialog[open]` e `.grade > .card`) em 1280, 768 e 390px.

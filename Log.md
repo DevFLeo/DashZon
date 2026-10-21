@@ -6,6 +6,20 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimentoUI-UX` · Calendário dos protótipos
+
+**O que:** o card de calendário do React e do Next foi refeito a partir do oficial: semanas que cabem na largura, meses, dias da semana, legenda e sequências, com os mesmos números. Por cima disso, pensando em usabilidade, acessibilidade, desejabilidade e utilidade:
+- hoje marcado e dica imediata com o valor e a data;
+- teclado (Tab cai em hoje; setas, Home, End) e cada dia com rótulo para leitor de tela;
+- células arredondadas, transição suave (sem animação com `prefers-reduced-motion`);
+- resumo do período: total, dias ativos, sequência atual, maior sequência e melhor dia.
+
+**Validação:** dois passos novos no roteiro de ponta a ponta (desktop e celular), 21 por app; duas rodadas, a segunda com banco zerado: 42/42, zero erros na auditoria responsiva.
+
+**Por quê:** o calendário do protótipo estava pior que o do sistema atual (colunas espaçadas, sem meses nem legenda). Pedido de deixá-lo melhor com os conceitos de UX.
+
+---
+
 ## 2026-10-21 · `desenvolvimentoUI-UX` · Protótipos React e Next: registros e celular
 
 **O que:**
