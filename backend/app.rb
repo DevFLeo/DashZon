@@ -115,6 +115,7 @@ helpers do
     d = raw.empty? ? {} : JSON.parse(raw)
     halt json({ error: "O corpo deve ser um objeto JSON" }, 400) unless d.is_a?(Hash)
 
+    @corpo_auditoria = d # o diário de alterações descreve o que foi pedido (ver AUDITORIA)
     d
   rescue JSON::ParserError
     halt json({ error: "JSON inválido" }, 400)
@@ -410,6 +411,102 @@ post "/api/setup" do
   session[:uid] = u["id"]
   session[:sv] = u["sessao_versao"].to_i
   json ok: true
+end
+
+# ------------------------------------------------- diário de alterações ---
+# Relatório de testes, problema 6: o diário do Painel do adm só tinha acessos.
+# Toda escrita que deu certo em usuários, equipes, dashboards, módulos,
+# templates, regras e pedidos de aprovação fica registrada com quem fez, o
+# alvo e um resumo do pedido (nunca senha, documento ou dados de registros).
+# O `before` guarda o nome do alvo enquanto ele existe (para exclusões).
+AUDITORIA = [
+  ["POST", %r{\A/api/admin/usuarios\z}, "usuario_criado", nil],
+  ["PUT", %r{\A/api/admin/usuarios/(\d+)\z}, "usuario_alterado", :usuario],
+  ["DELETE", %r{\A/api/admin/usuarios/(\d+)\z}, "usuario_excluido", :usuario],
+  ["POST", %r{\A/api/admin/usuarios/(\d+)/ativo\z}, "usuario_ativo", :usuario],
+  ["POST", %r{\A/api/admin/usuarios/(\d+)/senha-temporaria\z}, "senha_temporaria", :usuario],
+  ["POST", %r{\A/api/admin/usuarios/(\d+)/link-redefinicao\z}, "link_redefinicao", :usuario],
+  ["POST", %r{\A/api/admin/usuarios/(\d+)/email-verificado\z}, "email_confirmado", :usuario],
+  ["POST", %r{\A/api/admin/equipes\z}, "equipe_criada", nil],
+  ["POST", %r{\A/api/admin/equipes/teste\z}, "empresa_teste_criada", nil],
+  ["PUT", %r{\A/api/admin/equipes/(\d+)\z}, "equipe_alterada", :equipe],
+  ["DELETE", %r{\A/api/admin/equipes/(\d+)\z}, "equipe_excluida", :equipe],
+  ["PUT", %r{\A/api/admin/equipes/(\d+)/membros\z}, "equipe_membros", :equipe],
+  ["PUT", %r{\A/api/admin/ajustes\z}, "regras_alteradas", nil],
+  ["PUT", %r{\A/api/admin/config\z}, "organizacao_alterada", nil],
+  ["POST", %r{\A/api/dashboards\z}, "dashboard_criado", nil],
+  ["PUT", %r{\A/api/dashboards/(\d+)\z}, "dashboard_alterado", :dashboard],
+  ["DELETE", %r{\A/api/dashboards/(\d+)\z}, "dashboard_excluido", :dashboard],
+  ["POST", %r{\A/api/modulos\z}, "modulo_criado", nil],
+  ["PUT", %r{\A/api/modulos/([^/]+)\z}, "modulo_alterado", :modulo],
+  ["PUT", %r{\A/api/modulos/([^/]+)/compartilhar\z}, "modulo_compartilhado", :modulo],
+  ["DELETE", %r{\A/api/modulos/([^/]+)\z}, "modulo_excluido", :modulo],
+  ["DELETE", %r{\A/api/modulos/([^/]+)/exemplos\z}, "exemplos_apagados", :modulo],
+  ["POST", %r{\A/api/templates/instalar\z}, "template_instalado", nil],
+  ["POST", %r{\A/api/solicitacoes/(\d+)/aprovar\z}, "pedido_aprovado", :pedido],
+  ["POST", %r{\A/api/solicitacoes/(\d+)/negar\z}, "pedido_negado", :pedido],
+  # Visualizador: o registro não muda; vira pedido (resposta 202).
+  [%w[POST PUT PATCH DELETE], %r{\A/api/modulos/([^/]+)/registros(?:/\d+)?\z}, "pedido_criado", :modulo]
+].freeze
+
+helpers do
+  def regra_de_auditoria
+    AUDITORIA.each do |metodo, caminho, tipo, alvo|
+      next unless Array(metodo).include?(request.request_method)
+
+      m = caminho.match(request.path_info)
+      return [tipo, alvo, m[1]] if m
+    end
+    nil
+  end
+
+  def nome_do_alvo(alvo, chave)
+    case alvo
+    when :usuario then (u = Usuarios.por_id(chave)) && "usuário #{u['login']}"
+    when :equipe then (e = Database.row("SELECT nome FROM equipes WHERE id = ?", [chave.to_i])) && "equipe #{e['nome']}"
+    when :dashboard then (d = Database.row("SELECT nome FROM dashboards WHERE id = ?", [chave.to_i])) && "dashboard #{d['nome']}"
+    when :modulo then (m = Database.modulo(chave)) && "módulo #{m['nome']}"
+    when :pedido
+      s = Database.row("SELECT s.acao, m.nome FROM solicitacoes s LEFT JOIN modulos m ON m.id = s.modulo_id WHERE s.id = ?", [chave.to_i])
+      s && "pedido ##{chave} (#{s['acao']} em #{s['nome']})"
+    end
+  end
+
+  # Resumo do pedido: nomes e escolhas; senha e documento nunca entram.
+  def resumo_da_auditoria(d)
+    return "" unless d.is_a?(Hash)
+
+    partes = %w[nome login perfil visibilidade template_id].filter_map { |k| "#{k}: #{d[k]}" unless d[k].to_s.empty? }
+    partes << "ativo: #{d['ativo']}" if d.key?("ativo")
+    if d["equipes"].is_a?(Array)
+      nomes = Database.rows("SELECT id, nome FROM equipes").to_h { |e| [e["id"], e["nome"]] }
+      partes << "equipes: #{d['equipes'].map { |i| nomes[i.to_i] || i }.join(', ').then { |s| s.empty? ? 'nenhuma' : s }}"
+    end
+    partes << "membros: #{d['usuario_ids'].size}" if d["usuario_ids"].is_a?(Array)
+    partes << "dono: #{Usuarios.por_id(d['dono_id'])&.dig('login')}" if d["dono_id"]
+    partes << "fixo: #{d['fixo']}" if d.key?("fixo")
+    outros = d.keys - %w[nome login perfil visibilidade template_id ativo equipes usuario_ids dono_id fixo senha documento motivo]
+    partes << "campos: #{outros.first(8).join(', ')}" unless outros.empty?
+    partes << "motivo: #{d['motivo']}" unless d["motivo"].to_s.strip.empty?
+    partes.join(" · ")
+  end
+end
+
+before "/api/*" do
+  @auditoria = regra_de_auditoria
+  @auditoria_alvo = @auditoria && @auditoria[1] ? nome_do_alvo(@auditoria[1], @auditoria[2]) : nil
+end
+
+after "/api/*" do
+  tipo, = @auditoria
+  next unless tipo && usuario_atual
+  next if tipo == "pedido_criado" && response.status != 202
+  next unless response.status.between?(200, 299)
+
+  detalhe = [@auditoria_alvo, resumo_da_auditoria(@corpo_auditoria)].reject { |s| s.to_s.empty? }.join(" · ")
+  Seguranca.registrar!(tipo, ip: request.ip, usuario_id: usuario_atual["id"], detalhe: detalhe)
+rescue StandardError => e
+  warn "[DashZon] diário de alterações: #{e.class}: #{e.message}" # o diário nunca derruba a resposta
 end
 
 # Login, minha conta e painel do administrador.

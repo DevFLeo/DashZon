@@ -180,8 +180,21 @@ const Admin = (() => {
     desbloqueio: "Desbloqueio", senha_atual_errada: "Senha atual errada", link_invalido: "Link inválido",
     pedido_link: "Pediu link de senha", senha_trocada: "Trocou a senha", senha_redefinida: "Redefiniu a senha",
     sessoes_encerradas: "Saiu dos outros dispositivos", origem_recusada: "Escrita de outro site recusada",
-    excesso_requisicoes: "Excesso de requisições"
+    excesso_requisicoes: "Excesso de requisições",
+    // Alterações (relatório, problema 6)
+    usuario_criado: "Criou usuário", usuario_alterado: "Alterou usuário", usuario_excluido: "Excluiu usuário",
+    usuario_ativo: "Ativou/desativou usuário", senha_temporaria: "Gerou senha temporária", link_redefinicao: "Gerou link de senha",
+    email_confirmado: "Confirmou e-mail", equipe_criada: "Criou equipe", empresa_teste_criada: "Criou empresa de teste",
+    equipe_alterada: "Alterou equipe", equipe_excluida: "Excluiu equipe", equipe_membros: "Mudou membros da equipe",
+    regras_alteradas: "Mudou regras", organizacao_alterada: "Mudou organização", dashboard_criado: "Criou dashboard",
+    dashboard_alterado: "Alterou dashboard", dashboard_excluido: "Excluiu dashboard", modulo_criado: "Criou módulo",
+    modulo_alterado: "Alterou módulo", modulo_compartilhado: "Compartilhou módulo", modulo_excluido: "Excluiu módulo",
+    exemplos_apagados: "Apagou dados de exemplo", template_instalado: "Instalou template", pedido_criado: "Pediu aprovação",
+    pedido_aprovado: "Aprovou pedido", pedido_negado: "Negou pedido"
   };
+  const ACESSOS = new Set(["login_ok", "login_falhou", "logout", "bloqueio", "desbloqueio", "senha_atual_errada", "link_invalido",
+    "pedido_link", "senha_trocada", "senha_redefinida", "sessoes_encerradas", "origem_recusada", "excesso_requisicoes"]);
+  let eventos = [];
   const ALERTA = new Set(["login_falhou", "bloqueio", "senha_atual_errada", "link_invalido", "origem_recusada", "excesso_requisicoes"]);
 
   async function carregarSeguranca() {
@@ -200,10 +213,18 @@ const Admin = (() => {
         </div>`).join("")
       : '<p class="hint">Nenhum bloqueio agora.</p>';
     $("seg-bloqueios").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => desbloquear(b)));
+    eventos = s.eventos;
+    renderEventos();
+  }
+
+  // Filtro do diário: tudo, só acessos (login, senha, bloqueio) ou só alterações.
+  function renderEventos() {
+    const filtro = $("seg-filtro").value;
+    const lista = eventos.filter((e) => filtro === "tudo" || (filtro === "acessos") === ACESSOS.has(e.tipo)).slice(0, 150);
     const data = (iso) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "medium" });
-    $("seg-eventos").innerHTML = s.eventos.length
+    $("seg-eventos").innerHTML = lista.length
       ? `<div class="table-wrap"><table class="data"><thead><tr><th>Quando</th><th>O quê</th><th>Quem</th><th>IP</th><th>Detalhe</th></tr></thead><tbody>${
-        s.eventos.map((e) => `<tr class="${ALERTA.has(e.tipo) ? "evento-alerta" : ""}"><td class="nowrap">${esc(data(e.quando))}</td>
+        lista.map((e) => `<tr class="${ALERTA.has(e.tipo) ? "evento-alerta" : ""}"><td class="nowrap">${esc(data(e.quando))}</td>
           <td>${esc(NOMES_EVENTO[e.tipo] || e.tipo)}</td><td>${esc(e.login || "—")}</td><td><code>${esc(e.ip || "—")}</code></td>
           <td>${esc(e.detalhe || "")}</td></tr>`).join("")}</tbody></table></div>`
       : '<p class="hint">Nada registrado ainda.</p>';
@@ -478,6 +499,7 @@ const Admin = (() => {
     // Só com senha informada faz sentido escolher (a temporária sempre é trocada).
     $("u-senha").addEventListener("input", () => { $("u-trocar-wrap").hidden = !$("u-senha").value; });
     $("form-ajustes").addEventListener("submit", salvarAjustes);
+    $("seg-filtro").addEventListener("change", renderEventos);
     $("form-regras-senha").addEventListener("submit", salvarRegrasSenha);
     $("form-regras-senha").addEventListener("input", resumirRegrasSenha);
     $("form-org").addEventListener("submit", salvarOrg);

@@ -220,7 +220,7 @@ end
 
 # Segurança: checagem da instalação, bloqueios em vigor e o diário recente.
 get "/api/admin/seguranca" do
-  json checagens: checagens_de_seguranca, bloqueios: Seguranca.bloqueios_ativos, eventos: Seguranca.eventos(100),
+  json checagens: checagens_de_seguranca, bloqueios: Seguranca.bloqueios_ativos, eventos: Seguranca.eventos(300),
        limites: { janela_minutos: Seguranca::JANELA / 60, por_ip: Seguranca::MAX_POR_IP, por_conta: Seguranca::MAX_POR_CONTA }
 end
 

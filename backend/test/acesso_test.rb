@@ -193,4 +193,34 @@ class AcessoTest < Minitest::Test
       assert_equal "Lote em uso", resposta["minhas"].find { |s| s["acao"] == "excluir" }["motivo"]
     end
   end
+
+  # Problema 6: o diário registra as alterações (quem, o quê, alvo), sem senha.
+  def test_diario_registra_alteracoes
+    configurar!
+    verm = equipe!("Vermelha")
+    usuario!("teste 1", equipes: [verm])
+    usuario!("teste 5", perfil: "visualizador")
+    post_json "/api/dashboards", { "nome" => "Painel Vermelho", "visibilidade" => "equipes", "equipes" => [verm] }
+    dash = resposta["id"]
+    put_json "/api/dashboards/#{dash}", { "nome" => "Painel V" }
+    post_json "/api/templates/instalar", { "template_id" => "lote-producao", "com_exemplos" => true }
+    put_json "/api/modulos/lotes_producao/compartilhar", { "visibilidade" => "todos" }
+    delete "/api/dashboards/#{dash}"
+    como("teste 5") { post_json "/api/modulos/lotes_producao/registros", { "codigo" => "X", "produto" => "Y", "quantidade" => 1, "status" => "Planejado" } }
+    post_json "/api/admin/usuarios", { "login" => "ruim", "nome" => "x", "senha" => "1" } # falha: não registra
+
+    get "/api/admin/seguranca"
+    ev = resposta["eventos"].reject { |e| %w[login_ok logout].include?(e["tipo"]) }.reverse
+    tipos = ev.map { |e| e["tipo"] }
+    %w[equipe_criada usuario_criado dashboard_criado dashboard_alterado template_instalado modulo_compartilhado dashboard_excluido pedido_criado].each do |t|
+      assert_includes tipos, t
+    end
+    assert_equal 2, tipos.count("usuario_criado"), "a criação que falhou não entra"
+    criado = ev.find { |e| e["tipo"] == "dashboard_criado" }
+    assert_equal "dono", criado["login"], "quem fez"
+    assert_match(/equipes: Vermelha/, criado["detalhe"])
+    assert_match(/dashboard Painel V/, ev.find { |e| e["tipo"] == "dashboard_excluido" }["detalhe"], "o nome é lido antes de excluir")
+    assert_equal "teste 5", ev.find { |e| e["tipo"] == "pedido_criado" }["login"]
+    refute(resposta["eventos"].any? { |e| e["detalhe"].to_s.include?(SENHA) }, "senha nunca vai para o diário")
+  end
 end

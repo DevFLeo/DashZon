@@ -757,6 +757,7 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 .perfil-visualizador #btn-novo-dashboard, .perfil-visualizador [data-acao="novo-dashboard"], .perfil-visualizador #btn-add-modulo,
 .perfil-visualizador #btn-apagar-exemplos, .perfil-visualizador #notas-nova, .perfil-visualizador #notas-vazia-nova,
 .perfil-visualizador #notas-btn-importar, .perfil-visualizador #notas-btn-importar-pasta, .perfil-visualizador #nota-excluir { display: none !important; }
+.seg-filtro { max-width: 240px; }
 .comp-equipes { margin: 0 0 10px 30px; }
 .comp-equipes.desligada { opacity: .55; }
 .conta-equipes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 12px; }

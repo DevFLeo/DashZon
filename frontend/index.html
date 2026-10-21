@@ -517,8 +517,16 @@
         </section>
       </div>
       <section class="admin-bloco">
-        <h2>Diário de segurança</h2>
-        <p class="hint">Logins, falhas, bloqueios, trocas de senha e acessos recusados (os últimos 100). O login digitado errado não é guardado como texto, para não registrar uma senha digitada no campo errado.</p>
+        <h2>Diário de segurança e de alterações</h2>
+        <p class="hint">Acessos (logins, falhas, bloqueios, trocas de senha) e alterações (quem criou, mudou ou excluiu usuários, equipes, dashboards, módulos, regras e pedidos de aprovação). O login digitado errado não é guardado como texto, para não registrar uma senha digitada no campo errado.</p>
+        <div class="field seg-filtro">
+          <label for="seg-filtro">Mostrar</label>
+          <select id="seg-filtro">
+            <option value="tudo">Tudo</option>
+            <option value="alteracoes">Só alterações</option>
+            <option value="acessos">Só acessos</option>
+          </select>
+        </div>
         <div id="seg-eventos"></div>
       </section>
     </section>
