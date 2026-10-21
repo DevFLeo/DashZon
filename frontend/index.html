@@ -640,6 +640,8 @@
             <button type="button" class="tipo-card" data-tipo="kpi" role="radio"><span class="tipo-ico">123</span>Número <span class="dica" role="button" tabindex="0" data-dica="card-kpi" aria-label="Ajuda: número">?</span></button>
             <button type="button" class="tipo-card" data-tipo="bar" role="radio"><span class="tipo-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/></svg></span>Barras <span class="dica" role="button" tabindex="0" data-dica="card-bar" aria-label="Ajuda: barras">?</span></button>
             <button type="button" class="tipo-card" data-tipo="line" role="radio"><span class="tipo-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 3 4-7 5 5"/></svg></span>Linha <span class="dica" role="button" tabindex="0" data-dica="card-line" aria-label="Ajuda: linha">?</span></button>
+            <button type="button" class="tipo-card" data-tipo="pie" role="radio"><span class="tipo-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 6"/></svg></span>Pizza</button>
+            <button type="button" class="tipo-card" data-tipo="calendario" role="radio"><span class="tipo-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg></span>Calendário</button>
             <button type="button" class="tipo-card" data-tipo="table" role="radio"><span class="tipo-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/></svg></span>Tabela <span class="dica" role="button" tabindex="0" data-dica="card-table" aria-label="Ajuda: tabela">?</span></button>
           </div>
         </div>
@@ -677,6 +679,24 @@
             </div>
           </div>
           <p class="hint" id="w-filtro-extra" hidden></p>
+          <div class="field-row" id="w-meta-wrap">
+            <div class="field">
+              <label for="w-meta">Meta (opcional)</label>
+              <input id="w-meta" type="text" inputmode="decimal" maxlength="16" placeholder="Ex.: 40 (horas)">
+            </div>
+            <div class="field">
+              <label for="w-periodo">Meta de</label>
+              <select id="w-periodo">
+                <option value="mes">cada mês (mostra o mês atual)</option>
+                <option value="semana">cada semana (mostra a semana atual)</option>
+                <option value="tudo">todo o período</option>
+              </select>
+            </div>
+          </div>
+          <div class="field" id="w-data-wrap">
+            <label for="w-data">Campo de data</label>
+            <select id="w-data"></select>
+          </div>
         </div>
 
         <div class="criador-passo" id="w-cores-passo">

@@ -452,7 +452,7 @@ textarea.code {
   background: color-mix(in srgb, var(--accent) 8%, var(--surface-1));
 }
 .tipo-ico { font-size: max(11px, calc(11px * var(--fs))); color: var(--text-muted); letter-spacing: -1px; font-family: var(--font-mono); }
-.tipos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tipos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .tipo-card { border-radius: var(--radius-md); flex-direction: column; justify-content: center; padding: 12px 8px; position: relative; }
 .tipo-card .tipo-ico { font-size: calc(16px * var(--fs)); color: var(--accent); }
 .tipo-card .dica { position: absolute; top: 6px; right: 6px; }
@@ -739,6 +739,25 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 #admin-equipes td.membros { max-width: 420px; }
 .empty-state-baixo { padding: 18px; }
 
+
+/* ---------- Cards de meta, pizza e calendário ---------- */
+.widget-body.com-meta { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.meta-topo { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.meta-de { color: var(--text-muted); font-size: max(11px, calc(13px * var(--fs))); }
+.meta-barra { height: 10px; border-radius: 999px; background: var(--hover); overflow: hidden; }
+.meta-barra > span { display: block; height: 100%; border-radius: inherit; transition: width .5s ease; }
+.pizza { position: absolute; inset: 0; }
+.widget-body.com-calendario { display: flex; flex-direction: column; justify-content: center; gap: 8px; overflow: hidden; }
+.cal-grade { display: grid; grid-template-rows: 14px repeat(7, 11px); gap: 3px; width: max-content; }
+.cal-mes, .cal-sem { font-size: max(10px, calc(10px * var(--fs))); color: var(--text-muted); white-space: nowrap; line-height: 14px; }
+.cal-sem { grid-column: 1; line-height: 11px; }
+.cal-dia { display: inline-block; width: 11px; height: 11px; border-radius: 3px; background: var(--hover); outline: 1px solid var(--border); outline-offset: -1px; }
+.cal-dia[data-nivel="1"] { background: color-mix(in srgb, var(--cal-cor, var(--series-1)) 30%, var(--surface-1)); }
+.cal-dia[data-nivel="2"] { background: color-mix(in srgb, var(--cal-cor, var(--series-1)) 55%, var(--surface-1)); }
+.cal-dia[data-nivel="3"] { background: color-mix(in srgb, var(--cal-cor, var(--series-1)) 80%, var(--surface-1)); }
+.cal-dia[data-nivel="4"] { background: var(--cal-cor, var(--series-1)); }
+.cal-legenda { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cal-escala { display: inline-flex; align-items: center; gap: 3px; font-size: max(11px, calc(11px * var(--fs))); color: var(--text-muted); }
 
 /* ---------- Editor de card: cores ---------- */
 .paletas { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }

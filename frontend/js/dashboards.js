@@ -11,7 +11,9 @@ const Dashboards = (() => {
 
   const $ = (id) => document.getElementById(id);
   const esc = Util.escapeHtml;
-  const TAMANHO = { kpi: { w: 3, h: 2 }, table: { w: 4, h: 3 }, bar: { w: 6, h: 4 }, line: { w: 6, h: 4 } };
+  const TAMANHO = { kpi: { w: 3, h: 2 }, table: { w: 4, h: 3 }, bar: { w: 6, h: 4 }, line: { w: 6, h: 4 }, pie: { w: 4, h: 4 }, calendario: { w: 12, h: 3 } };
+  // Calendários são HTML (não Chart.js): redesenhados quando o card muda de largura.
+  const calendarios = {};
   const MAX_GRUPOS = 15;
 
   const campoDe = (modulo, id) => modulo && id ? modulo.schema.campos.find((c) => c.id === id) : null;
@@ -30,7 +32,8 @@ const Dashboards = (() => {
     }, $("grid"));
 
     grid.on("change", (_ev, itens) => salvarLayout(itens));
-    grid.on("resizestop", (_ev, el) => charts[el.gridstackNode.id]?.resize());
+    grid.on("resizestop", (_ev, el) => { charts[el.gridstackNode.id]?.resize(); calendarios[el.gridstackNode.id]?.(); });
+    window.addEventListener("resize", Util.debounce(() => Object.values(calendarios).forEach((f) => f()), 150));
 
     $("btn-add-widget").addEventListener("click", () => abrirFormulario());
     $("btn-renomear-dashboard").addEventListener("click", renomear);
@@ -43,8 +46,9 @@ const Dashboards = (() => {
     $("w-agregacao").addEventListener("change", atualizarVisibilidade);
     $("w-filtro-campo").addEventListener("change", () => preencherValoresFiltro(""));
     document.querySelectorAll("#w-tipos .tipo-card").forEach((b) => b.addEventListener("click", () => { setTipo(b.dataset.tipo); aoMudar(); }));
-    ["w-agregacao", "w-campo", "w-agrupar", "w-serie", "w-filtro-campo", "w-filtro-valor"]
+    ["w-agregacao", "w-campo", "w-agrupar", "w-serie", "w-filtro-campo", "w-filtro-valor", "w-data", "w-periodo"]
       .forEach((id) => $(id).addEventListener("change", () => aoMudar()));
+    $("w-meta").addEventListener("input", () => { atualizarVisibilidade(); aoMudar(); });
     $("w-titulo").addEventListener("input", () => {
       tituloManual = $("w-titulo").value.trim() !== "";
       previaAtrasada();
@@ -253,17 +257,178 @@ const Dashboards = (() => {
     if (!corpo) return;
     try {
       const d = await Api.get(`/api/widgets/${w.id}/data`);
-      const modulo = App.modulo(w.modulo_slug);
-      if (w.tipo === "kpi" || w.tipo === "table") {
-        charts[w.id]?.destroy();
-        delete charts[w.id];
-      }
-      if (w.tipo === "kpi") renderKpi(corpo, d, modulo);
-      else if (w.tipo === "table") renderTabela(corpo, d, modulo);
-      else renderGrafico(w, corpo, d, modulo);
+      desenhar(w, corpo, d, App.modulo(w.modulo_slug));
     } catch (e) {
       corpo.innerHTML = `<div class="widget-erro">${esc(e.message)}</div>`;
     }
+  }
+
+  // Um lugar só decide como cada tipo é desenhado (dashboard e prévia).
+  function desenhar(w, corpo, d, modulo) {
+    if (!["bar", "line", "pie"].includes(w.tipo)) {
+      charts[w.id]?.destroy();
+      delete charts[w.id];
+    }
+    delete calendarios[w.id];
+    corpo.classList.remove("tabela", "com-meta", "com-calendario");
+    if (w.tipo === "kpi") (d.config.meta ? renderMeta : renderKpi)(corpo, d, modulo);
+    else if (w.tipo === "table") renderTabela(corpo, d, modulo);
+    else if (w.tipo === "pie") renderPizza(w, corpo, d, modulo);
+    else if (w.tipo === "calendario") {
+      calendarios[w.id] = () => renderCalendario(corpo, d, modulo);
+      calendarios[w.id]();
+    } else renderGrafico(w, corpo, d, modulo);
+  }
+
+  // ---- Cards de acompanhamento (a pedido: estudos) ----
+  // Meta: quanto já foi, quanto falta e a barra de progresso. Por mês ou
+  // semana, o servidor agrupa por dia e aqui somam-se só os dias do período.
+  function periodoMeta(periodo) {
+    const hoje = Util.hojeISO();
+    if (periodo === "mes") return { inicio: `${hoje.slice(0, 7)}-01`, fim: hoje, rotulo: "deste mês" };
+    if (periodo === "semana") {
+      const dia = (new Date().getDay() + 6) % 7; // segunda = 0
+      return { inicio: Util.hojeISO(-dia), fim: hoje, rotulo: "desta semana" };
+    }
+    return { inicio: null, fim: null, rotulo: "" };
+  }
+
+  function renderMeta(corpo, d, modulo) {
+    const cfg = d.config;
+    const p = periodoMeta(cfg.periodo);
+    let valor;
+    if (!p.inicio) valor = cfg.agregacao === "contagem" ? d.total_count : cfg.agregacao === "media" ? d.total_avg : d.total_sum;
+    else {
+      const dias = d.result.filter((r) => r.key >= p.inicio && r.key <= p.fim);
+      const soma = (k) => dias.reduce((t, r) => t + (Number(r[k]) || 0), 0);
+      valor = cfg.agregacao === "contagem" ? soma("count") : cfg.agregacao === "media" ? (soma("count") ? soma("sum") / soma("count") : 0) : soma("sum");
+    }
+    const fmt = formatador(cfg, modulo);
+    const moeda = campoDe(modulo, cfg.campo)?.tipo === "moeda";
+    const pct = cfg.meta > 0 ? Math.max(0, valor / cfg.meta * 100) : 0;
+    const falta = cfg.meta - valor;
+    const cor = Util.corUnica(cfg);
+    corpo.classList.add("com-meta");
+    corpo.innerHTML = `
+      <div class="meta-topo"><span class="widget-kpi value ${moeda ? "sensivel" : ""}" style="color:${cor}">${fmt(valor)}</span>
+        <span class="meta-de ${moeda ? "sensivel" : ""}">de ${fmt(cfg.meta)}</span></div>
+      <div class="meta-barra" role="progressbar" aria-label="Progresso da meta" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(Math.min(pct, 100))}">
+        <span style="width:${Math.min(pct, 100)}%;background:${cor}"></span></div>
+      <div class="widget-sub">${falta > 0
+        ? `Faltam <strong class="${moeda ? "sensivel" : ""}">${fmt(falta)}</strong> para a meta ${p.rotulo}`
+        : `Meta ${p.rotulo} batida${falta < 0 ? `, ${fmt(-falta)} além` : ""}!`} · ${Util.fmtNumero(pct, 0)}%</div>`;
+  }
+
+  // Pizza (rosca): uma fatia por categoria; no centro, quantas categorias têm valor.
+  function renderPizza(w, corpo, d, modulo) {
+    const cfg = d.config;
+    const fmt = formatador(cfg, modulo);
+    const grupo = campoDe(modulo, cfg.agrupar_por);
+    const linhas = ordenar(d.result, cfg, modulo).filter((r) => valorDe(cfg, r) > 0).slice(0, MAX_GRUPOS);
+    if (!d.total_count || !linhas.length) { corpo.innerHTML = '<div class="widget-sub">Sem dados</div>'; return; }
+
+    // Fatias vizinhas precisam de cores diferentes: sem paleta nem cores
+    // escolhidas, uma cor do tema por fatia, na ordem (a identidade pela
+    // posição da opção repetiria ou daria cinza da 9ª opção em diante).
+    const escolhidas = cfg.paleta || Object.keys(cfg.cores || {}).length;
+    const cores = linhas.map((r, i) => (escolhidas ? Util.corDe(cfg, grupo, r.key, i) : Util.cssVar(`--series-${(i % 8) + 1}`)));
+    const total = linhas.reduce((t, r) => t + valorDe(cfg, r), 0);
+    const moeda = campoDe(modulo, cfg.campo)?.tipo === "moeda";
+    corpo.classList.toggle("sensivel", moeda);
+    corpo.innerHTML = `<div class="pizza"><canvas aria-label="${esc(w.titulo)}: ${linhas.length} ${esc(grupo ? grupo.nome : "grupos")}"></canvas></div>`;
+    // Número de categorias no centro da rosca (onde quer que a legenda fique).
+    const centro = {
+      id: "centro",
+      afterDraw(chart) {
+        const { left, right, top, bottom } = chart.chartArea;
+        const x = (left + right) / 2;
+        const y = (top + bottom) / 2;
+        const fonte = Chart.defaults.font.family;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.fillStyle = Util.cssVar("--text-primary");
+        ctx.font = `700 ${Math.round(Chart.defaults.font.size * 1.9)}px ${fonte}`;
+        ctx.textBaseline = "bottom";
+        ctx.fillText(String(linhas.length), x, y + 4);
+        ctx.fillStyle = Util.cssVar("--text-muted");
+        ctx.font = `${Math.round(Chart.defaults.font.size * 0.95)}px ${fonte}`;
+        ctx.textBaseline = "top";
+        ctx.fillText(grupo ? grupo.nome : "grupos", x, y + 6);
+        ctx.restore();
+      }
+    };
+    charts[w.id]?.destroy();
+    charts[w.id] = new Chart(corpo.querySelector("canvas"), {
+      type: "doughnut",
+      plugins: [centro],
+      data: {
+        labels: linhas.map((r) => Util.rotuloChave(grupo, r.key, cfg.formato_grupo)),
+        datasets: [{ data: linhas.map((r) => valorDe(cfg, r)), backgroundColor: cores, borderColor: Util.cssVar("--surface-1"), borderWidth: 2, hoverOffset: 6 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "62%", animation: { duration: 350 },
+        plugins: {
+          legend: { position: corpo.clientWidth > 360 ? "right" : "bottom", labels: { usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8, color: Util.cssVar("--text-secondary") } },
+          tooltip: { cornerRadius: 8, padding: 10, callbacks: { label: (ctx) => `${ctx.label}: ${fmt(ctx.parsed)} (${Util.fmtNumero(ctx.parsed / total * 100, 0)}%)` } }
+        }
+      }
+    });
+  }
+
+  // Calendário: um quadradinho por dia (como o de contribuições do GitHub),
+  // intensidade pelo valor do dia; semanas em colunas, as mais recentes à
+  // direita, só as que cabem na largura. Embaixo: dias ativos e sequências.
+  function renderCalendario(corpo, d, modulo) {
+    const cfg = d.config;
+    const fmt = formatador(cfg, modulo);
+    const valores = new Map(d.result.map((r) => [r.key, valorDe(cfg, r)]));
+    const CEL = 14;
+    const semanas = Math.max(8, Math.min(53, Math.floor(((corpo.clientWidth || 600) - 34) / CEL)));
+    const iso = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    const hoje = new Date();
+    hoje.setHours(12, 0, 0, 0);
+    const dia = new Date(hoje);
+    dia.setDate(hoje.getDate() - hoje.getDay() - (semanas - 1) * 7);
+
+    const dias = [];
+    for (; dia <= hoje; dia.setDate(dia.getDate() + 1)) dias.push({ data: iso(dia), sem: dia.getDay(), v: valores.get(iso(dia)) || 0 });
+    const max = Math.max(0, ...dias.map((x) => x.v));
+    const nivel = (v) => (v <= 0 || !max ? 0 : Math.min(4, Math.ceil(v / max * 4)));
+
+    const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    let mesAnterior = -1;
+    const celulas = [];
+    const meses = [];
+    dias.forEach((x, i) => {
+      const col = Math.floor(i / 7) + 2;
+      if (x.sem === 0) {
+        const mes = Number(x.data.slice(5, 7)) - 1;
+        if (mes !== mesAnterior && col > 2) meses.push(`<span class="cal-mes" style="grid-column:${col}">${MESES[mes]}</span>`);
+        mesAnterior = mes;
+      }
+      const texto = `${x.v > 0 ? fmt(x.v) : "Nada"} em ${Util.fmtData(x.data)}`;
+      celulas.push(`<span class="cal-dia" data-nivel="${nivel(x.v)}" style="grid-column:${col};grid-row:${x.sem + 2}" title="${texto}"></span>`);
+    });
+
+    // Sequências: dias seguidos com valor (hoje ainda zerado conta até ontem).
+    let atual = 0;
+    for (let i = dias.length - 1 - (dias.at(-1)?.v > 0 ? 0 : 1); i >= 0 && dias[i].v > 0; i--) atual++;
+    let maior = 0;
+    let corrente = 0;
+    dias.forEach((x) => { corrente = x.v > 0 ? corrente + 1 : 0; maior = Math.max(maior, corrente); });
+    const ativos = dias.filter((x) => x.v > 0).length;
+    const total = dias.reduce((t, x) => t + x.v, 0);
+
+    const moeda = campoDe(modulo, cfg.campo)?.tipo === "moeda";
+    corpo.classList.add("com-calendario");
+    corpo.style.setProperty("--cal-cor", Util.corUnica(cfg)); // grade e legenda
+    corpo.innerHTML = `<div class="cal-grade" style="grid-template-columns:30px repeat(${semanas}, 11px)">
+        <span class="cal-sem" style="grid-row:3">seg</span><span class="cal-sem" style="grid-row:5">qua</span><span class="cal-sem" style="grid-row:7">sex</span>
+        ${meses.join("")}${celulas.join("")}</div>
+      <div class="cal-legenda"><span class="widget-sub"><strong class="${moeda ? "sensivel" : ""}">${fmt(total)}</strong> em ${ativos} dia${ativos === 1 ? "" : "s"}
+        · sequência atual ${atual} · maior ${maior}</span>
+        <span class="cal-escala" aria-hidden="true">Menos <span class="cal-dia" data-nivel="0"></span><span class="cal-dia" data-nivel="1"></span><span class="cal-dia" data-nivel="2"></span><span class="cal-dia" data-nivel="3"></span><span class="cal-dia" data-nivel="4"></span> Mais</span></div>`;
   }
 
   function renderKpi(corpo, d, modulo) {
@@ -400,6 +565,11 @@ const Dashboards = (() => {
     opcoes("w-agrupar", [["", "— tudo junto —"], ...campos.filter((c) => Util.DIMENSOES.includes(c.tipo))
       .map((c) => [c.id, c.tipo === "data" ? `${c.nome} (mês a mês)` : c.nome])], cfg?.agrupar_por || "");
     opcoes("w-serie", [["", "— uma cor só —"], ...campos.filter((c) => Util.SERIES.includes(c.tipo)).map((c) => [c.id, c.nome])], cfg?.serie_por || "");
+    // Calendário e meta por período: qual campo de data.
+    const datas = campos.filter((c) => c.tipo === "data").map((c) => [c.id, c.nome]);
+    opcoes("w-data", datas.length ? datas : [["", "— o módulo não tem campo de data —"]], cfg?.campo_data || (cfg?.formato_grupo ? undefined : cfg?.agrupar_por) || undefined);
+    $("w-meta").value = cfg?.meta ?? "";
+    $("w-periodo").value = cfg?.periodo || "mes";
 
     // A tela edita um filtro; filtros adicionais (vindos de templates) são mantidos.
     const entradas = Object.entries(cfg?.filtro || {});
@@ -428,8 +598,10 @@ const Dashboards = (() => {
   function atualizarVisibilidade() {
     const tipo = $("w-tipo").value;
     $("w-campo-wrap").hidden = $("w-agregacao").value === "contagem";
-    $("w-agrupar-wrap").hidden = tipo === "kpi";
-    $("w-serie-wrap").hidden = tipo === "kpi" || tipo === "table";
+    $("w-agrupar-wrap").hidden = tipo === "kpi" || tipo === "calendario";
+    $("w-serie-wrap").hidden = !["bar", "line"].includes(tipo);
+    $("w-meta-wrap").hidden = tipo !== "kpi";
+    $("w-data-wrap").hidden = !(tipo === "calendario" || (tipo === "kpi" && $("w-meta").value.trim() && $("w-periodo").value !== "tudo"));
     document.querySelectorAll("#w-tipos .tipo-card").forEach((b) => {
       const ativo = b.dataset.tipo === tipo;
       b.classList.toggle("selected", ativo);
@@ -536,12 +708,15 @@ const Dashboards = (() => {
       config: {
         agregacao,
         campo: agregacao === "contagem" ? null : $("w-campo").value,
-        agrupar_por: tipo === "kpi" ? null : $("w-agrupar").value || null,
+        agrupar_por: tipo === "kpi" ? null : tipo === "calendario" ? $("w-data").value || null : $("w-agrupar").value || null,
         serie_por: tipo === "bar" || tipo === "line" ? $("w-serie").value || null : null,
         filtro,
         paleta: aparencia.paleta,
         cores: aparencia.cores,
-        cor: aparencia.cor
+        cor: aparencia.cor,
+        ...(tipo === "kpi" && $("w-meta").value.trim()
+          ? { meta: $("w-meta").value.trim(), periodo: $("w-periodo").value, campo_data: $("w-data").value || null }
+          : {})
       }
     };
   }
@@ -566,13 +741,15 @@ const Dashboards = (() => {
     }
     if (data) lista.push({ rotulo: `${oque} mês a mês`, tipo: "line", cfg: { ...(mov && num ? { agregacao: "saldo", campo: num.id } : medida), agrupar_por: data.id } });
     if (sel) lista.push({ rotulo: `Tabela por ${sel.nome}`, tipo: "table", cfg: { ...medida, agrupar_por: sel.id } });
-    return lista.slice(0, 6);
+    if (sel) lista.push({ rotulo: `${oque} por ${sel.nome} (pizza)`, tipo: "pie", cfg: { ...medida, agrupar_por: sel.id } });
+    if (data) lista.push({ rotulo: `Calendário de ${oque}`, tipo: "calendario", cfg: { ...medida, agrupar_por: data.id } });
+    return lista.slice(0, 8);
   }
 
   function renderSugestoes() {
     const modulo = App.modulo($("w-modulo").value);
     const lista = sugestoes(modulo);
-    const icone = { kpi: "123", bar: Util.icone("barras"), line: Util.icone("linha"), table: Util.icone("tabela") };
+    const icone = { kpi: "123", bar: Util.icone("barras"), line: Util.icone("linha"), table: Util.icone("tabela"), pie: Util.icone("pizza"), calendario: Util.icone("calendario") };
     $("w-sugestoes").innerHTML = lista.map((s, i) =>
       `<button type="button" class="sugestao" data-i="${i}"><span class="tipo-ico">${icone[s.tipo]}</span>${esc(s.rotulo)}</button>`).join("");
     $("w-sugestoes").querySelectorAll(".sugestao").forEach((b) => b.addEventListener("click", () => {
@@ -595,6 +772,8 @@ const Dashboards = (() => {
       media: `Média de ${campo ? campo.nome : "valor"}`,
       saldo: "Saldo"
     }[$("w-agregacao").value];
+    if (tipo === "kpi" && $("w-meta").value.trim()) return `Meta de ${base.toLowerCase()}${{ mes: " do mês", semana: " da semana" }[$("w-periodo").value] || ""}`;
+    if (tipo === "calendario") return `${base} por dia`;
     if (!grupo) return base;
     return grupo.tipo === "data" ? `${base} mês a mês` : `${base} por ${grupo.nome}`;
   }
@@ -611,10 +790,11 @@ const Dashboards = (() => {
       media: `a média de ${campo?.nome}`,
       saldo: `o saldo (entradas − saídas) de ${campo?.nome}`
     }[cfg.agregacao];
-    const como = { kpi: "um número", bar: "barras", line: "uma linha", table: "uma tabela" }[c.tipo];
+    const como = { kpi: "um número", bar: "barras", line: "uma linha", table: "uma tabela", pie: "uma pizza", calendario: "um calendário (um quadrado por dia)" }[c.tipo];
     const partes = [`Mostra ${oque} de "${modulo.nome}" como ${como}`];
     const grupo = campoDe(modulo, cfg.agrupar_por);
-    if (grupo) partes.push(grupo.tipo === "data" ? `mês a mês (por ${grupo.nome})` : `separado por ${grupo.nome}`);
+    if (cfg.meta) partes.push(`com a meta de ${cfg.meta}${{ mes: " no mês", semana: " na semana" }[cfg.periodo] || ""} e quanto falta`);
+    else if (grupo && c.tipo !== "calendario") partes.push(grupo.tipo === "data" ? `mês a mês (por ${grupo.nome})` : `separado por ${grupo.nome}`);
     const serie = campoDe(modulo, cfg.serie_por);
     if (serie) partes.push(`com uma cor para cada ${serie.nome}`);
     const filtros = Object.entries(cfg.filtro).map(([k, v]) => {
@@ -643,9 +823,7 @@ const Dashboards = (() => {
       corpo.dataset.tipo = c.tipo;
       charts.previa?.destroy();
       delete charts.previa;
-      if (c.tipo === "kpi") renderKpi(corpo, d, modulo);
-      else if (c.tipo === "table") renderTabela(corpo, d, modulo);
-      else renderGrafico({ id: "previa", tipo: c.tipo, titulo: c.titulo }, corpo, d, modulo);
+      desenhar({ id: "previa", tipo: c.tipo, titulo: c.titulo }, corpo, d, modulo);
     } catch (e) {
       if (seq === previaSeq) corpo.innerHTML = `<div class="widget-erro">${esc(e.message)}</div>`;
     }

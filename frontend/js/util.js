@@ -305,6 +305,8 @@ const Util = (() => {
     tabela: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/>',
     barras: '<path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/>',
     linha: '<path d="M3 17l5-6 4 3 4-7 5 5"/>',
+    pizza: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 6"/>',
+    calendario: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4M8 13h.01M12 13h.01M16 13h.01M8 16.5h.01M12 16.5h.01"/>',
     alca: '<circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/>',
     seta: '<path d="M6 9l6 6 6-6"/>',
     recolher: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M16 10l-2 2 2 2"/>',
