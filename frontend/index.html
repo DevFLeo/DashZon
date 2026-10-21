@@ -164,12 +164,6 @@
         <div id="nav-dashboards" class="nav-lista" data-lista="dashboards"></div>
       </div>
       <div class="nav-section">
-        <div class="nav-title"><button type="button" class="nav-cascata" aria-expanded="true" aria-controls="nav-estudos"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span>Estudos</span></button></div>
-        <div id="nav-estudos" class="nav-lista">
-          <a class="nav-item nav-github" href="#/github" id="nav-github" title="Contribuições do GitHub"><span class="nav-alca nav-alca-vazia" aria-hidden="true"></span><span class="nav-sigla" aria-hidden="true">GH</span><span class="nav-texto">Contribuições do GitHub</span><span class="nav-marcas"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span></a>
-        </div>
-      </div>
-      <div class="nav-section">
         <div class="nav-title"><button type="button" class="nav-cascata" aria-expanded="true" aria-controls="nav-modulos"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span>Módulos</span></button> <button class="icon-btn" id="btn-add-modulo" title="Adicionar módulo" aria-label="Adicionar módulo">+</button></div>
         <div id="nav-modulos" class="nav-lista" data-lista="modulos"></div>
       </div>
@@ -522,40 +516,6 @@
         <p class="hint">Logins, falhas, bloqueios, trocas de senha e acessos recusados (os últimos 100). O login digitado errado não é guardado como texto, para não registrar uma senha digitada no campo errado.</p>
         <div id="seg-eventos"></div>
       </section>
-    </section>
-
-    <!-- Contribuições do GitHub (acompanhar os estudos) -->
-    <section class="view" id="view-github">
-      <header class="page-header">
-        <div>
-          <h1>Contribuições do GitHub</h1>
-          <p class="hint">Para acompanhar os estudos: o calendário de contribuições do último ano de <strong id="gh-titulo-usuario">…</strong>.
-            <a id="gh-link" href="https://github.com" target="_blank" rel="noopener noreferrer">Abrir no GitHub</a></p>
-        </div>
-        <div class="actions">
-          <button class="btn btn-sm" id="gh-atualizar">Atualizar</button>
-        </div>
-      </header>
-      <form class="toolbar gh-form" id="form-gh">
-        <label for="gh-usuario">Usuário do GitHub</label>
-        <input id="gh-usuario" type="text" maxlength="40" autocomplete="off" placeholder="ex.: DevFLeo">
-        <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
-      </form>
-      <div class="form-erro" id="gh-erro" hidden></div>
-      <div class="empty-state" id="gh-vazio" hidden>
-        <h2>Qual é o seu usuário do GitHub?</h2>
-        <div>Digite acima e salve. O painel mostra as contribuições públicas do último ano (o mesmo calendário do seu perfil).</div>
-      </div>
-      <p class="hint" id="gh-carregando" hidden>Buscando no GitHub…</p>
-      <div id="gh-conteudo" hidden>
-        <div class="kpi-row" id="gh-kpis"></div>
-        <div class="gh-bloco">
-          <div id="gh-calendario" class="gh-calendario"></div>
-          <div class="gh-legenda"><span class="hint" id="gh-periodo"></span><span class="gh-escala">Menos
-            <span class="gh-dia" data-nivel="0"></span><span class="gh-dia" data-nivel="1"></span><span class="gh-dia" data-nivel="2"></span><span class="gh-dia" data-nivel="3"></span><span class="gh-dia" data-nivel="4"></span> Mais</span></div>
-        </div>
-        <p class="hint" id="gh-atualizado"></p>
-      </div>
     </section>
 
     <section class="view" id="view-vazio">
@@ -964,7 +924,6 @@
 <script src="/js/modulos.js"></script>
 <script src="/js/notas.js"></script>
 <script src="/js/dashboards.js"></script>
-<script src="/js/github.js"></script>
 <script src="/js/menu.js"></script>
 <script src="/js/responsivo.js"></script>
 <script src="/js/app.js"></script>

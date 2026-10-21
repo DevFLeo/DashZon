@@ -5,7 +5,6 @@ require "time"
 require_relative "database"
 require_relative "segredo"
 require_relative "documento"
-require_relative "github"
 require_relative "seguranca"
 
 # Contas de acesso: cadastro, perfis, senhas, links de uso único e os ajustes
@@ -45,7 +44,7 @@ module Usuarios
   # modulos_ocultos: módulos que a pessoa desligou em Configurações > Módulos
   # (somem do menu dela; os dados e os cards continuam, e os outros usuários
   # não são afetados).
-  PREFERENCIAS_PADRAO = { "tema" => "sistema", "fonte" => "inter", "tamanho_fonte" => "normal", "github_usuario" => "", "pagina_inicial" => "", "privacidade" => false,
+  PREFERENCIAS_PADRAO = { "tema" => "sistema", "fonte" => "inter", "tamanho_fonte" => "normal", "pagina_inicial" => "", "privacidade" => false,
                           "modulos_ocultos" => [].freeze, "ordem_menu" => { "dashboards" => [].freeze, "modulos" => [].freeze }.freeze }.freeze
   OCULTOS_MAX = 100
   # ordem_menu: a ordem que a pessoa arrastou na barra lateral (só dela).
@@ -152,13 +151,6 @@ module Usuarios
       raise Erro, "Tamanho de fonte inválido" unless TAMANHOS_FONTE.include?(d["tamanho_fonte"])
 
       prefs["tamanho_fonte"] = d["tamanho_fonte"]
-    end
-    # Usuário do GitHub do painel de contribuições ("" = nenhum).
-    if d.key?("github_usuario")
-      gh = d["github_usuario"].to_s.strip.delete_prefix("@")
-      raise Erro, "Usuário do GitHub inválido (letras, números e hífen, até 39)" unless gh.empty? || Github.usuario_valido?(gh)
-
-      prefs["github_usuario"] = gh
     end
     if d.key?("pagina_inicial")
       pagina = d["pagina_inicial"].to_s

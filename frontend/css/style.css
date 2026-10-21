@@ -739,22 +739,6 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 #admin-equipes td.membros { max-width: 420px; }
 .empty-state-baixo { padding: 18px; }
 
-/* ---------- Contribuições do GitHub (#/github) ---------- */
-.gh-form { margin-bottom: 14px; }
-.gh-form label { font-size: calc(13px * var(--fs)); font-weight: 600; color: var(--text-secondary); }
-.gh-form input { width: 200px; }
-.gh-bloco { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; margin: 14px 0 8px; }
-.gh-calendario { width: 100%; overflow: hidden; }
-.gh-grade { display: grid; grid-template-rows: 16px repeat(7, 11px); gap: 3px; width: max-content; }
-.gh-grade > span:not(.gh-dia) { font-size: calc(10px * var(--fs)); color: var(--text-muted); white-space: nowrap; line-height: 16px; }
-.gh-dia-semana { grid-column: 1; line-height: 11px !important; }
-.gh-dia { display: inline-block; width: 11px; height: 11px; border-radius: 3px; background: var(--hover); outline: 1px solid var(--border); outline-offset: -1px; }
-.gh-dia[data-nivel="1"] { background: color-mix(in srgb, var(--series-3) 30%, var(--surface-1)); }
-.gh-dia[data-nivel="2"] { background: color-mix(in srgb, var(--series-3) 55%, var(--surface-1)); }
-.gh-dia[data-nivel="3"] { background: color-mix(in srgb, var(--series-3) 80%, var(--surface-1)); }
-.gh-dia[data-nivel="4"] { background: var(--series-3); }
-.gh-legenda { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
-.gh-escala { display: inline-flex; align-items: center; gap: 3px; font-size: calc(12px * var(--fs)); color: var(--text-muted); }
 
 /* ---------- Editor de card: cores ---------- */
 .paletas { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }

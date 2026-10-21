@@ -55,7 +55,6 @@ const App = (() => {
       ? visiveis.map((m) => `<a class="nav-item ${rota.tipo === "m" && rota.id === m.slug ? "active" : ""}" href="#/m/${encodeURIComponent(m.slug)}" data-ordem="${esc(m.slug)}" title="${esc(m.nome)}">
           ${alca}<span class="nav-sigla" aria-hidden="true">${esc(sigla(m.nome))}</span><span class="nav-texto">${esc(m.nome)}</span><span class="count">${m.total}</span></a>`).join("")
       : `<div class="nav-empty">${modulos.length ? '<a href="#/config/modulos">Todos desligados: ligue em Configurações</a>' : "Nenhum módulo"}</div>`;
-    $("nav-github").classList.toggle("active", rota.tipo === "github");
     $("link-config").classList.toggle("active", rota.tipo === "config");
   }
 
@@ -119,9 +118,6 @@ const App = (() => {
       } else if (tipo === "config") {
         mostrar("view-config");
         await Config.abrir(id);
-      } else if (tipo === "github") {
-        mostrar("view-github");
-        await Github.abrir();
       } else if (tipo === "admin" && usuario?.admin) {
         mostrar("view-admin");
         await Admin.abrir(usuario.id);
@@ -249,7 +245,6 @@ const App = (() => {
     Modulos.init();
     Conta.init(status);
     Admin.init();
-    Github.init();
     Menu.init();
 
     await recarregarNav();
