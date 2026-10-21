@@ -70,6 +70,16 @@ module Equipes
      .transform_values { |l| l.map { |r| { "id" => r["id"], "nome" => r["nome"], "empresa" => r["empresa"].to_i == 1, "teste" => r["teste"].to_i == 1 } } }
   end
 
+  # Equipes de uma pessoa, para ela mesma (Configurações > Conta): nome, se é
+  # empresa e o CNPJ mascarado (o mesmo que o admin vê).
+  def do_usuario(usuario_id)
+    tabelas!
+    Database.rows(
+      "SELECT e.* FROM equipe_membros m JOIN equipes e ON e.id = m.equipe_id WHERE m.usuario_id = ? ORDER BY lower(e.nome)",
+      [usuario_id.to_i]
+    ).map { |e| publica(e).slice("id", "nome", "descricao", "empresa", "cnpj", "teste") }
+  end
+
   # --- validação ------------------------------------------------------------------
 
   # Campos ausentes mantêm o valor atual (`atual`, ao editar).

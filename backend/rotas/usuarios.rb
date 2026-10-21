@@ -166,8 +166,9 @@ post "/api/email/verificar" do
 end
 
 # ----------------------------------------------------------- minha conta ---
+# Com as equipes da pessoa (relatório, problema 9: ela não via as próprias).
 get "/api/eu" do
-  json Usuarios.publico(usuario_atual)
+  json Usuarios.publico(usuario_atual).merge("equipes" => Equipes.do_usuario(usuario_atual["id"]))
 end
 
 # Nome, e-mail e documento. Login, cargo e perfil só o administrador muda.

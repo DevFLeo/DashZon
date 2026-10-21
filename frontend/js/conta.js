@@ -27,6 +27,9 @@ const Conta = (() => {
       eu.cargo ? `Cargo: ${eu.cargo}` : "",
       eu.admin ? "Administrador" : "Usuário"
     ].filter(Boolean).join(" · ");
+    $("conta-equipes").innerHTML = eu.equipes?.length
+      ? `<span class="hint">Suas equipes:</span> ${eu.equipes.map((e) => `<span class="chip${e.teste ? " chip-teste" : ""}" title="${Util.escapeHtml(e.descricao || "")}">${Util.escapeHtml(e.nome)}${e.empresa ? ` · empresa${e.cnpj ? ` · CNPJ ${Util.escapeHtml(e.cnpj)}` : ""}` : ""}</span>`).join(" ")}`
+      : '<span class="hint">Você não está em nenhuma equipe.</span>';
     $("senha-usuario").value = eu.login;
     preencherPreferencias();
   }

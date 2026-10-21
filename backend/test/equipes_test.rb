@@ -28,6 +28,18 @@ class EquipesTest < Minitest::Test
     resposta.find { |u| u["login"] == login }["equipes"].map { |e| e["nome"] }
   end
 
+  # Relatório, problema 9: a pessoa vê as próprias equipes em /api/eu.
+  def test_usuario_ve_as_proprias_equipes
+    emp = criar_equipe("nome" => "Zon Ltda", "empresa" => true, "exigir_cnpj" => true, "cnpj" => CNPJ)
+    criar_equipe("nome" => "Outra")
+    criar_usuario("ana", "equipes" => [emp["id"]])
+    entrar("ana", "senha-de-ana-1")
+    get "/api/eu"
+    assert_equal [["Zon Ltda", true]], resposta["equipes"].map { |e| [e["nome"], e["empresa"]] }
+    assert_match(/0001/, resposta["equipes"].first["cnpj"])
+    refute resposta["equipes"].first.key?("membros"), "não expõe quem mais está na equipe"
+  end
+
   # --- criar ---------------------------------------------------------------------
 
   def test_equipe_simples
