@@ -17,6 +17,19 @@ class CardsEstudoTest < Minitest::Test
     last_response
   end
 
+  def test_dashboard_estudos_traz_calendario_meta_e_pizza
+    preparar!
+    get "/api/dashboards/#{@dash}"
+    tipos = resposta["widgets"].to_h { |w| [w["titulo"], [w["tipo"], w["config"]["meta"], w["config"]["periodo"]]] }
+    assert_equal ["calendario", nil, nil], tipos["Calendário de estudo (horas por dia)"]
+    assert_equal ["kpi", 40.0, "mes"], tipos["Meta de horas do mês"]
+    assert_equal ["pie", nil, nil], tipos["Matérias estudadas (horas)"]
+    resposta["widgets"].each do |w|
+      get "/api/widgets/#{w['id']}/data"
+      assert_equal 200, last_response.status, "#{w['titulo']}: #{last_response.body}"
+    end
+  end
+
   def test_pizza_por_materia
     preparar!
     assert_equal 201, card("pie", { "agregacao" => "soma", "campo" => "duracao", "agrupar_por" => "materia" }).status, last_response.body
