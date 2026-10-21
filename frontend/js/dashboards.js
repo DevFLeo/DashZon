@@ -940,9 +940,14 @@ const Dashboards = (() => {
       ? `Excluir o dashboard "${atual.nome}"?`
       : `Excluir o dashboard "${atual.nome}"? Os módulos e os registros não são afetados.`;
     $("exd-exemplos").hidden = !ex.total;
-    $("exd-apagar").checked = true;
+    // Módulo usado por outro dashboard: avisa e deixa desmarcado (relatório, problema 8).
+    const compartilhado = ex.modulos.some((m) => m.outros_dashboards.length || m.outros_ocultos);
+    $("exd-apagar").checked = !compartilhado;
     $("exd-rotulo").textContent = `Apagar também os ${ex.total} registro(s) de exemplo destes módulos:`;
-    $("exd-lista").innerHTML = ex.modulos.map((m) => `<li>${esc(m.nome)}: ${m.exemplos}</li>`).join("");
+    $("exd-lista").innerHTML = ex.modulos.map((m) => {
+      const outros = [...m.outros_dashboards.map((n) => `"${esc(n)}"`), ...(m.outros_ocultos ? [`${m.outros_ocultos} de outra(s) pessoa(s)`] : [])];
+      return `<li>${esc(m.nome)}: ${m.exemplos}${outros.length ? `<div class="exd-aviso">Também usado por ${outros.join(", ")}: esses dashboards ficarão sem os dados de exemplo.</div>` : ""}</li>`;
+    }).join("");
     $("exd-erro").hidden = true;
     Util.abrirModal("modal-excluir-dashboard");
   }

@@ -49,6 +49,21 @@ class ExemplosTest < Minitest::Test
     assert_equal 6, resposta["count"], "módulo que o dashboard não usa fica como estava"
   end
 
+  # Relatório, problemas 7 e 8.
+  def test_lista_traz_os_modulos_e_exclusao_avisa_de_outro_dashboard
+    instalar!
+    get "/api/dashboards"
+    assert_equal ["cronograma_estudos"], resposta.find { |d| d["id"] == @dash }["modulos"]
+    post_json "/api/dashboards", { "nome" => "Outro", "visibilidade" => "equipe" }
+    outro = resposta["id"]
+    post_json "/api/dashboards/#{outro}/widgets", { "titulo" => "Sessões", "tipo" => "kpi", "modulo" => "cronograma_estudos", "config" => { "agregacao" => "contagem" } }
+    assert_equal 201, last_response.status, last_response.body
+    get "/api/dashboards/#{@dash}/exemplos"
+    m = resposta["modulos"].first
+    assert_equal ["Outro"], m["outros_dashboards"]
+    assert_equal 0, m["outros_ocultos"]
+  end
+
   def test_apagar_dashboard_sem_pedir_mantem_os_exemplos
     instalar!
     delete "/api/dashboards/#{@dash}"

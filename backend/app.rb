@@ -651,7 +651,15 @@ def exemplos_do_dashboard(dash)
   slugs.filter_map do |s|
     m = Database.modulo(s)
     n = m && exemplos[m["id"]].to_i
-    { "id" => m["id"], "slug" => m["slug"], "nome" => m["nome"], "exemplos" => n } if n&.positive?
+    next unless n&.positive?
+
+    # Outros dashboards com cards neste módulo também perdem os exemplos
+    # (relatório, problema 8): só os nomes que a pessoa vê; o resto é contado.
+    outros = Database.rows("SELECT DISTINCT d.* FROM dashboards d JOIN widgets w ON w.dashboard_id = d.id
+                            WHERE w.modulo_slug = ? AND d.id <> ?", [m["slug"], dash["id"]])
+    visiveis = outros.select { |o| dashboard_visivel?(o) }.map { |o| o["nome"] }
+    { "id" => m["id"], "slug" => m["slug"], "nome" => m["nome"], "exemplos" => n,
+      "outros_dashboards" => visiveis, "outros_ocultos" => outros.size - visiveis.size }
   end
 end
 
