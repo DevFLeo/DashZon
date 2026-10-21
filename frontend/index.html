@@ -217,6 +217,7 @@
           <p class="hint" id="mod-descricao"></p>
         </div>
         <div class="actions">
+          <button class="btn btn-sm" id="btn-apagar-exemplos" hidden>Apagar dados de exemplo</button>
           <button class="btn btn-sm" id="btn-estrutura">Estrutura (JSON)</button>
           <button class="btn btn-sm btn-danger" id="btn-excluir-modulo">Excluir módulo</button>
           <button class="btn btn-sm btn-primary" id="btn-novo-registro">+ Novo registro</button>
@@ -878,6 +879,24 @@
     <div class="modal-actions">
       <button type="button" class="btn" data-fechar="modal-equipe">Cancelar</button>
       <button type="submit" class="btn btn-primary" id="equipe-salvar">Criar equipe</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ Modal: excluir dashboard (e os dados de exemplo dele) ============ -->
+<div class="modal-overlay" id="modal-excluir-dashboard">
+  <form class="modal" id="form-excluir-dashboard">
+    <h2>Excluir dashboard</h2>
+    <p id="exd-texto"></p>
+    <div id="exd-exemplos" hidden>
+      <label class="field-check"><input type="checkbox" id="exd-apagar" checked> <span id="exd-rotulo"></span></label>
+      <ul class="exd-lista" id="exd-lista"></ul>
+      <p class="hint">Só os registros que vieram com o template. O que você cadastrou ou editou continua, e os módulos também.</p>
+    </div>
+    <div class="form-erro" id="exd-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-excluir-dashboard">Cancelar</button>
+      <button type="submit" class="btn btn-danger" id="exd-confirmar">Excluir dashboard</button>
     </div>
   </form>
 </div>

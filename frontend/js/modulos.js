@@ -42,6 +42,7 @@ const Modulos = (() => {
     $("mod-busca").value = "";
     $("mod-titulo").textContent = atual.nome;
     $("mod-descricao").textContent = atual.descricao || "";
+    mostrarBotaoExemplos();
     renderFiltros();
     await Promise.all([carregarResumo(), carregarRegistros()]);
   }
@@ -309,6 +310,23 @@ const Modulos = (() => {
     }
   }
 
+  // Dados de exemplo do template (marcados na instalação): um botão apaga só eles.
+  function mostrarBotaoExemplos() {
+    $("btn-apagar-exemplos").hidden = !atual.exemplos;
+    $("btn-apagar-exemplos").textContent = `Apagar dados de exemplo (${atual.exemplos || 0})`;
+  }
+
+  async function apagarExemplos() {
+    if (!confirm(`Apagar os ${atual.exemplos} registro(s) de exemplo de "${atual.nome}"?\nOs que você cadastrou ou editou continuam.`)) return;
+    try {
+      const r = await Api.del(`/api/modulos/${encodeURIComponent(atual.slug)}/exemplos`);
+      atual.exemplos = 0;
+      mostrarBotaoExemplos();
+      Util.aviso(`${r.apagados} registro(s) de exemplo apagado(s)`);
+      await recarregar();
+    } catch (e) { Util.aviso(e.message, "erro"); }
+  }
+
   async function excluirModulo() {
     const total = App.modulo(atual.slug)?.total ?? 0;
     if (!confirm(`Excluir o módulo "${atual.nome}" e seus ${total} registro(s)?\nWidgets que usam este módulo também serão removidos.`)) return;
@@ -389,6 +407,7 @@ const Modulos = (() => {
       } catch (e) { erroEstrutura(e.message); }
     });
     $("btn-excluir-modulo").addEventListener("click", excluirModulo);
+    $("btn-apagar-exemplos").addEventListener("click", apagarExemplos);
     $("mod-busca").addEventListener("input", Util.debounce((e) => {
       busca = e.target.value.trim();
       carregarRegistros();

@@ -740,6 +740,8 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 .empty-state-baixo { padding: 18px; }
 
 
+.exd-lista { margin: 4px 0 6px 26px; padding: 0; color: var(--text-secondary); font-size: calc(13px * var(--fs)); }
+
 /* ---------- Cards de meta, pizza e calendário ---------- */
 .widget-body.com-meta { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
 .meta-topo { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }

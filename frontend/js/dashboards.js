@@ -41,6 +41,7 @@ const Dashboards = (() => {
     $("btn-compartilhar").addEventListener("click", abrirCompartilhar);
     $("form-compartilhar").addEventListener("submit", salvarCompartilhar);
     $("btn-excluir-dashboard").addEventListener("click", excluir);
+    $("form-excluir-dashboard").addEventListener("submit", confirmarExcluir);
     $("form-widget").addEventListener("submit", salvarWidget);
     $("w-modulo").addEventListener("change", trocarModulo);
     $("w-agregacao").addEventListener("change", atualizarVisibilidade);
@@ -931,11 +932,34 @@ const Dashboards = (() => {
     await App.recarregarNav();
   }
 
+  // Excluir: se os módulos do dashboard ainda têm dados de exemplo do
+  // template, oferece apagá-los junto (marcado por padrão).
   async function excluir() {
-    if (!confirm(`Excluir o dashboard "${atual.nome}"? Os módulos e registros não são afetados.`)) return;
-    await Api.del(`/api/dashboards/${atual.id}`);
-    await App.recarregarNav();
-    App.irPadrao();
+    const ex = await Api.get(`/api/dashboards/${atual.id}/exemplos`);
+    $("exd-texto").textContent = ex.total
+      ? `Excluir o dashboard "${atual.nome}"?`
+      : `Excluir o dashboard "${atual.nome}"? Os módulos e os registros não são afetados.`;
+    $("exd-exemplos").hidden = !ex.total;
+    $("exd-apagar").checked = true;
+    $("exd-rotulo").textContent = `Apagar também os ${ex.total} registro(s) de exemplo destes módulos:`;
+    $("exd-lista").innerHTML = ex.modulos.map((m) => `<li>${esc(m.nome)}: ${m.exemplos}</li>`).join("");
+    $("exd-erro").hidden = true;
+    Util.abrirModal("modal-excluir-dashboard");
+  }
+
+  async function confirmarExcluir(ev) {
+    ev.preventDefault();
+    const comExemplos = !$("exd-exemplos").hidden && $("exd-apagar").checked;
+    try {
+      const r = await Api.del(`/api/dashboards/${atual.id}${comExemplos ? "?exemplos=1" : ""}`);
+      Util.fecharModal("modal-excluir-dashboard");
+      Util.aviso(r.exemplos_apagados ? `Dashboard excluído, com ${r.exemplos_apagados} registro(s) de exemplo` : "Dashboard excluído");
+      await App.recarregarNav();
+      App.irPadrao();
+    } catch (e) {
+      $("exd-erro").textContent = e.message;
+      $("exd-erro").hidden = false;
+    }
   }
 
   // ---------------------------------------------------------- lançar ----
