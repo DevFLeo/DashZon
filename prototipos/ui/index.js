@@ -2,3 +2,4 @@
 export { Card } from "./Card.jsx";
 export { Cubo, Dashboard, Login, Moldura, Modulo, useSessao, useTema } from "./Telas.jsx";
 export { Api } from "./logica.js";
+export { Avisos, Confirmar, Icone, Janela, avisar } from "./Base.jsx";

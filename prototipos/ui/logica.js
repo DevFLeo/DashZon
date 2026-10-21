@@ -23,7 +23,9 @@ export async function api(metodo, caminho, corpo) {
 export const Api = {
   get: (c) => api("GET", c),
   post: (c, b) => api("POST", c, b),
-  put: (c, b) => api("PUT", c, b)
+  put: (c, b) => api("PUT", c, b),
+  patch: (c, b) => api("PATCH", c, b),
+  del: (c) => api("DELETE", c)
 };
 
 // --- formatação --------------------------------------------------------------
@@ -81,6 +83,27 @@ export function descricao(cfg, modulo) {
 }
 
 const opcoes = (campo) => (campo.tipo === "movimento" ? ["entrada", "saida"] : campo.tipo === "booleano" ? ["true", "false"] : campo.opcoes || []);
+
+// --- formulário de registro (igual a util.js do oficial) ---------------------
+export const NUMERICOS = ["numero", "moeda"];
+export const SERIES = ["selecao", "movimento", "booleano"];
+
+// Opções de um campo com o rótulo de tela: [{v, l}].
+export const opcoesDe = (campo) => opcoes(campo).map((v) => ({ v, l: rotuloChave(campo, v) }));
+
+export function hojeISO(deltaDias = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + deltaDias);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Valor padrão do schema: "$hoje", "$hoje+7", "$hoje-1" viram a data.
+export function resolverToken(v) {
+  if (typeof v !== "string") return v;
+  const m = v.match(/^\$hoje([+-]\d+)?$/);
+  return m ? hojeISO(Number(m[1] || 0)) : v;
+}
 
 export function ordenar(linhas, cfg, modulo) {
   const campo = campoDe(modulo, cfg.agrupar_por);

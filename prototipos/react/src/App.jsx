@@ -25,10 +25,10 @@ export function App() {
   if (sessao.sem_login) return <Login tecnologia="React (Vite)" onEntrou={recarregar} />;
 
   const [, tipo, id] = hash.split("/");
-  const primeiro = sessao.dashboards[0];
+  const primeiro = sessao.menuDashboards[0];
   const ativo = tipo === "m" ? `m${decodeURIComponent(id)}` : `d${tipo === "d" ? id : primeiro?.id}`;
   let tela;
-  if (tipo === "m") tela = <Modulo slug={decodeURIComponent(id)} sessao={sessao} />;
+  if (tipo === "m") tela = <Modulo slug={decodeURIComponent(id)} sessao={sessao} onMudou={recarregar} />;
   else if (tipo === "d" || primeiro) tela = <Dashboard id={tipo === "d" ? id : primeiro.id} sessao={sessao} tema={tema} />;
   else tela = <div className="vazio">Nenhum dashboard.</div>;
 

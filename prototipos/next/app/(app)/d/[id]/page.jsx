@@ -1,9 +1,10 @@
 "use client";
 import { useParams } from "next/navigation";
 import { Dashboard } from "@dashzon/ui";
-import Casca from "../../Casca.jsx";
+import { useApp } from "../../contexto.js";
 
 export default function PaginaDashboard() {
   const { id } = useParams();
-  return <Casca ativo={`d${id}`}>{(sessao, tema) => <Dashboard id={id} sessao={sessao} tema={tema} />}</Casca>;
+  const { sessao, tema } = useApp();
+  return <Dashboard id={id} sessao={sessao} tema={tema} />;
 }

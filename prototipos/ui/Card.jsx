@@ -179,8 +179,12 @@ export function Card({ widget, modulo, moeda, tema }) {
           : widget.tipo === "calendario" ? <Calendario {...props} />
             : <Grafico key={tema} {...props} />;
   }
+  // No celular a grade vira 2 colunas (só CSS, como o responsivo.js do
+  // oficial): a ordem sai da posição salva (y*12 + x) e card estreito
+  // (w <= 3) ocupa meia linha. O layout salvo não muda.
   return (
-    <section className="card" style={{ gridColumn: `${widget.x + 1} / span ${widget.w}`, gridRow: `${widget.y + 1} / span ${widget.h}` }}>
+    <section className={`card ${widget.w <= 3 ? "cel-meia" : ""}`}
+      style={{ gridColumn: `${widget.x + 1} / span ${widget.w}`, gridRow: `${widget.y + 1} / span ${widget.h}`, "--ordem": widget.y * 12 + widget.x, "--gs-h": widget.h }}>
       <h3 className="card-titulo">{widget.titulo}</h3>
       <div className="card-corpo">{corpo}</div>
     </section>

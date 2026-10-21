@@ -1,9 +1,10 @@
 "use client";
 import { useParams } from "next/navigation";
 import { Modulo } from "@dashzon/ui";
-import Casca from "../../Casca.jsx";
+import { useApp } from "../../contexto.js";
 
 export default function PaginaModulo() {
   const slug = decodeURIComponent(useParams().slug);
-  return <Casca ativo={`m${slug}`}>{(sessao) => <Modulo slug={slug} sessao={sessao} />}</Casca>;
+  const { sessao, recarregar } = useApp();
+  return <Modulo slug={slug} sessao={sessao} onMudou={recarregar} />;
 }
