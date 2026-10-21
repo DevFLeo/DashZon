@@ -7,10 +7,13 @@
 // redesenhados com as mesmas funções de sempre (REGRA em CLAUDE.md).
 const Tema = (() => {
   const CHAVE = "dashzon.tema";
-  const TEMAS = ["sistema", "claro", "suave", "escuro"];
-  const ATRIBUTO = { claro: "light", suave: "soft", escuro: "dark" };
-  const PROXIMO = { claro: "suave", suave: "escuro", escuro: "claro" };
-  const NOME = { claro: "claro (sol)", suave: "suave (pôr do sol)", escuro: "escuro (lua)" };
+  // Floresta (a pedido): dia, tarde e noite, em tons de verde. O botão gira
+  // dentro da família escolhida: floresta dia -> tarde -> noite -> dia.
+  const TEMAS = ["sistema", "claro", "suave", "escuro", "floresta_dia", "floresta_tarde", "floresta_noite"];
+  const ATRIBUTO = { claro: "light", suave: "soft", escuro: "dark", floresta_dia: "forest-day", floresta_tarde: "forest-dusk", floresta_noite: "forest-night" };
+  const PROXIMO = { claro: "suave", suave: "escuro", escuro: "claro", floresta_dia: "floresta_tarde", floresta_tarde: "floresta_noite", floresta_noite: "floresta_dia" };
+  const NOME = { claro: "claro (sol)", suave: "suave (pôr do sol)", escuro: "escuro (lua)",
+    floresta_dia: "floresta: dia", floresta_tarde: "floresta: tarde", floresta_noite: "floresta: noite" };
   const escuroNoSistema = window.matchMedia("(prefers-color-scheme: dark)");
   let aoMudar = null; // callback do App para salvar na conta
 
@@ -19,7 +22,7 @@ const Tema = (() => {
     return TEMAS.includes(t) ? t : "sistema";
   }
 
-  // O tema que está valendo de fato: claro, suave ou escuro.
+  // O tema que está valendo de fato: claro, suave, escuro ou um dos floresta.
   function efetivo(tema = preferido()) {
     if (tema === "sistema") return escuroNoSistema.matches ? "escuro" : "claro";
     return tema;
@@ -28,8 +31,9 @@ const Tema = (() => {
   function atualizarBotoes() {
     const atual = efetivo();
     document.querySelectorAll(".tema-btn").forEach((b) => {
-      b.classList.toggle("suave", atual === "suave");
-      b.classList.toggle("escuro", atual === "escuro");
+      b.classList.toggle("suave", atual === "suave" || atual === "floresta_tarde");
+      b.classList.toggle("escuro", atual === "escuro" || atual === "floresta_noite");
+      b.classList.toggle("floresta", atual.startsWith("floresta"));
       b.setAttribute("aria-label", `Tema ${NOME[atual]}. Mudar para o tema ${NOME[PROXIMO[atual]]}`);
       b.title = `Tema ${NOME[atual]} (clique para o ${NOME[PROXIMO[atual]]})`;
     });

@@ -1,6 +1,7 @@
-﻿# Auditoria de responsividade do DashZon: 7 tamanhos de tela (320 a 1920px) x
+﻿# Auditoria de responsividade do Prefeitura DashZ: 7 tamanhos de tela (320 a 1920px) x
 # as telas principais (setup, login, dashboard, módulo, notas, as 4 abas de
-# Configurações, admin, menu do celular e os modais), com print de cada uma e
+# Configurações, admin, painel do gestor, minha equipe, quadro, agenda, expansão
+# de card, menu do celular e os modais), com print de cada uma e
 # checagens medidas (auditar-responsivo.js):
 #   erros:  rolagem horizontal, elemento fora da tela, alvo de toque < 24px,
 #           texto maior que a caixa, modal que não cabe, card < 150px, botões sobrepostos;
@@ -111,7 +112,9 @@ try {
     if (Quer 'setup') { foreach ($vp in $telasVp) { Tamanho $vp; Auditar 'setup' $vp } }
 
     # Setup com todos os templates e dados de exemplo (só nesta instância zerada).
-    [void](Js "fetch('/api/templates').then(r => r.json()).then(ts => fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org_name: 'Empresa Exemplo Ltda', moeda: 'BRL', usuario: 'auditoria', senha: 'auditoria-responsiva-1', templates: ts.map(t => t.id), com_exemplos: true }) })).then(r => r.status)")
+    [void](Js "fetch('/api/templates').then(r => r.json()).then(ts => fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org_name: 'SEMEC - Prefeitura Exemplo', moeda: 'BRL', usuario: 'auditoria', senha: 'auditoria-responsiva-1', templates: ts.map(t => t.id), com_exemplos: true }) })).then(r => r.status)")
+    # Estrutura modelo (SEMEC / SUPLAN / DGEO / DCAD...): o painel do gestor e a Minha equipe têm o que mostrar.
+    [void](Js "fetch('/api/admin/equipes/modelo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.status)")
     if ($TamanhoFonte -ne 'normal') {
         [void](Js "fetch('/api/eu/preferencias', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tamanho_fonte: '$TamanhoFonte' }) }).then(r => r.status)")
     }
@@ -170,6 +173,29 @@ try {
         if (Quer 'admin') {
             [void](Js "location.hash = '#/admin'; 0"); [void](Esperar "document.getElementById('view-admin').classList.contains('active')"); Start-Sleep -Milliseconds 500
             Auditar 'admin' $vp
+            [void](Js "document.getElementById('btn-nova-equipe').click(); 0"); [void](Esperar "document.getElementById('modal-equipe').classList.contains('open')")
+            Auditar 'modal-unidade' $vp; [void](Js $fecharModais)
+        }
+        if (Quer 'produtividade') {
+            [void](Js "location.hash = '#/produtividade'; 0"); [void](Esperar "!!document.querySelector('#prod-tabela table')"); Start-Sleep -Milliseconds 300
+            Auditar 'produtividade' $vp
+        }
+        if (Quer 'equipe') {
+            [void](Js "location.hash = '#/equipe'; 0"); [void](Esperar "!!document.querySelector('#eqp-unidades table')"); Start-Sleep -Milliseconds 300
+            Auditar 'minha-equipe' $vp
+        }
+        if (Quer 'quadro') {
+            # Quadro e agenda do módulo de demandas; no fim, volta para a tabela (a escolha fica no navegador).
+            [void](Js "localStorage.setItem('dashzon.visao.demandas', 'quadro'); location.hash = '#/m/demandas'; 0"); [void](Esperar "!!document.querySelector('#mod-quadro .quadro-coluna')"); Start-Sleep -Milliseconds 300
+            Auditar 'quadro' $vp
+            [void](Js "localStorage.setItem('dashzon.visao.demandas', 'agenda'); location.hash = '#/inicio'; setTimeout(() => { location.hash = '#/m/demandas'; }, 50); 0"); [void](Esperar "!!document.querySelector('#mod-agenda .agenda-dia')"); Start-Sleep -Milliseconds 300
+            Auditar 'agenda' $vp
+            [void](Js "localStorage.setItem('dashzon.visao.demandas', 'tabela'); 0")
+        }
+        if (Quer 'expandir') {
+            [void](Js "location.hash = '#/d/1'; 0"); [void](Esperar "document.querySelectorAll('.grid-stack-item [data-expandir]').length >= 1"); Start-Sleep -Milliseconds 600
+            [void](Js "document.querySelector('.grid-stack-item [data-expandir]').click(); 0"); [void](Esperar "!!document.querySelector('#exp-lista table')")
+            Auditar 'expandir' $vp; [void](Js $fecharModais)
         }
     }
     if (Quer 'login') {

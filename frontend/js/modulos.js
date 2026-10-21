@@ -45,11 +45,61 @@ const Modulos = (() => {
     mostrarPermissoes();
     mostrarBotaoExemplos();
     renderFiltros();
-    await Promise.all([carregarResumo(), carregarRegistros()]);
+    renderOrdem();
+    await Promise.all([carregarResumo(), mostrarVisao()]);
   }
 
   async function recarregar() {
-    await Promise.all([carregarResumo(), carregarRegistros(), App.recarregarNav()]);
+    await Promise.all([carregarResumo(), mostrarVisao(), App.recarregarNav()]);
+  }
+
+  // ------------------------------------------------- visões e ordem ----
+  // Tabela, Quadro (estilo Trello, por departamento) ou Agenda (js/quadro.js).
+  // A escolha fica neste navegador, por módulo.
+  const VISOES = ["tabela", "quadro", "agenda"];
+  const visao = () => {
+    const v = Util.storage(`dashzon.visao.${atual.slug}`);
+    return VISOES.includes(v) ? v : "tabela";
+  };
+
+  async function mostrarVisao() {
+    const v = visao();
+    document.querySelectorAll("#mod-visoes button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.visao === v)));
+    $("mod-tabela").hidden = v !== "tabela";
+    $("mod-quadro").hidden = v !== "quadro";
+    $("mod-agenda").hidden = v !== "agenda";
+    $("mod-contagem").hidden = v !== "tabela";
+    const ctx = { q: busca, filtros };
+    if (v === "quadro") return Quadro.abrirQuadro(atual, ctx);
+    if (v === "agenda") return Quadro.abrirAgenda(atual, ctx);
+    return carregarRegistros();
+  }
+
+  // "Classificar por" (a pedido): A-Z, data de criação, prazo mais próximo,
+  // ordem das opções (ex.: prioridade)... Vale só para a lista; a ordenação
+  // padrão do módulo (JSON "ordenacao") continua sendo a primeira opção.
+  function opcoesDeOrdem() {
+    const rot = campos().find((c) => c.id === atual.schema.rotulo);
+    const ops = [["", "Padrão do módulo"], ["_criado_em:desc", "Mais recentes primeiro"], ["_criado_em:asc", "Mais antigos primeiro"],
+      ["_atualizado_em:desc", "Alterados por último"]];
+    if (rot) ops.push([`${rot.id}:asc`, `${rot.nome}: A-Z`], [`${rot.id}:desc`, `${rot.nome}: Z-A`]);
+    campos().forEach((c) => {
+      if (c.id === rot?.id || (c.lista === false && c.tipo !== "data")) return;
+      if (c.tipo === "data") ops.push([`${c.id}:asc`, `${c.nome}: mais próximo primeiro`], [`${c.id}:desc`, `${c.nome}: mais distante primeiro`]);
+      else if (c.tipo === "selecao") ops.push([`${c.id}:desc`, `${c.nome}: ${c.opcoes.at(-1)} primeiro`], [`${c.id}:asc`, `${c.nome}: ${c.opcoes[0]} primeiro`]);
+      else if (Util.NUMERICOS.includes(c.tipo)) ops.push([`${c.id}:desc`, `${c.nome}: maior primeiro`], [`${c.id}:asc`, `${c.nome}: menor primeiro`]);
+      else if (c.tipo === "texto") ops.push([`${c.id}:asc`, `${c.nome}: A-Z`]);
+    });
+    return ops;
+  }
+
+  const ordemAtual = () => Util.storage(`dashzon.ordem.${atual.slug}`) || "";
+
+  function renderOrdem() {
+    const valor = ordemAtual();
+    const ops = opcoesDeOrdem();
+    $("mod-ordem").innerHTML = ops.map(([v, t]) => `<option value="${esc(v)}" ${v === valor ? "selected" : ""}>${esc(t)}</option>`).join("");
+    if (!ops.some(([v]) => v === valor)) $("mod-ordem").value = "";
   }
 
   async function carregarResumo() {
@@ -79,7 +129,7 @@ const Modulos = (() => {
       </select>`).join("");
     alvo.querySelectorAll("select").forEach((s) => s.addEventListener("change", () => {
       filtros[s.dataset.filtro] = s.value;
-      carregarRegistros();
+      mostrarVisao();
     }));
   }
 
@@ -95,6 +145,7 @@ const Modulos = (() => {
     if (busca) qs.set("q", busca);
     Object.entries(filtros).forEach(([k, v]) => { if (v) qs.set(`f[${k}]`, v); });
     if (mais) qs.set("inicio", registros.length);
+    if (ordemAtual()) qs.set("ordem", ordemAtual());
     const minha = ++ultimaBusca;
     const res = await Api.get(`/api/modulos/${atual.slug}/registros?${qs}`);
     if (minha !== ultimaBusca) return;
@@ -202,7 +253,11 @@ const Modulos = (() => {
       case "selecao":
       case "movimento": {
         const vazio = c.obrigatorio && valor ? "" : '<option value="">—</option>';
-        const opcoes = Util.opcoesDe(c);
+        let opcoes = Util.opcoesDe(c);
+        // Campo de unidade: só as unidades em que a pessoa pode lançar (o
+        // servidor confere de novo; ver Acesso#opcoes_permitidas).
+        const permitidas = formModulo?.schema.unidade === c.id ? formModulo.opcoes_unidade : null;
+        if (permitidas) opcoes = opcoes.filter((o) => permitidas.includes(o.v) || o.v === valor);
         // Valor gravado com uma opção que saiu da estrutura: continua na lista
         // (e selecionado), senão o navegador trocaria ou apagaria o valor ao salvar.
         const removida = valor && !opcoes.some((o) => o.v === valor)
@@ -218,12 +273,14 @@ const Modulos = (() => {
     }
   }
 
-  function abrirFormulario(registro = null, modulo = atual, depois = recarregar) {
+  // `inicial`: valores já preenchidos num registro novo (ex.: "+" numa coluna do quadro).
+  function abrirFormulario(registro = null, modulo = atual, depois = recarregar, inicial = {}) {
     formModulo = modulo;
     aoSalvar = depois;
     editandoId = registro ? registro.id : null;
     $("registro-titulo").textContent = registro ? `Editar registro · ${modulo.nome}` : `Novo registro · ${modulo.nome}`;
-    $("registro-campos").innerHTML = modulo.schema.campos.map((c) => inputHtml(c, registro ? registro[c.id] : Util.resolverToken(c.padrao))).join("");
+    $("registro-campos").innerHTML = modulo.schema.campos.map((c) => inputHtml(c, registro ? registro[c.id]
+      : (inicial[c.id] !== undefined ? inicial[c.id] : Util.resolverToken(c.padrao)))).join("");
     erroRegistro("");
     Util.abrirModal("modal-registro");
     $("registro-campos").querySelector("input, select, textarea")?.focus();
@@ -264,9 +321,12 @@ const Modulos = (() => {
 
   async function excluirRegistro(id) {
     if (!confirm("Excluir este registro?")) return;
-    const r = await Api.del(`/api/modulos/${atual.slug}/registros/${id}`);
-    if (r?.pendente) { Util.aviso(r.mensagem); await App.recarregarNav(); return; }
-    await recarregar();
+    try {
+      const r = await Api.del(`/api/modulos/${atual.slug}/registros/${id}`);
+      if (r?.pendente) { Util.aviso(r.mensagem); await App.recarregarNav(); return; }
+      Util.aviso("Registro excluído");
+      await recarregar();
+    } catch (e) { Util.aviso(e.message, "erro"); } // ex.: registro de outra unidade (403)
   }
 
   // ---------------------------------------------------- estrutura JSON ----
@@ -439,8 +499,16 @@ const Modulos = (() => {
     $("btn-compartilhar-modulo").addEventListener("click", compartilharModulo);
     $("mod-busca").addEventListener("input", Util.debounce((e) => {
       busca = e.target.value.trim();
-      carregarRegistros();
+      mostrarVisao();
     }, 250));
+    $("mod-ordem").addEventListener("change", () => {
+      Util.storage(`dashzon.ordem.${atual.slug}`, $("mod-ordem").value);
+      mostrarVisao();
+    });
+    document.querySelectorAll("#mod-visoes button").forEach((b) => b.addEventListener("click", () => {
+      Util.storage(`dashzon.visao.${atual.slug}`, b.dataset.visao);
+      mostrarVisao().catch((e) => Util.aviso(e.message, "erro"));
+    }));
 
     $("btn-add-modulo").addEventListener("click", abrirAdicionar);
     document.querySelectorAll("#modal-add-modulo .tabs button").forEach((b) => b.addEventListener("click", () => trocarAba(b.dataset.aba)));
@@ -466,5 +534,19 @@ const Modulos = (() => {
     abrirFormulario(null, modulo, depois);
   }
 
-  return { init, abrir, abrirAdicionar, abrirEstrutura, lancar };
+  // Editar um registro de qualquer módulo (expansão do card, quadro, agenda).
+  async function editar(slug, id, depois) {
+    const modulo = App.modulo(slug);
+    if (!modulo) return;
+    try {
+      abrirFormulario(await Api.get(`/api/modulos/${encodeURIComponent(slug)}/registros/${id}`), modulo, depois || (async () => {}));
+    } catch (e) { Util.aviso(e.message, "erro"); }
+  }
+
+  function novoCom(slug, valores, depois) {
+    const modulo = App.modulo(slug);
+    if (modulo) abrirFormulario(null, modulo, depois, valores);
+  }
+
+  return { init, abrir, abrirAdicionar, abrirEstrutura, lancar, editar, novoCom };
 })();

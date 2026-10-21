@@ -73,6 +73,8 @@ const App = (() => {
       : `<div class="nav-empty">${modulos.length ? '<a href="#/config/modulos">Todos desligados: ligue em Configurações</a>' : "Nenhum módulo"}</div>`;
     $("link-config").classList.toggle("active", rota.tipo === "config");
     $("link-aprovacoes").classList.toggle("active", rota.tipo === "aprovacoes");
+    $("link-produtividade").classList.toggle("active", rota.tipo === "produtividade");
+    $("link-equipe").classList.toggle("active", rota.tipo === "equipe");
   }
 
   // Layout fixado/liberado (pelo botão do dashboard ou pelo botão direito no menu).
@@ -141,6 +143,12 @@ const App = (() => {
       } else if (tipo === "admin" && usuario?.admin) {
         mostrar("view-admin");
         await Admin.abrir(usuario.id);
+      } else if (tipo === "produtividade" && usuario?.gestor) {
+        mostrar("view-produtividade");
+        await Gestao.abrirPainel();
+      } else if (tipo === "equipe" && usuario?.gestor) {
+        mostrar("view-equipe");
+        await Gestao.abrirEquipe();
       } else if (!modulos.length) {
         mostrar("view-vazio");
       } else {
@@ -231,6 +239,9 @@ const App = (() => {
     usuario = u;
     $("usuario-nome").textContent = u.nome || u.login;
     $("link-admin").hidden = !u.admin;
+    // Gestor de alguma unidade (ou admin): painel de produtividade e "Minha equipe".
+    $("link-produtividade").hidden = !u.gestor;
+    $("link-equipe").hidden = !u.gestor;
     // Visualizador: some o que cria ou altera estrutura (o servidor também barra).
     document.body.classList.toggle("perfil-visualizador", u.perfil === "visualizador");
   }
@@ -256,10 +267,10 @@ const App = (() => {
     document.body.classList.add("logado");
 
     Util.setMoeda(status.moeda);
-    // Nome da organização é opcional: sem ele, só "DashZon".
+    // Nome da organização é opcional: sem ele, só "Prefeitura DashZ".
     $("org-nome").textContent = status.org_name || "";
     $("org-nome").hidden = !status.org_name;
-    document.title = status.org_name ? `DashZon · ${status.org_name}` : "DashZon";
+    document.title = status.org_name ? `Prefeitura DashZ · ${status.org_name}` : "Prefeitura DashZ";
     atualizarUsuario(status.usuario);
     $("app").classList.add("ready");
 
@@ -269,6 +280,9 @@ const App = (() => {
     Admin.init();
     Compartilhar.init();
     Aprovacoes.init();
+    Expandir.init();
+    Quadro.init();
+    Gestao.init();
     Menu.init();
 
     await recarregarNav();

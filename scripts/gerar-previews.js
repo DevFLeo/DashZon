@@ -6,9 +6,9 @@
 //
 //   $env:DASHZON_DB_PATH = "$env:TEMP\dashzon-previews.db"; $env:PORT = "4600"
 //   cd backend; bundle exec ruby app.rb
-//   # em outro terminal: setup com os 4 templates e dados de exemplo
+//   # em outro terminal: setup com os templates padrão e dados de exemplo
 //   curl -X POST http://127.0.0.1:4600/api/setup -H "Content-Type: application/json" \
-//     -d '{"org_name":"Demo","usuario":"demo","senha":"demo","templates":["financas-pessoais","fluxo-caixa","gestao-demandas","mapeamento-setor","cronograma-estudos"],"com_exemplos":true}'
+//     -d '{"org_name":"Demo","usuario":"demo","senha":"demo","templates":["gestao-demandas","mapeamento-setor","anotacoes"],"com_exemplos":true}'
 //
 // Depois (Puppeteer baixa o próprio Chromium; não é dependência do projeto):
 //   npm i --no-save puppeteer
@@ -18,7 +18,7 @@ const path = require("path");
 
 const [base = "http://127.0.0.1:4600", usuario = "demo", senha = "demo"] = process.argv.slice(2);
 const SAIDA = path.join(__dirname, "..", "frontend", "preview");
-const MODULOS = ["lancamentos", "orcamento", "contas", "movimentacoes", "demandas", "inventario_dados", "indicadores", "cronograma_estudos"];
+const MODULOS = ["demandas", "processos_sei", "inventario_dados", "indicadores"];
 // Cards do dashboard "Finanças pessoais" usados como exemplo de cada tipo.
 const CARDS = { kpi: "Saldo", bar: "Receitas x despesas por mês", line: "Saldo mês a mês", table: "Gastos por conta / cartão" };
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));

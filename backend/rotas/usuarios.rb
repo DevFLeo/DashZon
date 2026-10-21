@@ -29,6 +29,7 @@ helpers do
     session[:uid] = u["id"]
     session[:sv] = u["sessao_versao"].to_i
     session[:inicio] = session[:visto] = Time.now.to_i
+    session[:sid] = SecureRandom.hex(16) # o "Sair" encerra esta sessão pelo id (ver /api/logout)
     Usuarios.registrar_login!(u["id"])
   end
 
@@ -91,6 +92,7 @@ end
 
 post "/api/logout" do
   diario!("logout", usuario_id: usuario_atual&.dig("id")) if session[:uid]
+  Usuarios.encerrar_sessao!(session[:sid], Time.now.to_i + SESSAO_MAXIMA.to_i) if Database.configured?
   session.clear
   json ok: true
 end

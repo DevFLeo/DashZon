@@ -198,7 +198,8 @@ helpers do
   def nomes_das_equipes(ids)
     return [] if ids.nil? || ids.empty?
 
-    todas = Database.rows("SELECT id, nome FROM equipes").to_h { |e| [e["id"], e["nome"]] }
+    # Sigla primeiro (DGEO), que é como a prefeitura chama as unidades.
+    todas = Database.rows("SELECT id, nome, sigla FROM equipes").to_h { |e| [e["id"], e["sigla"].to_s.empty? ? e["nome"] : e["sigla"]] }
     ids.filter_map { |i| todas[i] && { "id" => i, "nome" => todas[i] } }
   end
 
@@ -328,7 +329,8 @@ helpers do
     return @usuario_atual if defined?(@usuario_atual)
 
     u = session[:uid] && Usuarios.por_id(session[:uid])
-    valido = u && u["ativo"].to_i == 1 && u["sessao_versao"].to_i == session[:sv].to_i && !sessao_vencida?
+    valido = u && u["ativo"].to_i == 1 && u["sessao_versao"].to_i == session[:sv].to_i && !sessao_vencida? &&
+             !Usuarios.sessao_encerrada?(session[:sid])
     session.clear if session[:uid] && !valido
     marcar_atividade if valido
     @usuario_atual = valido ? u : nil
@@ -439,6 +441,7 @@ post "/api/setup" do
   session.clear
   session[:uid] = u["id"]
   session[:sv] = u["sessao_versao"].to_i
+  session[:sid] = SecureRandom.hex(16)
   json ok: true
 end
 

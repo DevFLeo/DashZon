@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DashZon</title>
+<title>Prefeitura DashZ</title>
 <link rel="stylesheet" href="/vendor/gridstack.min.css">
 <link rel="stylesheet" href="/css/style.css">
 <script src="/js/antes.js"></script>
@@ -30,15 +30,15 @@
 <!-- ============ Assistente de primeiro acesso ============ -->
 <div class="setup" id="setup">
   <form class="setup-card" id="setup-form">
-    <h1>Bem-vindo ao DashZon</h1>
-    <p>Escolha o que você quer controlar. O banco de dados só é criado quando você concluir este cadastro.</p>
+    <h1>Bem-vindo ao Prefeitura DashZ</h1>
+    <p>Painel das secretarias, departamentos e divisões da prefeitura. O banco de dados só é criado quando você concluir este cadastro.</p>
 
     <div class="setup-step">
-      <h2>1. Sobre você ou sua empresa</h2>
+      <h2>1. Órgão e administrador</h2>
       <div class="field-row">
         <div class="field">
-          <label for="setup-org">Nome (pessoa, empresa ou área) · opcional</label>
-          <input id="setup-org" type="text" maxlength="80" placeholder="Ex.: Minhas finanças, Financeiro Zon Ltda">
+          <label for="setup-org">Nome do órgão ou secretaria · opcional</label>
+          <input id="setup-org" type="text" maxlength="80" placeholder="Ex.: SEMEC - Secretaria Municipal de Educação">
         </div>
         <div class="field">
           <label for="setup-moeda">Moeda</label>
@@ -52,7 +52,7 @@
       <div class="field-row">
         <div class="field">
           <label for="setup-usuario" class="obrigatorio">Usuário para entrar</label>
-          <input id="setup-usuario" type="text" autocomplete="username" placeholder="Ex.: leonardo" required>
+          <input id="setup-usuario" type="text" autocomplete="username" placeholder="Ex.: ADMTOTAL" required>
         </div>
         <div class="field">
           <label for="setup-senha" class="obrigatorio">Senha (mínimo 8 caracteres)</label>
@@ -69,7 +69,7 @@
 
     <div class="setup-step">
       <h2>3. Tem um template próprio? (opcional)</h2>
-      <p>Importe um arquivo <code>.json</code> no formato DashZon, como uma exportação de outra instalação.</p>
+      <p>Importe um arquivo <code>.json</code> no formato do Prefeitura DashZ (ou do DashZon), como uma exportação de outra instalação.</p>
       <input type="file" id="setup-importar" accept=".json,application/json">
     </div>
 
@@ -86,7 +86,7 @@
 <!-- ============ Login (simulado) ============ -->
 <div class="setup login" id="login">
   <form class="setup-card login-card" id="login-form">
-    <h1>DashZon</h1>
+    <h1>Prefeitura DashZ</h1>
     <p id="login-org"></p>
     <div class="field">
       <label for="login-usuario">Usuário ou e-mail</label>
@@ -109,7 +109,7 @@
 <!-- ============ Links recebidos (redefinir senha / confirmar e-mail) ============ -->
 <div class="setup login" id="pagina-link">
   <form class="setup-card login-card" id="form-link">
-    <h1>DashZon</h1>
+    <h1>Prefeitura DashZ</h1>
     <h2 id="link-titulo"></h2>
     <p id="link-texto"></p>
     <div id="link-campos" hidden>
@@ -144,7 +144,7 @@
           <span class="nucleo"></span>
         </div>
       </div>
-      <div class="brand-nome"><strong>DashZon</strong><small id="org-nome"></small></div>
+      <div class="brand-nome"><strong>Prefeitura DashZ</strong><small id="org-nome"></small></div>
       <!-- Só no computador: recolhe a barra lateral para uma coluna estreita. -->
       <button type="button" class="icon-btn sidebar-recolher" id="btn-recolher" aria-pressed="false" aria-label="Recolher o menu" title="Recolher o menu">
         <svg class="ico ico-recolher" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M16 10l-2 2 2 2"/></svg>
@@ -173,6 +173,8 @@
       <a class="btn btn-ghost btn-sm" href="/api/export">Exportar configuração (JSON)</a>
       <a class="btn btn-ghost btn-sm" href="/api/export?dados=1">Backup com dados (JSON)</a>
       <a class="btn btn-ghost btn-sm link-aprovacoes" id="link-aprovacoes" href="#/aprovacoes" hidden>Aprovações <span class="badge" id="aprovacoes-n" hidden></span></a>
+      <a class="btn btn-ghost btn-sm link-gestor" id="link-produtividade" href="#/produtividade" hidden>Painel do gestor</a>
+      <a class="btn btn-ghost btn-sm link-gestor" id="link-equipe" href="#/equipe" hidden>Minha equipe</a>
       <a class="btn btn-ghost btn-sm" id="link-config" href="#/config">Configurações</a>
       <a class="btn btn-ghost btn-sm link-admin" id="link-admin" href="#/admin" hidden>Painel do adm</a>
       <div class="usuario-atual">
@@ -230,10 +232,19 @@
       <div class="toolbar">
         <input type="search" id="mod-busca" placeholder="Buscar...">
         <span id="mod-filtros" class="toolbar"></span>
+        <label class="classificar" for="mod-ordem"><span>Classificar por</span>
+          <select id="mod-ordem"></select></label>
         <span class="spacer"></span>
+        <span class="segmentado" id="mod-visoes" role="group" aria-label="Como ver os registros">
+          <button type="button" data-visao="tabela" aria-pressed="true">Tabela</button>
+          <button type="button" data-visao="quadro" aria-pressed="false">Quadro</button>
+          <button type="button" data-visao="agenda" aria-pressed="false">Agenda</button>
+        </span>
         <span class="hint" id="mod-contagem"></span>
       </div>
       <div id="mod-tabela"></div>
+      <div id="mod-quadro" hidden></div>
+      <div id="mod-agenda" hidden></div>
     </section>
 
     <!-- Configurações (#/config/<aba>) -->
@@ -291,6 +302,9 @@
                   <option value="claro">Claro (sol)</option>
                   <option value="suave">Suave (pôr do sol, mais leve para os olhos)</option>
                   <option value="escuro">Escuro (lua)</option>
+                  <option value="floresta_dia">Floresta: dia</option>
+                  <option value="floresta_tarde">Floresta: tarde</option>
+                  <option value="floresta_noite">Floresta: noite</option>
                 </select>
               </div>
               <div class="field">
@@ -305,7 +319,7 @@
             <div class="field">
               <label for="pref-tamanho">Tamanho do texto</label>
               <select id="pref-tamanho"></select>
-              <p class="amostra-fonte" id="pref-fonte-amostra" aria-hidden="true">Cronograma de estudos · Saldo R$ 1.234,56 · 09/10/2026 19:30</p>
+              <p class="amostra-fonte" id="pref-fonte-amostra" aria-hidden="true">Processo SEI 6016.2026/0001234-5 · R$ 1.234,56 · 09/10/2026</p>
               <div class="ajuda">Muda só o texto; a organização dos dashboards continua a mesma.</div>
             </div>
             <label class="field-check"><input type="checkbox" id="pref-privacidade"> Começar com os valores em moeda ocultos</label>
@@ -375,6 +389,8 @@
           <button class="btn btn-sm" id="notas-btn-importar-pasta">Importar pasta</button>
           <button class="btn btn-sm" id="notas-baixar-tudo">Baixar tudo (.zip)</button>
           <button class="btn btn-sm" id="notas-estrutura">Estrutura (JSON)</button>
+          <button class="btn btn-sm" id="notas-compartilhar" hidden>Compartilhar</button>
+          <button class="btn btn-sm btn-danger" id="notas-excluir-caderno" hidden>Excluir caderno</button>
           <button class="btn btn-sm btn-primary" id="notas-nova">+ Nova nota</button>
           <input type="file" id="notas-importar" accept=".md,.markdown,.txt,text/markdown" multiple hidden>
           <input type="file" id="notas-importar-pasta" webkitdirectory multiple hidden>
@@ -427,16 +443,15 @@
       <header class="page-header">
         <div>
           <h1>Painel do adm</h1>
-          <p class="hint">Usuários, senhas e regras de cadastro. Só administradores veem esta tela.</p>
+          <p class="hint">Estrutura da prefeitura, usuários, senhas e regras de cadastro. Só administradores veem esta tela.</p>
         </div>
         <div class="actions">
           <div class="menu-criar">
             <button class="btn btn-sm btn-primary" id="btn-criar" aria-haspopup="true" aria-expanded="false" aria-controls="menu-criar">Criar ▾</button>
             <div class="menu-criar-lista" id="menu-criar" role="menu" hidden>
               <button type="button" role="menuitem" id="btn-novo-usuario"><strong>Usuário</strong><span>Uma pessoa com login e senha para entrar no sistema.</span></button>
-              <button type="button" role="menuitem" id="btn-nova-equipe"><strong>Equipe</strong><span>Um grupo de usuários. Pode ser uma empresa, com CNPJ.</span></button>
-              <button type="button" role="menuitem" id="btn-novo-lote"><strong>Lote de produção</strong><span>Instala o módulo e o dashboard para acompanhar lotes: produto, quantidade, etapa e prazo.</span></button>
-              <button type="button" role="menuitem" id="btn-empresa-teste"><strong>Empresa de teste</strong><span>Uma empresa fictícia, com CNPJ inventado, para testar sem misturar com as reais.</span></button>
+              <button type="button" role="menuitem" id="btn-nova-equipe"><strong>Unidade</strong><span>Secretaria, subsecretaria, departamento, divisão ou equipe, dentro de outra unidade.</span></button>
+              <button type="button" role="menuitem" id="btn-estrutura-modelo"><strong>Estrutura modelo (SEMEC)</strong><span>Cria SEMEC / SUPLAN e SURÇAM / DGEO, DIPLAD e DIPEI / DCAD, DTAD e DASI, sem usuários. Não duplica o que já existe.</span></button>
             </div>
           </div>
         </div>
@@ -482,7 +497,7 @@
           <h2>Organização</h2>
           <div class="field">
             <label for="org-nome-input">Nome (opcional)</label>
-            <input id="org-nome-input" type="text" maxlength="80" placeholder="Em branco: aparece só DashZon">
+            <input id="org-nome-input" type="text" maxlength="80" placeholder="Em branco: aparece só Prefeitura DashZ">
           </div>
           <div class="field">
             <label for="org-moeda">Moeda</label>
@@ -501,8 +516,8 @@
       <p class="hint">Módulos criados antes do compartilhamento por equipe ficaram para todos. Escolha aqui quem vê cada um (quem vê um dashboard com cards do módulo também vê os dados dele).</p>
       <div id="admin-modulos"></div>
 
-      <h2 class="admin-titulo">Equipes</h2>
-      <p class="hint">Grupos de usuários. Uma pessoa pode estar em nenhuma, uma ou várias equipes.</p>
+      <h2 class="admin-titulo">Estrutura da prefeitura</h2>
+      <p class="hint">Secretarias, subsecretarias, departamentos, divisões e equipes, em cascata. O <strong>gestor</strong> de uma unidade administra ela e tudo abaixo (pessoas, registros, módulos e dashboards compartilhados com elas); o <strong>membro</strong> lança e edita os registros da própria unidade.</p>
       <div id="admin-equipes"></div>
 
       <h2 class="admin-titulo">Usuários</h2>
@@ -547,6 +562,44 @@
       <div id="apr-pendentes"></div>
       <h2 class="admin-titulo">Seus pedidos</h2>
       <div id="apr-minhas"></div>
+    </section>
+
+    <!-- Painel do gestor: função mestre de produtividade (js/gestao.js) -->
+    <section class="view" id="view-produtividade">
+      <header class="page-header">
+        <div>
+          <h1>Painel do gestor</h1>
+          <p class="hint">Processos de cada unidade somados de baixo para cima (divisão, departamento, subsecretaria, secretaria). Os números vêm dos registros, com as mesmas regras para todas as unidades.</p>
+        </div>
+        <div class="actions">
+          <label class="classificar" for="prod-modulo"><span>Módulo</span><select id="prod-modulo"></select></label>
+          <button class="btn btn-sm" id="prod-csv">Baixar CSV</button>
+          <button class="btn btn-sm" id="prod-imprimir">Imprimir</button>
+        </div>
+      </header>
+      <div class="kpi-row" id="prod-kpis"></div>
+      <div id="prod-tabela"></div>
+      <details class="prod-regras">
+        <summary>Como cada número é calculado</summary>
+        <div id="prod-regras"></div>
+      </details>
+    </section>
+
+    <!-- Minha equipe: o gestor administra as unidades do seu escopo (js/gestao.js) -->
+    <section class="view" id="view-equipe">
+      <header class="page-header">
+        <div>
+          <h1>Minha equipe</h1>
+          <p class="hint" id="eqp-escopo"></p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-sm" id="eqp-nova-unidade">+ Unidade</button>
+          <button class="btn btn-sm btn-primary" id="eqp-nova-pessoa">+ Pessoa</button>
+        </div>
+      </header>
+      <div id="eqp-unidades"></div>
+      <h2 class="admin-titulo">Pessoas do seu alcance</h2>
+      <div id="eqp-pessoas"></div>
     </section>
 
     <section class="view" id="view-vazio">
@@ -772,7 +825,7 @@
     <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="privado">
       <span><strong>Só eu</strong><span class="hint">Ninguém mais vê, nem os administradores.</span></span></label>
     <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="equipes">
-      <span><strong>Equipes escolhidas</strong><span class="hint" id="comp-dica-equipes"></span></span></label>
+      <span><strong>Unidades escolhidas</strong><span class="hint" id="comp-dica-equipes"></span></span></label>
     <div class="lista-marcar comp-equipes" id="comp-equipes"></div>
     <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="equipe" id="comp-opcao-todos">
       <span><strong>Todos</strong><span class="hint" id="comp-dica-todos"></span></span></label>
@@ -855,7 +908,7 @@
     <div class="field-row">
       <div class="field">
         <label for="u-cargo">Cargo</label>
-        <input id="u-cargo" type="text" maxlength="40" list="u-cargos" placeholder="Ex.: Sócio, Líder de produção">
+        <input id="u-cargo" type="text" maxlength="40" list="u-cargos" placeholder="Ex.: Diretor(a), Gerente, Técnico(a)">
         <datalist id="u-cargos"></datalist>
       </div>
       <div class="field">
@@ -868,8 +921,9 @@
       </div>
     </div>
     <fieldset class="field u-equipes-wrap">
-      <legend>Equipes</legend>
-      <div class="lista-marcar" id="u-equipes"></div>
+      <legend>Unidades (membro / gestor)</legend>
+      <div class="ajuda">Gestor administra a unidade e tudo o que está abaixo dela.</div>
+      <div class="lista-papeis" id="u-equipes"></div>
     </fieldset>
     <div class="field" id="u-senha-wrap">
       <label for="u-senha">Senha inicial</label>
@@ -885,40 +939,141 @@
   </form>
 </div>
 
-<!-- ============ Modal: equipe (painel do adm) ============ -->
+<!-- ============ Modal: unidade (painel do adm e Minha equipe) ============ -->
 <div class="modal-overlay" id="modal-equipe">
   <form class="modal" id="form-equipe">
-    <h2 id="equipe-titulo">Nova equipe</h2>
+    <h2 id="equipe-titulo">Nova unidade</h2>
+    <div class="field-row">
+      <div class="field">
+        <label for="eq-tipo" class="obrigatorio">Tipo</label>
+        <select id="eq-tipo">
+          <option value="secretaria">Secretaria</option>
+          <option value="subsecretaria">Subsecretaria</option>
+          <option value="departamento">Departamento</option>
+          <option value="divisao">Divisão</option>
+          <option value="equipe">Equipe (grupo de trabalho)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="eq-sigla" id="eq-sigla-label" class="obrigatorio">Sigla</label>
+        <input id="eq-sigla" type="text" maxlength="20" autocomplete="off" placeholder="Ex.: DGEO">
+      </div>
+    </div>
     <div class="field">
-      <label for="eq-nome" class="obrigatorio">Nome da equipe</label>
-      <input id="eq-nome" type="text" maxlength="80" required placeholder="Ex.: Produção, Qualidade, Zon Indústria Ltda">
+      <label for="eq-nome" class="obrigatorio">Nome</label>
+      <input id="eq-nome" type="text" maxlength="80" required placeholder="Ex.: Departamento de Geoprocessamento">
+    </div>
+    <div class="field">
+      <label for="eq-pai">Fica dentro de</label>
+      <select id="eq-pai"></select>
+      <div class="ajuda">A sigla liga os campos de seleção ("DGEO - ...") a esta unidade.</div>
     </div>
     <div class="field">
       <label for="eq-descricao">Descrição</label>
-      <input id="eq-descricao" type="text" maxlength="300" placeholder="Para que serve esta equipe (opcional)">
+      <input id="eq-descricao" type="text" maxlength="300" placeholder="Atribuições (opcional)">
     </div>
-    <label class="field-check"><input type="checkbox" id="eq-empresa"> Esta equipe é uma empresa</label>
-    <div class="eq-empresa-campos" id="eq-empresa-campos" hidden>
-      <label class="field-check"><input type="checkbox" id="eq-exigir-cnpj" checked> CNPJ obrigatório</label>
-      <div class="field">
-        <label for="eq-cnpj" id="eq-cnpj-label">CNPJ</label>
-        <input id="eq-cnpj" type="text" maxlength="18" inputmode="numeric" autocomplete="off" placeholder="00.000.000/0000-00">
-        <div class="ajuda" id="eq-cnpj-atual"></div>
-      </div>
-    </div>
-    <fieldset class="field">
-      <legend>Membros</legend>
-      <div class="lista-marcar" id="eq-membros"></div>
+    <fieldset class="field" id="eq-membros-wrap">
+      <legend>Pessoas (membro / gestor)</legend>
+      <div class="lista-papeis" id="eq-membros"></div>
     </fieldset>
     <div class="form-erro" id="equipe-erro" hidden></div>
     <div class="modal-actions">
       <button type="button" class="btn" data-fechar="modal-equipe">Cancelar</button>
-      <button type="submit" class="btn btn-primary" id="equipe-salvar">Criar equipe</button>
+      <button type="submit" class="btn btn-primary" id="equipe-salvar">Criar unidade</button>
     </div>
   </form>
 </div>
 
-<!-- ============ Modal: excluir dashboard (e os dados de exemplo dele) ============ -->
+<!-- ============ Modal: pessoa nova pelo gestor (Minha equipe) ============ -->
+<div class="modal-overlay" id="modal-gestao-pessoa">
+  <form class="modal" id="form-gestao-pessoa">
+    <h2>Nova pessoa</h2>
+    <div class="field-row">
+      <div class="field">
+        <label for="gp-nome" class="obrigatorio">Nome</label>
+        <input id="gp-nome" type="text" maxlength="80" required>
+      </div>
+      <div class="field">
+        <label for="gp-login" class="obrigatorio">Login</label>
+        <input id="gp-login" type="text" maxlength="40" minlength="3" autocomplete="off" required>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="gp-email">E-mail</label>
+        <input id="gp-email" type="email" maxlength="120" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="gp-cargo">Cargo</label>
+        <input id="gp-cargo" type="text" maxlength="40" placeholder="Ex.: Gerente, Técnico(a)">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="gp-unidade" class="obrigatorio">Unidade</label>
+        <select id="gp-unidade" required></select>
+      </div>
+      <div class="field">
+        <label for="gp-papel">Papel</label>
+        <select id="gp-papel">
+          <option value="membro">Membro</option>
+          <option value="gestor">Gestor (administra a unidade e as de baixo)</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="gp-perfil">Perfil</label>
+      <select id="gp-perfil">
+        <option value="usuario">Usuário</option>
+        <option value="visualizador">Visualizador (só vê; o que mudar vai para aprovação)</option>
+      </select>
+    </div>
+    <p class="hint">A pessoa recebe uma senha temporária (mostrada uma vez) e cria a própria no primeiro acesso.</p>
+    <div class="form-erro" id="gp-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-gestao-pessoa">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Criar conta</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ Modal: pôr quem já tem conta numa unidade (Minha equipe) ============ -->
+<div class="modal-overlay" id="modal-gestao-membro">
+  <form class="modal" id="form-gestao-membro">
+    <h2 id="gm-titulo">Adicionar pessoa</h2>
+    <div class="field">
+      <label for="gm-conta">Pessoa (quem já tem conta)</label>
+      <select id="gm-conta" required></select>
+    </div>
+    <div class="field">
+      <label for="gm-papel">Papel</label>
+      <select id="gm-papel">
+        <option value="membro">Membro</option>
+        <option value="gestor">Gestor</option>
+      </select>
+    </div>
+    <div class="form-erro" id="gm-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-gestao-membro">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Adicionar</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ Modal: expansão de um card (o que está por trás de uma barra, fatia ou dia) ============ -->
+<div class="modal-overlay" id="modal-expandir">
+  <div class="modal modal-largo" role="dialog" aria-labelledby="exp-titulo">
+    <h2 id="exp-titulo"></h2>
+    <p class="hint" id="exp-sub"></p>
+    <div id="exp-resumo"></div>
+    <div id="exp-lista"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="exp-abrir-modulo">Abrir o módulo</button>
+      <button type="button" class="btn btn-primary" data-fechar="modal-expandir">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-excluir-dashboard">
   <form class="modal" id="form-excluir-dashboard">
     <h2>Excluir dashboard</h2>
@@ -1000,6 +1155,9 @@
 <script src="/js/dashboards.js"></script>
 <script src="/js/compartilhar.js"></script>
 <script src="/js/aprovacoes.js"></script>
+<script src="/js/expandir.js"></script>
+<script src="/js/quadro.js"></script>
+<script src="/js/gestao.js"></script>
 <script src="/js/menu.js"></script>
 <script src="/js/responsivo.js"></script>
 <script src="/js/app.js"></script>

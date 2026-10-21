@@ -46,6 +46,7 @@ const Notas = (() => {
     }
     $("notas-modulo").textContent = modulo.nome;
     $("notas-descricao").textContent = modulo.descricao || "";
+    mostrarPermissoes();
     // Sem nota no endereço: no computador reabre a última; no celular mostra a lista.
     const telaLarga = !window.matchMedia("(max-width: 800px)").matches;
     const alvo = idNota && nota(Number(idNota)) ? Number(idNota) : telaLarga && atualId && nota(atualId) ? atualId : null;
@@ -309,6 +310,42 @@ const Notas = (() => {
       erros.length ? "erro" : "info");
   }
 
+  // ------------------------------------------------ caderno inteiro ----
+  // Excluir o caderno (a "aba" de anotações criada) e escolher quem o vê, a
+  // pedido. Mesma regra dos outros módulos (lib/acesso.rb): o dono, um
+  // administrador ou quem é gestor, em cascata, de uma unidade com que o
+  // caderno foi compartilhado (ex.: o gestor do DGEO exclui o caderno do DTAD).
+  function mostrarPermissoes() {
+    const pode = Boolean(modulo.editavel);
+    $("notas-compartilhar").hidden = !pode;
+    $("notas-excluir-caderno").hidden = !pode;
+    $("notas-estrutura").hidden = !pode;
+  }
+
+  async function compartilharCaderno() {
+    await Compartilhar.abrir({
+      tipo: "modulo", titulo: `Quem vê "${modulo.nome}"`, atual: modulo,
+      onSalvar: async (corpo) => {
+        await Api.put(`/api/modulos/${encodeURIComponent(modulo.slug)}/compartilhar`, corpo);
+        await App.recarregarNav();
+        modulo = App.modulo(modulo.slug) || modulo;
+        if (!App.modulo(modulo.slug)) App.irPadrao();
+      }
+    });
+  }
+
+  async function excluirCaderno() {
+    if (!confirm(`Excluir o caderno "${modulo.nome}" e as ${notas.length} nota(s) dele?\nNão dá para desfazer. Baixe tudo (.zip) antes, se quiser guardar.`)) return;
+    try {
+      await gravarAgora();
+      await Api.del(`/api/modulos/${encodeURIComponent(modulo.slug)}`);
+      Util.aviso("Caderno excluído");
+      esquecer();
+      await App.recarregarNav();
+      App.irPadrao();
+    } catch (e) { Util.aviso(e.message, "erro"); }
+  }
+
   // ------------------------------------------------------------ init ----
   function ligar() {
     ligado = true;
@@ -316,6 +353,8 @@ const Notas = (() => {
     $("notas-vazia-nova").addEventListener("click", novaNota);
     $("notas-baixar-tudo").addEventListener("click", baixarTudo);
     $("notas-estrutura").addEventListener("click", () => Modulos.abrirEstrutura(modulo));
+    $("notas-compartilhar").addEventListener("click", compartilharCaderno);
+    $("notas-excluir-caderno").addEventListener("click", excluirCaderno);
     $("notas-btn-importar").addEventListener("click", () => $("notas-importar").click());
     $("notas-btn-importar-pasta").addEventListener("click", () => $("notas-importar-pasta").click());
     $("notas-importar").addEventListener("change", (e) => { importar(e.target.files, false); e.target.value = ""; });

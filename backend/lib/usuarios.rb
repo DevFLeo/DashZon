@@ -1,5 +1,6 @@
 require "json"
 require "openssl"
+require "digest"
 require "securerandom"
 require "time"
 require_relative "database"
@@ -36,7 +37,7 @@ module Usuarios
   EMAIL_RE = /\A[^@\s]+@[^@\s]+\.[^@\s]{2,}\z/
   # visualizador: só vê; o que ele muda em registros vai para aprovação.
   PERFIS = %w[admin usuario visualizador].freeze
-  CARGOS_SUGERIDOS = ["Sócio", "Líder de produção", "Funcionário"].freeze
+  CARGOS_SUGERIDOS = ["Secretário(a)", "Subsecretário(a)", "Diretor(a)", "Gerente", "Técnico(a)", "Assessor(a)", "Estagiário(a)"].freeze
   EXIGIR_DOCUMENTO = %w[nao cpf cnpj qualquer].freeze
   TEMAS = %w[sistema claro suave escuro floresta_dia floresta_tarde floresta_noite].freeze
   # Fontes da interface (arquivos em frontend/vendor/fonts; ver js/fonte.js).
@@ -432,6 +433,24 @@ module Usuarios
     return if admins_ativos > 1
 
     raise Erro, "Não é possível #{acao} o único administrador ativo. Promova outra pessoa antes."
+  end
+
+  # "Sair": o id desta sessão deixa de valer (mesmo que um cookie antigo volte).
+  def encerrar_sessao!(sid, ate_epoch)
+    return if sid.to_s.empty?
+
+    tabelas!
+    agora = Time.now.to_i
+    Database.execute("DELETE FROM sessoes_encerradas WHERE expira < ?", [agora])
+    Database.execute("INSERT OR REPLACE INTO sessoes_encerradas (sid_hash, expira) VALUES (?, ?)",
+                     [Digest::SHA256.hexdigest(sid.to_s), ate_epoch.to_i])
+  end
+
+  def sessao_encerrada?(sid)
+    return false if sid.to_s.empty?
+
+    tabelas!
+    !Database.row("SELECT 1 AS x FROM sessoes_encerradas WHERE sid_hash = ?", [Digest::SHA256.hexdigest(sid.to_s)]).nil?
   end
 
   def registrar_login!(id)

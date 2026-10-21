@@ -172,6 +172,7 @@ const Dashboards = (() => {
         <div class="widget-header">
           <span class="title">${esc(w.titulo)}</span>
           <span class="tools">
+            <button class="icon-btn" data-expandir title="Ver os registros deste card" aria-label="Ver os registros deste card">${Util.icone("expandir-card")}</button>
             <button class="icon-btn" data-lancar title="Lançar em ${esc(App.modulo(w.modulo_slug)?.nome || "")}" aria-label="Lançar registro">+</button>
             <button class="icon-btn" data-editar title="Editar card" aria-label="Editar card">${Util.icone("lapis")}</button>
             <button class="icon-btn" data-remover title="Remover card" aria-label="Remover card">×</button>
@@ -180,6 +181,10 @@ const Dashboards = (() => {
         <div class="widget-body" id="wb-${w.id}"></div>
       </div>`;
     item.querySelector("[data-lancar]").addEventListener("click", () => Modulos.lancar(w.modulo_slug, aposLancar));
+    item.querySelector("[data-expandir]").addEventListener("click", () => {
+      const d = ultimosDados[w.id];
+      expandir(w, d || { config: w.config });
+    });
     if (!atual.editavel) item.querySelectorAll("[data-editar], [data-remover]").forEach((b) => b.remove());
     item.querySelector("[data-editar]")?.addEventListener("click", () => abrirFormulario(atual.widgets.find((x) => x.id === w.id)));
     item.querySelector("[data-remover]")?.addEventListener("click", () => remover(w.id));
@@ -238,12 +243,43 @@ const Dashboards = (() => {
     return [...linhas].sort((a, b) => valorDe(cfg, b) - valorDe(cfg, a));
   }
 
+  // ---- Expansão (a pedido): clicar numa barra, fatia, linha ou dia abre os
+  // registros por trás do número (js/expandir.js). Não muda o card: só lê o
+  // config que ele já usa (filtro + agrupar_por + serie_por).
+  const ultimosDados = {};
+
+  function expandir(w, d, chave, serieChave) {
+    if (!w.modulo_slug) return; // prévia do editor
+    const cfg = d.config || {};
+    const modulo = App.modulo(w.modulo_slug);
+    const grupo = campoDe(modulo, cfg.agrupar_por);
+    const titulo = chave === undefined ? w.titulo : `${w.titulo}: ${Util.rotuloChave(grupo, chave, cfg.formato_grupo)}`;
+    Expandir.abrir({
+      slug: w.modulo_slug, titulo, filtro: cfg.filtro || {},
+      porChave: cfg.agrupar_por && chave !== undefined ? { campo: cfg.agrupar_por, chave, formato: cfg.formato_grupo } : null,
+      serie: cfg.serie_por && serieChave !== undefined ? { campo: cfg.serie_por, chave: serieChave } : null,
+      depois: aposLancar
+    });
+  }
+
+  // Clique e teclado nos elementos com data-chave (linhas da tabela, dias do calendário).
+  function ligarExpansao(w, corpo, d) {
+    if (!w.modulo_slug || corpo.dataset.expansao) return;
+    corpo.dataset.expansao = "1";
+    corpo.addEventListener("click", (ev) => {
+      const alvo = ev.target.closest("[data-chave]");
+      if (alvo && corpo.contains(alvo)) expandir(w, ultimosDados[w.id] || d, alvo.dataset.chave);
+    });
+  }
+
   async function carregarDados(w) {
     const corpo = $(`wb-${w.id}`);
     if (!corpo) return;
     try {
       const d = await Api.get(`/api/widgets/${w.id}/data`);
+      ultimosDados[w.id] = d;
       desenhar(w, corpo, d, App.modulo(w.modulo_slug));
+      ligarExpansao(w, corpo, d);
     } catch (e) {
       corpo.innerHTML = `<div class="widget-erro">${esc(e.message)}</div>`;
     }
@@ -261,7 +297,7 @@ const Dashboards = (() => {
     else if (w.tipo === "table") renderTabela(corpo, d, modulo);
     else if (w.tipo === "pie") renderPizza(w, corpo, d, modulo);
     else if (w.tipo === "calendario") {
-      calendarios[w.id] = () => renderCalendario(corpo, d, modulo);
+      calendarios[w.id] = () => renderCalendario(corpo, d, modulo, w);
       calendarios[w.id]();
     } else renderGrafico(w, corpo, d, modulo);
   }
@@ -354,6 +390,9 @@ const Dashboards = (() => {
       },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: "62%", animation: { duration: 350 },
+        // Expansão (a pedido): a fatia clicada abre os registros dela.
+        onClick: (_ev, els) => { if (els.length) expandir(w, d, linhas[els[0].index].key); },
+        onHover: (ev, els) => { if (ev.native?.target) ev.native.target.style.cursor = els.length && w.modulo_slug ? "pointer" : "default"; },
         plugins: {
           legend: { position: corpo.clientWidth > 360 ? "right" : "bottom", labels: { usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8, color: Util.cssVar("--text-secondary") } },
           tooltip: { cornerRadius: 8, padding: 10, callbacks: { label: (ctx) => `${ctx.label}: ${fmt(ctx.parsed)} (${Util.fmtNumero(ctx.parsed / total * 100, 0)}%)` } }
@@ -365,7 +404,72 @@ const Dashboards = (() => {
   // Calendário: um quadradinho por dia (como o de contribuições do GitHub),
   // intensidade pelo valor do dia; semanas em colunas, as mais recentes à
   // direita, só as que cabem na largura. Embaixo: dias ativos e sequências.
-  function renderCalendario(corpo, d, modulo) {
+  // Períodos do calendário (a pedido, para ver o que foi e o que vai ser
+  // produzido): `padrao` é o calendário de sempre (semanas até hoje); os outros
+  // mostram uma faixa de dias em volta de hoje, com o futuro incluído. A
+  // escolha é de cada pessoa, por card, neste navegador (o card não muda).
+  const JANELAS = [
+    ["padrao", "Ano", null],
+    ["-15+15", "-15 / +15 dias", [-15, 15]],
+    ["-30", "-30 dias", [-30, 0]],
+    ["+30", "+30 dias", [0, 30]],
+    ["-30+30", "-30 / +30 dias", [-30, 30]]
+  ];
+
+  function janelaDe(w) {
+    const salva = w && Util.storage(`dashzon.cal.${w.id}`);
+    return JANELAS.some(([id]) => id === salva) ? salva : "padrao";
+  }
+
+  function botoesJanela(w, atual) {
+    if (!w || w.id === "previa") return "";
+    return `<div class="cal-janelas segmentado" role="group" aria-label="Período do calendário">${JANELAS.map(([id, rotulo]) =>
+      `<button type="button" data-janela="${id}" aria-pressed="${id === atual}">${rotulo}</button>`).join("")}</div>`;
+  }
+
+  // Faixa de dias (modo com período): um quadrado por dia, de `de` a `ate`
+  // dias em relação a hoje, com o valor do dia; hoje marcado.
+  function renderFaixa(corpo, d, modulo, w, janela) {
+    const cfg = d.config;
+    const fmt = formatador(cfg, modulo);
+    const valores = new Map(d.result.map((r) => [r.key, valorDe(cfg, r)]));
+    const [de, ate] = JANELAS.find(([id]) => id === janela)[2];
+    const SEM = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+    const dias = [];
+    for (let i = de; i <= ate; i++) {
+      const data = Util.hojeISO(i);
+      dias.push({ data, i, v: valores.get(data) || 0, sem: new Date(`${data}T12:00:00`).getDay() });
+    }
+    const max = Math.max(0, ...dias.map((x) => x.v));
+    const nivel = (v) => (v <= 0 || !max ? 0 : Math.min(4, Math.ceil(v / max * 4)));
+    const soma = (lista) => lista.reduce((t, x) => t + x.v, 0);
+    const passado = soma(dias.filter((x) => x.i < 0));
+    const futuro = soma(dias.filter((x) => x.i > 0));
+    const hoje = dias.find((x) => x.i === 0)?.v || 0;
+    const moeda = campoDe(modulo, cfg.campo)?.tipo === "moeda";
+    corpo.classList.add("com-calendario");
+    corpo.style.setProperty("--cal-cor", Util.corUnica(cfg));
+    corpo.innerHTML = `${botoesJanela(w, janela)}
+      <div class="cal-faixa">${dias.map((x) => `<button type="button" class="cal-tile ${x.i === 0 ? "hoje" : x.i < 0 ? "passado" : "futuro"}${x.sem === 0 || x.sem === 6 ? " fim-semana" : ""}"
+        data-nivel="${nivel(x.v)}" data-chave="${x.data}" title="${x.v > 0 ? fmt(x.v) : "Nada"} em ${Util.fmtData(x.data)}">
+        <span class="cal-tile-sem">${SEM[x.sem]}</span><span class="cal-tile-dia">${x.data.slice(8, 10)}/${x.data.slice(5, 7)}</span>
+        <strong class="cal-tile-valor ${moeda ? "sensivel" : ""}">${x.v > 0 ? fmt(x.v) : ""}</strong></button>`).join("")}</div>
+      <div class="cal-legenda"><span class="widget-sub">${de < 0 ? `Nos últimos ${-de} dias: <strong class="${moeda ? "sensivel" : ""}">${fmt(passado)}</strong> · ` : ""}hoje: <strong class="${moeda ? "sensivel" : ""}">${fmt(hoje)}</strong>${ate > 0 ? ` · nos próximos ${ate} dias: <strong class="${moeda ? "sensivel" : ""}">${fmt(futuro)}</strong>` : ""}</span>
+        <span class="hint">Clique num dia para ver os registros</span></div>`;
+    ligarJanelas(corpo, w);
+  }
+
+  function ligarJanelas(corpo, w) {
+    corpo.querySelectorAll("[data-janela]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      Util.storage(`dashzon.cal.${w.id}`, b.dataset.janela);
+      calendarios[w.id]?.();
+    }));
+  }
+
+  function renderCalendario(corpo, d, modulo, w = null) {
+    const janela = janelaDe(w);
+    if (janela !== "padrao") { renderFaixa(corpo, d, modulo, w, janela); return; }
     const cfg = d.config;
     const fmt = formatador(cfg, modulo);
     const valores = new Map(d.result.map((r) => [r.key, valorDe(cfg, r)]));
@@ -394,7 +498,7 @@ const Dashboards = (() => {
         mesAnterior = mes;
       }
       const texto = `${x.v > 0 ? fmt(x.v) : "Nada"} em ${Util.fmtData(x.data)}`;
-      celulas.push(`<span class="cal-dia" data-nivel="${nivel(x.v)}" style="grid-column:${col};grid-row:${x.sem + 2}" title="${texto}"></span>`);
+      celulas.push(`<span class="cal-dia" data-nivel="${nivel(x.v)}" data-chave="${x.data}" style="grid-column:${col};grid-row:${x.sem + 2}" title="${texto}"></span>`);
     });
 
     // Sequências: dias seguidos com valor (hoje ainda zerado conta até ontem).
@@ -409,12 +513,13 @@ const Dashboards = (() => {
     const moeda = campoDe(modulo, cfg.campo)?.tipo === "moeda";
     corpo.classList.add("com-calendario");
     corpo.style.setProperty("--cal-cor", Util.corUnica(cfg)); // grade e legenda
-    corpo.innerHTML = `<div class="cal-grade" style="grid-template-columns:30px repeat(${semanas}, 11px)">
+    corpo.innerHTML = `${botoesJanela(w, janela)}<div class="cal-grade" style="grid-template-columns:30px repeat(${semanas}, 11px)">
         <span class="cal-sem" style="grid-row:3">seg</span><span class="cal-sem" style="grid-row:5">qua</span><span class="cal-sem" style="grid-row:7">sex</span>
         ${meses.join("")}${celulas.join("")}</div>
       <div class="cal-legenda"><span class="widget-sub"><strong class="${moeda ? "sensivel" : ""}">${fmt(total)}</strong> em ${ativos} dia${ativos === 1 ? "" : "s"}
         · sequência atual ${atual} · maior ${maior}</span>
         <span class="cal-escala" aria-hidden="true">Menos <span class="cal-dia" data-nivel="0"></span><span class="cal-dia" data-nivel="1"></span><span class="cal-dia" data-nivel="2"></span><span class="cal-dia" data-nivel="3"></span><span class="cal-dia" data-nivel="4"></span> Mais</span></div>`;
+    if (w) ligarJanelas(corpo, w);
   }
 
   function renderKpi(corpo, d, modulo) {
@@ -442,7 +547,7 @@ const Dashboards = (() => {
     corpo.innerHTML = `<table class="data">
       <thead><tr><th>${esc(grupo ? grupo.nome : "Total")}</th><th class="num">Qtd.</th>${mostrarMedida ? `<th class="num">${esc(descricao({ ...cfg, filtro: {} }, modulo))}</th>` : ""}</tr></thead>
       <tbody>${linhas.map((r) => `<tr>
-        <td>${esc(Util.rotuloChave(grupo, r.key, cfg.formato_grupo))}</td>
+        <td><button type="button" class="link-expandir" data-chave="${esc(r.key)}" title="Ver os registros">${esc(Util.rotuloChave(grupo, r.key, cfg.formato_grupo))}</button></td>
         <td class="num">${Util.fmtNumero(r.count, 0)}</td>
         ${mostrarMedida ? `<td class="num ${moeda ? "sensivel" : ""}">${fmt(valorDe(cfg, r))}</td>` : ""}
       </tr>`).join("")}</tbody></table>`;
@@ -479,6 +584,7 @@ const Dashboards = (() => {
       const chaves = [...d.series_keys].sort((a, b) => (ordem.indexOf(a) + 1 || 999) - (ordem.indexOf(b) + 1 || 999));
       // Cores: escolhidas no editor > paleta > identidade da opção (Util.corDe).
       datasets = chaves.map((k, i) => ({
+        chave: k, // para a expansão saber a série clicada (o Chart.js ignora esta chave)
         label: Util.rotuloChave(serieCampo, k),
         data: linhas.map((r) => valorDe(cfg, r.series?.[k])),
         ...estilo(Util.corDe(cfg, serieCampo, k, i)),
@@ -506,6 +612,16 @@ const Dashboards = (() => {
         maintainAspectRatio: false,
         animation: { duration: 250 },
         interaction: { mode: "index", intersect: false },
+        // Expansão (a pedido): a barra clicada abre os registros da categoria
+        // (e da série, se o clique caiu numa delas). Só lê; o gráfico não muda.
+        onClick: (ev, els, chart) => {
+          const perto = chart.getElementsAtEventForMode(ev.native || ev, "nearest", { intersect: true }, true);
+          const el = perto[0] || els[0];
+          if (!el) return;
+          const serieChave = perto[0] && serieCampo ? datasets[el.datasetIndex]?.chave : undefined;
+          expandir(w, d, linhas[el.index].key, serieChave);
+        },
+        onHover: (ev, els) => { if (ev.native?.target) ev.native.target.style.cursor = els.length && w.modulo_slug ? "pointer" : "default"; },
         plugins: {
           legend: { display: datasets.length > 1, position: "bottom",
                     labels: { usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8, color: Util.cssVar("--text-secondary") } },

@@ -208,6 +208,14 @@ module Database
     -- Quem lançou cada registro (Prefeitura DashZ). Sem campo de unidade no
     -- módulo, a unidade do registro é a de quem o lançou (lib/acesso.rb).
     -- Registros antigos ou de exemplo podem não ter autor.
+    -- Sessões encerradas pelo "Sair" (hash do id da sessão), até vencerem.
+    -- Com sessão em cookie, uma requisição que ainda estava em voo regravaria
+    -- o cookie antigo depois do logout; esta lista faz esse cookie não valer mais.
+    CREATE TABLE IF NOT EXISTS sessoes_encerradas (
+      sid_hash TEXT PRIMARY KEY,
+      expira INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS registro_autores (
       registro_id INTEGER PRIMARY KEY REFERENCES registros(id) ON DELETE CASCADE,
       usuario_id INTEGER NOT NULL

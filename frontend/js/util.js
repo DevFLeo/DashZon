@@ -310,7 +310,10 @@ const Util = (() => {
     alca: '<circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/>',
     seta: '<path d="M6 9l6 6 6-6"/>',
     recolher: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M16 10l-2 2 2 2"/>',
-    expandir: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M14 10l2 2-2 2"/>'
+    expandir: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M14 10l2 2-2 2"/>',
+    "expandir-card": '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
+    esquerda: '<path d="M15 6l-6 6 6 6"/>',
+    direita: '<path d="M9 6l6 6-6 6"/>'
   };
   // Regras de senha em vigor (/api/status): texto "mínimo 8, com número..."
   // nos rótulos [data-regra-senha] e o minlength dos campos [data-senha-nova].

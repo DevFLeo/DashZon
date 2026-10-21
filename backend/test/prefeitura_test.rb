@@ -317,6 +317,22 @@ class PrefeituraTest < Minitest::Test
     assert_equal %w[carta Álvaro beta], lista.("nao_existe:asc"), "inválido: ordem padrão (mais novo antes)"
   end
 
+  # Achado no teste de ponta a ponta: uma requisição ainda em voo regravava o
+  # cookie da sessão depois do "Sair". O id da sessão encerrada não vale mais.
+  def test_cookie_de_sessao_encerrada_nao_volta
+    configurar!(usuario: "dono", senha: SENHA)
+    entrar("dono", SENHA)
+    antigo = rack_mock_session.cookie_jar["rack.session"]
+    refute_nil antigo
+    post_json "/api/logout", {}
+    set_cookie "rack.session=#{antigo}"
+    get "/api/eu"
+    assert_equal 401, last_response.status, "o cookie de antes do Sair não pode reabrir a sessão"
+    assert_equal 200, entrar("dono", SENHA).status
+    get "/api/eu"
+    assert_equal 200, last_response.status, "um login novo funciona"
+  end
+
   def test_tema_floresta
     configurar!
     %w[floresta_dia floresta_tarde floresta_noite].each do |t|

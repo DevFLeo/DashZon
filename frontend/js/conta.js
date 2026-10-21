@@ -28,8 +28,8 @@ const Conta = (() => {
       eu.admin ? "Administrador" : "Usuário"
     ].filter(Boolean).join(" · ");
     $("conta-equipes").innerHTML = eu.equipes?.length
-      ? `<span class="hint">Suas equipes:</span> ${eu.equipes.map((e) => `<span class="chip${e.teste ? " chip-teste" : ""}" title="${Util.escapeHtml(e.descricao || "")}">${Util.escapeHtml(e.nome)}${e.empresa ? ` · empresa${e.cnpj ? ` · CNPJ ${Util.escapeHtml(e.cnpj)}` : ""}` : ""}</span>`).join(" ")}`
-      : '<span class="hint">Você não está em nenhuma equipe.</span>';
+      ? `<span class="hint">Suas unidades:</span> ${eu.equipes.map((e) => `<span class="chip${e.papel === "gestor" ? " chip-entrada" : ""}" title="${Util.escapeHtml(e.nome)}${e.descricao ? ` · ${Util.escapeHtml(e.descricao)}` : ""}">${Util.escapeHtml(e.sigla || e.nome)}${e.papel === "gestor" ? " · gestor" : ""}</span>`).join(" ")}`
+      : '<span class="hint">Você não está em nenhuma unidade.</span>';
     $("senha-usuario").value = eu.login;
     preencherPreferencias();
   }

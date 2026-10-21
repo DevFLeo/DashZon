@@ -18,13 +18,13 @@ const Compartilhar = (() => {
       ? "Todos os usuários veem o módulo e os registros."
       : "Todos veem. Só você e os administradores mudam os cards, o nome e o layout.";
     $("comp-dica-equipes").textContent = tipo === "modulo"
-      ? "Só quem está nas equipes marcadas (e os administradores). Quem vê um dashboard com cards deste módulo também vê os dados."
-      : "Só quem está nas equipes marcadas (e os administradores).";
+      ? "Quem está nas unidades marcadas ou abaixo delas, os gestores acima delas e os administradores. Quem vê um dashboard com cards deste módulo também vê os dados."
+      : "Quem está nas unidades marcadas ou abaixo delas, os gestores acima delas e os administradores.";
     const equipes = await Api.get("/api/equipes");
     const marcadas = (atual.equipes || []).map((e) => e.id ?? e);
     $("comp-equipes").innerHTML = equipes.length
-      ? equipes.map((e) => `<label class="field-check"><input type="checkbox" value="${e.id}" ${marcadas.includes(e.id) ? "checked" : ""}> ${esc(e.nome)}${e.empresa ? ' <span class="chip">Empresa</span>' : ""}</label>`).join("")
-      : '<span class="hint">Você não está em nenhuma equipe.</span>';
+      ? equipes.map((e) => `<label class="field-check"><input type="checkbox" value="${e.id}" ${marcadas.includes(e.id) ? "checked" : ""}> ${esc(e.caminho || e.nome)}</label>`).join("")
+      : '<span class="hint">Você não está em nenhuma unidade.</span>';
     document.querySelectorAll('input[name="comp-visibilidade"]').forEach((r) => { r.checked = r.value === atual.visibilidade; });
     atualizar();
 
@@ -63,7 +63,7 @@ const Compartilhar = (() => {
   // Texto curto de quem vê ("Só você", "Equipes: A, B", "Todos").
   function descrever(vis, equipes = []) {
     if (vis === "privado") return "Só você vê";
-    if (vis === "equipes") return equipes.length ? `Equipes: ${equipes.map((e) => e.nome).join(", ")}` : "Equipes escolhidas";
+    if (vis === "equipes") return equipes.length ? `Unidades: ${equipes.map((e) => e.nome).join(", ")}` : "Unidades escolhidas";
     return "Todos veem";
   }
 

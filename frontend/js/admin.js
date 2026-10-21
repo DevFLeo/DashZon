@@ -1,8 +1,9 @@
 // Painel do administrador (#/admin): regras de cadastro, organização e
 // usuários (criar, editar, ativar/desativar, senha temporária, link de
-// redefinição, confirmar e-mail, excluir), equipes (grupos de usuários, que
-// podem ser empresa) e o menu "Criar" (usuário, equipe, lote de produção,
-// empresa de teste). Só aparece para administradores;
+// redefinição, confirmar e-mail, excluir), a estrutura da prefeitura
+// (secretarias, subsecretarias, departamentos, divisões e equipes, em árvore,
+// com membros e gestores) e o menu "Criar" (usuário, unidade, estrutura
+// modelo da SEMEC). Só aparece para administradores;
 // o backend barra /api/admin/* para os demais de qualquer forma.
 const Admin = (() => {
   const $ = (id) => document.getElementById(id);
@@ -73,128 +74,143 @@ const Admin = (() => {
     if (abrir) $("menu-criar").querySelector("button")?.focus();
   }
 
-  // Já instalado (algum dashboard usa o módulo do lote): abre o existente em
-  // vez de criar mais um "Produção" (relatório, problema 7).
-  async function criarLote() {
-    const modulo = App.modulos().find((m) => m.template_origem === "lote-producao");
-    const existente = modulo && App.dashboards().find((d) => (d.modulos || []).includes(modulo.slug));
-    if (existente) {
-      Util.aviso(`O lote de produção já está instalado: abrindo "${existente.nome}".`);
-      App.ir(`#/d/${existente.id}`);
-      return;
-    }
-    if (!confirm('Instalar o módulo "Lotes de produção" e o dashboard "Produção" (com 8 lotes de exemplo)?\n' +
-      "Ele nasce só seu; em seguida você escolhe quem vê (equipes ou todos).")) return;
+  // Estrutura modelo da SEMEC (sem usuários): não duplica o que já existe.
+  async function criarModelo() {
+    if (!confirm("Criar a estrutura modelo?\nSEMEC / SUPLAN e SURÇAM / DGEO, DIPLAD e DIPEI / DCAD, DTAD e DASI.\nSiglas que já existem são mantidas.")) return;
     try {
-      // Privado primeiro: o que o admin cria não aparece para todos sem ele escolher (problema 2).
-      const r = await Api.post("/api/templates/instalar", { template_id: "lote-producao", com_exemplos: true, visibilidade: "privado" });
-      Util.aviso(Util.resumoInstalacao(r));
-      await App.recarregarNav();
-      if (r.dashboards?.length) {
-        App.ir(`#/d/${r.dashboards[0]}`);
-        setTimeout(() => Dashboards.compartilhar(), 600);
-      }
+      const r = await Api.post("/api/admin/equipes/modelo", {});
+      Util.aviso(r.criadas ? `${r.criadas} unidade(s) criada(s)` : "A estrutura modelo já existia");
+      await recarregar();
     } catch (e) { Util.aviso(e.message, "erro"); }
   }
 
-  async function criarEmpresaTeste() {
-    try {
-      const e = await Api.post("/api/admin/equipes/teste", {});
-      Util.aviso(`"${e.nome}" criada (CNPJ fictício ${e.cnpj}). Exclua quando não precisar mais.`);
-      await recarregar();
-    } catch (er) { Util.aviso(er.message, "erro"); }
+  // ------------------------------------------------ estrutura (unidades) ----
+  const NOME_TIPO = { secretaria: "Secretaria", subsecretaria: "Subsecretaria", departamento: "Departamento", divisao: "Divisão", equipe: "Equipe" };
+  const rotuloUnidade = (e) => (e.sigla ? `${e.sigla} · ${e.nome}` : e.nome);
+
+  // Uma linha por unidade, recuada pelo nível na árvore (SEMEC > SUPLAN > DGEO...).
+  function linhaUnidade(e, acoes) {
+    const gestores = e.membros.filter((m) => m.papel === "gestor");
+    const membros = e.membros.filter((m) => m.papel !== "gestor");
+    const chips = (l) => l.map((m) => `<span class="chip${m.ativo === false ? " chip-saida" : ""}">${esc(m.nome)}</span>`).join(" ");
+    return `<tr>
+      <td><div class="unidade-arvore" style="--nivel:${e.nivel || 0}">
+        <span class="chip chip-tipo chip-${esc(e.tipo)}">${esc(NOME_TIPO[e.tipo] || e.tipo)}</span>
+        <strong>${esc(e.sigla || "")}</strong> ${esc(e.nome)}
+        ${e.descricao ? `<div class="hint">${esc(e.descricao)}</div>` : ""}</div></td>
+      <td class="membros">${gestores.length ? chips(gestores) : '<span class="hint">—</span>'}</td>
+      <td class="membros">${membros.length ? chips(membros) : '<span class="hint">Ninguém</span>'}</td>
+      <td><div class="row-actions">${acoes}</div></td>
+    </tr>`;
   }
 
-  // ------------------------------------------------------------ equipes ----
   function renderEquipes() {
     if (!equipes.length) {
-      $("admin-equipes").innerHTML = '<div class="empty-state empty-state-baixo">Nenhuma equipe ainda. Use <strong>Criar ▾ → Equipe</strong>.</div>';
+      $("admin-equipes").innerHTML = '<div class="empty-state empty-state-baixo">Nenhuma unidade ainda. Use <strong>Criar ▾ → Unidade</strong> ou <strong>Estrutura modelo (SEMEC)</strong>.</div>';
       return;
     }
-    const linhas = equipes.map((e) => {
-      const selos = [e.empresa ? '<span class="chip">Empresa</span>' : "", e.teste ? '<span class="chip chip-teste">Teste</span>' : ""].join(" ");
-      const membros = e.membros.length
-        ? e.membros.map((m) => `<span class="chip">${esc(m.nome)}</span>`).join(" ")
-        : '<span class="hint">Nenhum membro</span>';
-      return `<tr>
-        <td><strong>${esc(e.nome)}</strong> ${selos}${e.descricao ? `<div class="hint">${esc(e.descricao)}</div>` : ""}</td>
-        <td>${e.cnpj ? `<span class="nowrap">CNPJ ${esc(e.cnpj)}</span>` : e.empresa ? '<span class="hint">sem CNPJ</span>' : '<span class="hint">—</span>'}</td>
-        <td class="membros">${membros}</td>
-        <td><div class="row-actions">
-          <button class="btn btn-sm" data-eq-editar="${e.id}">Editar</button>
-          <button class="btn btn-sm" data-eq-usuario="${e.id}">+ Usuário</button>
-          <button class="btn btn-sm btn-danger" data-eq-excluir="${e.id}">Excluir</button>
-        </div></td>
-      </tr>`;
-    }).join("");
-    $("admin-equipes").innerHTML = `<div class="table-wrap"><table class="data">
-      <thead><tr><th>Equipe</th><th>CNPJ</th><th>Membros</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`;
+    const linhas = equipes.map((e) => linhaUnidade(e, `
+      <button class="btn btn-sm" data-eq-editar="${e.id}">Editar</button>
+      <button class="btn btn-sm" data-eq-filha="${e.id}">+ Dentro</button>
+      <button class="btn btn-sm" data-eq-usuario="${e.id}">+ Usuário</button>
+      <button class="btn btn-sm btn-danger" data-eq-excluir="${e.id}">Excluir</button>`)).join("");
+    $("admin-equipes").innerHTML = `<div class="table-wrap"><table class="data tabela-unidades">
+      <thead><tr><th>Unidade</th><th>Gestores</th><th>Membros</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`;
     const acha = (id) => equipes.find((e) => String(e.id) === id);
     $("admin-equipes").querySelectorAll("[data-eq-editar]").forEach((b) => b.addEventListener("click", () => abrirEquipe(acha(b.dataset.eqEditar))));
+    $("admin-equipes").querySelectorAll("[data-eq-filha]").forEach((b) => b.addEventListener("click", () => abrirEquipe(null, Number(b.dataset.eqFilha))));
     $("admin-equipes").querySelectorAll("[data-eq-usuario]").forEach((b) => b.addEventListener("click", () => abrirFormulario(null, [Number(b.dataset.eqUsuario)])));
     $("admin-equipes").querySelectorAll("[data-eq-excluir]").forEach((b) => b.addEventListener("click", () => excluirEquipe(acha(b.dataset.eqExcluir))));
   }
 
-  // Lista de caixinhas (equipes no cadastro de usuário, membros no de equipe).
-  function listaMarcar(alvo, itens, jaMarcados) {
+  // Lista com um seletor de papel por item (— / Membro / Gestor): unidades no
+  // cadastro de usuário, pessoas no cadastro de unidade.
+  function listaPapeis(alvo, itens, papelDe) {
     $(alvo).innerHTML = itens.length
-      ? itens.map((i) => `<label class="field-check"><input type="checkbox" value="${i.id}" ${jaMarcados.includes(i.id) ? "checked" : ""}> ${esc(i.rotulo)}</label>`).join("")
+      ? itens.map((i) => {
+        const p = papelDe(i.id) || "";
+        return `<label class="papel-linha" style="--nivel:${i.nivel || 0}"><span>${esc(i.rotulo)}</span>
+          <select data-id="${i.id}" aria-label="Papel em ${esc(i.rotulo)}">
+            <option value="" ${p ? "" : "selected"}>—</option>
+            <option value="membro" ${p === "membro" ? "selected" : ""}>Membro</option>
+            <option value="gestor" ${p === "gestor" ? "selected" : ""}>Gestor</option>
+          </select></label>`;
+      }).join("")
       : '<span class="hint">Nenhuma ainda.</span>';
   }
-  const marcados = (alvo) => [...document.querySelectorAll(`#${alvo} input:checked`)].map((c) => Number(c.value));
+  const comPapel = (alvo, papel = null) => [...document.querySelectorAll(`#${alvo} select`)]
+    .filter((s) => (papel ? s.value === papel : s.value)).map((s) => Number(s.dataset.id));
 
-  function atualizarCamposEmpresa() {
-    const empresa = $("eq-empresa").checked;
-    $("eq-empresa-campos").hidden = !empresa;
-    $("eq-cnpj-label").classList.toggle("obrigatorio", empresa && $("eq-exigir-cnpj").checked);
+  // Unidades que podem ficar acima desta: todas, menos ela e as de dentro dela.
+  function opcoesDePai(e, paiInicial) {
+    const proibidas = new Set();
+    if (e) {
+      const fila = [e.id];
+      while (fila.length) {
+        const id = fila.shift();
+        proibidas.add(id);
+        equipes.filter((x) => x.pai_id === id).forEach((x) => fila.push(x.id));
+      }
+    }
+    const atual = e ? e.pai_id : paiInicial;
+    return '<option value="">Nenhuma (topo da estrutura)</option>' + equipes.filter((x) => !proibidas.has(x.id))
+      .map((x) => `<option value="${x.id}" ${x.id === atual ? "selected" : ""}>${esc(x.caminho || rotuloUnidade(x))}</option>`).join("");
   }
 
-  function abrirEquipe(e = null) {
+  function atualizarSigla() {
+    $("eq-sigla-label").classList.toggle("obrigatorio", $("eq-tipo").value !== "equipe");
+  }
+
+  // Tipo sugerido para uma unidade nova dentro de outra (secretaria > subsecretaria > ...).
+  const TIPO_ABAIXO = { secretaria: "subsecretaria", subsecretaria: "departamento", departamento: "divisao", divisao: "divisao", equipe: "equipe" };
+
+  function abrirEquipe(e = null, paiInicial = null) {
     editandoEquipe = e;
     $("form-equipe").reset();
-    $("equipe-titulo").textContent = e ? `Editar ${e.nome}` : "Nova equipe";
-    $("equipe-salvar").textContent = e ? "Salvar" : "Criar equipe";
+    $("equipe-titulo").textContent = e ? `Editar ${rotuloUnidade(e)}` : "Nova unidade";
+    $("equipe-salvar").textContent = e ? "Salvar" : "Criar unidade";
+    const pai = paiInicial && equipes.find((x) => x.id === paiInicial);
+    $("eq-tipo").value = e?.tipo || (pai ? TIPO_ABAIXO[pai.tipo] : "secretaria");
+    $("eq-sigla").value = e?.sigla || "";
     $("eq-nome").value = e?.nome || "";
     $("eq-descricao").value = e?.descricao || "";
-    $("eq-empresa").checked = Boolean(e?.empresa);
-    $("eq-exigir-cnpj").checked = e ? Boolean(e.exigir_cnpj) : true;
-    $("eq-cnpj").placeholder = e?.cnpj ? "Deixe em branco para manter" : "00.000.000/0000-00";
-    $("eq-cnpj-atual").textContent = e?.cnpj ? `Cadastrado: ${e.cnpj}` : "";
-    listaMarcar("eq-membros", usuarios.map((u) => ({ id: u.id, rotulo: `${u.nome || u.login} (${u.login})` })), (e?.membros || []).map((m) => m.id));
-    atualizarCamposEmpresa();
+    $("eq-pai").innerHTML = opcoesDePai(e, paiInicial);
+    $("eq-membros-wrap").hidden = false;
+    const papeis = new Map((e?.membros || []).map((m) => [m.id, m.papel]));
+    listaPapeis("eq-membros", usuarios.map((u) => ({ id: u.id, rotulo: `${u.nome || u.login} (${u.login})` })), (id) => papeis.get(id));
+    atualizarSigla();
     erro("equipe-erro", "");
     Util.abrirModal("modal-equipe");
-    $("eq-nome").focus();
+    $("eq-sigla").focus();
   }
 
   async function salvarEquipe(ev) {
     ev.preventDefault();
     erro("equipe-erro", "");
     const dados = {
+      tipo: $("eq-tipo").value,
+      sigla: $("eq-sigla").value.trim().toUpperCase(),
       nome: $("eq-nome").value.trim(),
-      descricao: $("eq-descricao").value.trim(),
-      empresa: $("eq-empresa").checked,
-      exigir_cnpj: $("eq-empresa").checked && $("eq-exigir-cnpj").checked
+      pai_id: $("eq-pai").value ? Number($("eq-pai").value) : null,
+      descricao: $("eq-descricao").value.trim()
     };
-    if ($("eq-cnpj").value.trim()) dados.cnpj = $("eq-cnpj").value.trim();
-    else if (!editandoEquipe) dados.cnpj = "";
     try {
       const e = editandoEquipe ? await Api.put(`/api/admin/equipes/${editandoEquipe.id}`, dados) : await Api.post("/api/admin/equipes", dados);
       // Criada: se os membros falharem, salvar de novo edita esta (não cria outra).
       const nova = !editandoEquipe;
       editandoEquipe = e;
-      await Api.put(`/api/admin/equipes/${e.id}/membros`, { usuario_ids: marcados("eq-membros") });
+      await Api.put(`/api/admin/equipes/${e.id}/membros`, { usuario_ids: comPapel("eq-membros"), gestores: comPapel("eq-membros", "gestor") });
       Util.fecharModal("modal-equipe");
-      Util.aviso(nova ? "Equipe criada" : "Equipe atualizada");
+      Util.aviso(nova ? "Unidade criada" : "Unidade atualizada");
       await recarregar();
     } catch (er) { erro("equipe-erro", er.message); }
   }
 
   async function excluirEquipe(e) {
-    if (!confirm(`Excluir a equipe "${e.nome}"? As ${e.membros.length} pessoa(s) continuam com as contas; só deixam de estar nesta equipe.`)) return;
+    if (!confirm(`Excluir a unidade "${rotuloUnidade(e)}"? As ${e.membros.length} pessoa(s) continuam com as contas; só deixam de estar nela.`)) return;
     try {
       await Api.del(`/api/admin/equipes/${e.id}`);
-      Util.aviso("Equipe excluída");
+      Util.aviso("Unidade excluída");
       await recarregar();
     } catch (er) { Util.aviso(er.message, "erro"); }
   }
@@ -209,8 +225,11 @@ const Admin = (() => {
     // Alterações (relatório, problema 6)
     usuario_criado: "Criou usuário", usuario_alterado: "Alterou usuário", usuario_excluido: "Excluiu usuário",
     usuario_ativo: "Ativou/desativou usuário", senha_temporaria: "Gerou senha temporária", link_redefinicao: "Gerou link de senha",
-    email_confirmado: "Confirmou e-mail", equipe_criada: "Criou equipe", empresa_teste_criada: "Criou empresa de teste",
-    equipe_alterada: "Alterou equipe", equipe_excluida: "Excluiu equipe", equipe_membros: "Mudou membros da equipe",
+    email_confirmado: "Confirmou e-mail", equipe_criada: "Criou unidade", empresa_teste_criada: "Criou empresa de teste",
+    equipe_alterada: "Alterou unidade", equipe_excluida: "Excluiu unidade", equipe_membros: "Mudou pessoas da unidade",
+    estrutura_modelo: "Criou a estrutura modelo", unidade_criada: "Gestor criou unidade", unidade_alterada: "Gestor alterou unidade",
+    unidade_excluida: "Gestor excluiu unidade", membro_definido: "Gestor pôs ou mudou papel", membro_removido: "Gestor tirou da unidade",
+    registro_excluido: "Excluiu registro",
     regras_alteradas: "Mudou regras", organizacao_alterada: "Mudou organização", dashboard_criado: "Criou dashboard",
     dashboard_alterado: "Alterou dashboard", dashboard_excluido: "Excluiu dashboard", modulo_criado: "Criou módulo",
     modulo_alterado: "Alterou módulo", modulo_compartilhado: "Compartilhou módulo", modulo_excluido: "Excluiu módulo",
@@ -283,7 +302,7 @@ const Admin = (() => {
         <td>${u.admin ? '<span class="chip chip-entrada">Administrador</span>' : u.perfil === "visualizador" ? '<span class="chip">Visualizador</span>' : "Usuário"}</td>
         <td>${email}</td>
         <td>${u.documento ? `<span class="nowrap">${esc(u.documento_tipo.toUpperCase())} ${esc(u.documento)}</span>` : '<span class="hint">—</span>'}</td>
-        <td>${u.equipes?.length ? u.equipes.map((e) => `<span class="chip${e.teste ? " chip-teste" : ""}">${esc(e.nome)}</span>`).join(" ") : '<span class="hint">Nenhuma</span>'}</td>
+        <td>${u.equipes?.length ? u.equipes.map((e) => `<span class="chip${e.papel === "gestor" ? " chip-entrada" : ""}" title="${e.papel === "gestor" ? "Gestor" : "Membro"}">${esc(e.sigla || e.nome)}${e.papel === "gestor" ? " · gestor" : ""}</span>`).join(" ") : '<span class="hint">Nenhuma</span>'}</td>
         <td>${status}</td>
         <td><div class="row-actions">
           <button class="btn btn-sm" data-acao="editar" data-id="${u.id}">Editar</button>
@@ -302,7 +321,7 @@ const Admin = (() => {
     }).join("");
 
     $("admin-usuarios").innerHTML = `<div class="table-wrap"><table class="data">
-      <thead><tr><th>Nome / login</th><th>Cargo</th><th>Perfil</th><th>E-mail</th><th>Documento</th><th>Equipes</th><th>Situação</th><th></th></tr></thead>
+      <thead><tr><th>Nome / login</th><th>Cargo</th><th>Perfil</th><th>E-mail</th><th>Documento</th><th>Unidades</th><th>Situação</th><th></th></tr></thead>
       <tbody>${linhas}</tbody></table></div>`;
     $("admin-usuarios").querySelectorAll('[data-acao="editar"]').forEach((b) => b.addEventListener("click", () => {
       abrirFormulario(usuarios.find((u) => String(u.id) === b.dataset.id));
@@ -406,8 +425,8 @@ const Admin = (() => {
       $("u-documento").placeholder = "";
       $("u-documento-atual").textContent = "";
     }
-    listaMarcar("u-equipes", equipes.map((e) => ({ id: e.id, rotulo: e.nome + (e.teste ? " (teste)" : "") })),
-      u ? (u.equipes || []).map((e) => e.id) : equipesIniciais);
+    const papeis = new Map(u ? (u.equipes || []).map((e) => [e.id, e.papel || "membro"]) : equipesIniciais.map((id) => [id, "membro"]));
+    listaPapeis("u-equipes", equipes.map((e) => ({ id: e.id, nivel: e.nivel, rotulo: rotuloUnidade(e) })), (id) => papeis.get(id));
     erro("usuario-erro", "");
     Util.abrirModal("modal-usuario");
     $("u-nome").focus();
@@ -422,7 +441,8 @@ const Admin = (() => {
       email: $("u-email").value.trim(),
       cargo: $("u-cargo").value.trim(),
       perfil: $("u-perfil").value,
-      equipes: marcados("u-equipes")
+      equipes: comPapel("u-equipes"),
+      gestor_de: comPapel("u-equipes", "gestor")
     };
     if ($("u-documento").value.trim()) dados.documento = $("u-documento").value.trim();
     else if (!editando) dados.documento = "";
@@ -515,11 +535,9 @@ const Admin = (() => {
     const item = (id, fn) => $(id).addEventListener("click", () => { abrirMenuCriar(false); fn(); });
     item("btn-novo-usuario", () => abrirFormulario());
     item("btn-nova-equipe", () => abrirEquipe());
-    item("btn-novo-lote", criarLote);
-    item("btn-empresa-teste", criarEmpresaTeste);
-    $("form-equipe").addEventListener("submit", salvarEquipe);
-    $("eq-empresa").addEventListener("change", atualizarCamposEmpresa);
-    $("eq-exigir-cnpj").addEventListener("change", atualizarCamposEmpresa);
+    item("btn-estrutura-modelo", criarModelo);
+    $("form-equipe").addEventListener("submit", (ev) => (Gestao.formularioUnidadeAberto() ? Gestao.salvarUnidade(ev) : salvarEquipe(ev)));
+    $("eq-tipo").addEventListener("change", atualizarSigla);
     $("form-usuario").addEventListener("submit", salvar);
     // Só com senha informada faz sentido escolher (a temporária sempre é trocada).
     $("u-senha").addEventListener("input", () => { $("u-trocar-wrap").hidden = !$("u-senha").value; });
@@ -543,5 +561,5 @@ const Admin = (() => {
     });
   }
 
-  return { init, abrir };
+  return { init, abrir, listaPapeis, comPapel };
 })();
