@@ -741,6 +741,8 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 
 
 .exd-aviso { color: var(--status-warning); font-size: max(11px, calc(12px * var(--fs))); }
+.comp-equipes { margin: 0 0 10px 30px; }
+.comp-equipes.desligada { opacity: .55; }
 .conta-equipes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 12px; }
 .exd-lista { margin: 4px 0 6px 26px; padding: 0; color: var(--text-secondary); font-size: calc(13px * var(--fs)); }
 

@@ -59,12 +59,16 @@ const Admin = (() => {
       return;
     }
     if (!confirm('Instalar o módulo "Lotes de produção" e o dashboard "Produção" (com 8 lotes de exemplo)?\n' +
-      "O dashboard fica compartilhado com a equipe; o módulo é visto por todos.")) return;
+      "Ele nasce só seu; em seguida você escolhe quem vê (equipes ou todos).")) return;
     try {
-      const r = await Api.post("/api/templates/instalar", { template_id: "lote-producao", com_exemplos: true, visibilidade: "equipe" });
+      // Privado primeiro: o que o admin cria não aparece para todos sem ele escolher (problema 2).
+      const r = await Api.post("/api/templates/instalar", { template_id: "lote-producao", com_exemplos: true, visibilidade: "privado" });
       Util.aviso(Util.resumoInstalacao(r));
       await App.recarregarNav();
-      if (r.dashboards?.length) App.ir(`#/d/${r.dashboards[0]}`);
+      if (r.dashboards?.length) {
+        App.ir(`#/d/${r.dashboards[0]}`);
+        setTimeout(() => Dashboards.compartilhar(), 600);
+      }
     } catch (e) { Util.aviso(e.message, "erro"); }
   }
 

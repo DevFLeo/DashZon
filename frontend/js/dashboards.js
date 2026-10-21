@@ -39,7 +39,6 @@ const Dashboards = (() => {
     $("btn-renomear-dashboard").addEventListener("click", renomear);
     $("btn-fixar").addEventListener("click", alternarFixo);
     $("btn-compartilhar").addEventListener("click", abrirCompartilhar);
-    $("form-compartilhar").addEventListener("submit", salvarCompartilhar);
     $("btn-excluir-dashboard").addEventListener("click", excluir);
     $("form-excluir-dashboard").addEventListener("submit", confirmarExcluir);
     $("form-widget").addEventListener("submit", salvarWidget);
@@ -114,9 +113,10 @@ const Dashboards = (() => {
     $("btn-fixar").title = atual.fixo ? "Fixado. Clique para arrastar e redimensionar os cards de novo" : "Trava a posição e o tamanho dos cards";
 
     const meu = atual.dono_id === App.usuario()?.id;
+    const quem = atual.visibilidade === "equipes" ? esc(Compartilhar.descrever("equipes", atual.equipes)) : "Da equipe";
     $("dash-selo").innerHTML = atual.visibilidade === "privado"
       ? `${Util.icone("cadeado")} Só você vê este dashboard`
-      : `${Util.icone("equipe")} Da equipe${meu ? "" : ` · criado por ${esc(atual.dono_nome || "outra pessoa")}`}${editavel ? "" : " · só leitura"}`;
+      : `${Util.icone("equipe")} ${quem}${meu ? "" : ` · criado por ${esc(atual.dono_nome || "outra pessoa")}`}${editavel ? "" : " · só leitura"}`;
     $("dash-dica").textContent = !editavel
       ? "Você pode ver os cards e lançar registros; só quem criou (ou um administrador) altera este dashboard."
       : atual.fixo
@@ -139,35 +139,20 @@ const Dashboards = (() => {
     aplicarPermissoes();
   }
 
+  // Quem vê: só eu, equipes escolhidas ou todos (js/compartilhar.js).
   async function abrirCompartilhar() {
-    document.querySelectorAll('input[name="comp-visibilidade"]').forEach((r) => { r.checked = r.value === atual.visibilidade; });
-    $("comp-erro").hidden = true;
-    const admin = App.usuario()?.admin;
-    $("comp-dono-wrap").hidden = !admin;
-    if (admin) {
-      const contas = (await Api.get("/api/admin/usuarios")).filter((u) => u.ativo);
-      $("comp-dono").innerHTML = contas.map((u) =>
-        `<option value="${u.id}" ${u.id === atual.dono_id ? "selected" : ""}>${esc(u.nome || u.login)} (${esc(u.login)})</option>`).join("");
-    }
-    Util.abrirModal("modal-compartilhar");
-  }
-
-  async function salvarCompartilhar(ev) {
-    ev.preventDefault();
-    const corpo = { visibilidade: document.querySelector('input[name="comp-visibilidade"]:checked')?.value };
-    if (!$("comp-dono-wrap").hidden) corpo.dono_id = Number($("comp-dono").value);
-    try {
-      await Api.put(`/api/dashboards/${atual.id}`, corpo);
-      Util.fecharModal("modal-compartilhar");
-      await App.recarregarNav();
-      // Transferido como privado para outra pessoa: ele some daqui.
-      if (App.dashboards().some((d) => d.id === atual.id)) await abrir(atual.id);
-      else App.irPadrao();
-      Util.aviso("Compartilhamento salvo");
-    } catch (e) {
-      $("comp-erro").textContent = e.message;
-      $("comp-erro").hidden = false;
-    }
+    await Compartilhar.abrir({
+      tipo: "dashboard",
+      titulo: "Quem vê este dashboard",
+      atual,
+      onSalvar: async (corpo) => {
+        await Api.put(`/api/dashboards/${atual.id}`, corpo);
+        await App.recarregarNav();
+        // Transferido como privado para outra pessoa: ele some daqui.
+        if (App.dashboards().some((d) => d.id === atual.id)) await abrir(atual.id);
+        else App.irPadrao();
+      }
+    });
   }
 
   function adicionarNoGrid(w, autoPosicao) {
@@ -1056,5 +1041,5 @@ const Dashboards = (() => {
     $("nd-aba-branco").addEventListener("submit", criarEmBranco);
   }
 
-  return { init, abrir, abrirNovo, marcarFixo, aberto: () => atual, novoWidget: () => abrirFormulario() };
+  return { init, abrir, abrirNovo, marcarFixo, compartilhar: abrirCompartilhar, aberto: () => atual, novoWidget: () => abrirFormulario() };
 })();

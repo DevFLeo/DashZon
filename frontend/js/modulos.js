@@ -42,6 +42,7 @@ const Modulos = (() => {
     $("mod-busca").value = "";
     $("mod-titulo").textContent = atual.nome;
     $("mod-descricao").textContent = atual.descricao || "";
+    mostrarPermissoes();
     mostrarBotaoExemplos();
     renderFiltros();
     await Promise.all([carregarResumo(), carregarRegistros()]);
@@ -310,6 +311,29 @@ const Modulos = (() => {
     }
   }
 
+  // Dono e quem vê (relatório, problema 2): estrutura, compartilhar e excluir
+  // só para o dono ou um admin.
+  function mostrarPermissoes() {
+    ["btn-estrutura", "btn-excluir-modulo", "btn-compartilhar-modulo"].forEach((id) => { $(id).hidden = !atual.editavel; });
+    const quem = Compartilhar.descrever(atual.visibilidade === "todos" ? "equipe" : atual.visibilidade, atual.equipes);
+    const meu = atual.dono_id === App.usuario()?.id;
+    $("mod-selo").innerHTML = `${Util.icone(atual.visibilidade === "privado" ? "cadeado" : "equipe")} ${esc(quem)}${meu || !atual.dono_nome ? "" : ` · de ${esc(atual.dono_nome)}`}`;
+  }
+
+  async function compartilharModulo() {
+    await Compartilhar.abrir({
+      tipo: "modulo",
+      titulo: "Quem vê este módulo",
+      atual,
+      onSalvar: async (corpo) => {
+        await Api.put(`/api/modulos/${encodeURIComponent(atual.slug)}/compartilhar`, corpo);
+        await App.recarregarNav();
+        if (App.modulo(atual.slug)) await abrir(atual.slug);
+        else App.irPadrao();
+      }
+    });
+  }
+
   // Dados de exemplo do template (marcados na instalação): um botão apaga só eles.
   function mostrarBotaoExemplos() {
     $("btn-apagar-exemplos").hidden = !atual.exemplos;
@@ -408,6 +432,7 @@ const Modulos = (() => {
     });
     $("btn-excluir-modulo").addEventListener("click", excluirModulo);
     $("btn-apagar-exemplos").addEventListener("click", apagarExemplos);
+    $("btn-compartilhar-modulo").addEventListener("click", compartilharModulo);
     $("mod-busca").addEventListener("input", Util.debounce((e) => {
       busca = e.target.value.trim();
       carregarRegistros();

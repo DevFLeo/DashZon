@@ -43,7 +43,9 @@ const App = (() => {
       ? dashboardsOrdenados().map((d) => {
           // Cadeado: só meu · pessoas: da equipe (com o dono, se não for meu) · alfinete: layout fixado
           const meu = d.dono_id === usuario?.id;
-          const dica = d.visibilidade === "privado" ? "Só você vê" : meu ? "Compartilhado com a equipe" : `Da equipe, criado por ${d.dono_nome || "outra pessoa"}`;
+          const dica = d.visibilidade === "privado" ? "Só você vê"
+            : d.visibilidade === "equipes" ? `Equipes escolhidas${meu ? "" : `, criado por ${d.dono_nome || "outra pessoa"}`}`
+              : meu ? "Compartilhado com todos" : `Da equipe, criado por ${d.dono_nome || "outra pessoa"}`;
           const marcas = (d.fixo ? Util.icone("alfinete", "Layout fixado") : "") + Util.icone(d.visibilidade === "privado" ? "cadeado" : "equipe", dica);
           return `<a class="nav-item ${rota.tipo === "d" && rota.id === String(d.id) ? "active" : ""}" href="#/d/${d.id}" data-ordem="${d.id}" data-dashboard="${d.id}"
             title="${esc(d.nome)} (${esc(dica)}${d.fixo ? ", fixado" : ""})">${alca}<span class="nav-sigla" aria-hidden="true">${esc(sigla(d.nome))}</span>
@@ -245,6 +247,7 @@ const App = (() => {
     Modulos.init();
     Conta.init(status);
     Admin.init();
+    Compartilhar.init();
     Menu.init();
 
     await recarregarNav();

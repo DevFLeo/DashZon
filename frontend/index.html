@@ -214,9 +214,11 @@
       <header class="page-header">
         <div>
           <h1 id="mod-titulo"></h1>
+          <p class="dash-selo" id="mod-selo"></p>
           <p class="hint" id="mod-descricao"></p>
         </div>
         <div class="actions">
+          <button class="btn btn-sm" id="btn-compartilhar-modulo" hidden>Compartilhar</button>
           <button class="btn btn-sm" id="btn-apagar-exemplos" hidden>Apagar dados de exemplo</button>
           <button class="btn btn-sm" id="btn-estrutura">Estrutura (JSON)</button>
           <button class="btn btn-sm btn-danger" id="btn-excluir-modulo">Excluir módulo</button>
@@ -739,11 +741,14 @@
 <!-- ============ Modal: compartilhamento do dashboard ============ -->
 <div class="modal-overlay" id="modal-compartilhar">
   <form class="modal" id="form-compartilhar">
-    <h2>Quem vê este dashboard</h2>
+    <h2 id="comp-titulo">Quem vê este dashboard</h2>
     <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="privado">
       <span><strong>Só eu</strong><span class="hint">Ninguém mais vê, nem os administradores.</span></span></label>
-    <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="equipe">
-      <span><strong>A equipe toda</strong><span class="hint">Todos veem. Só você e os administradores mudam os cards, o nome e o layout.</span></span></label>
+    <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="equipes">
+      <span><strong>Equipes escolhidas</strong><span class="hint" id="comp-dica-equipes"></span></span></label>
+    <div class="lista-marcar comp-equipes" id="comp-equipes"></div>
+    <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="equipe" id="comp-opcao-todos">
+      <span><strong>Todos</strong><span class="hint" id="comp-dica-todos"></span></span></label>
     <div class="field" id="comp-dono-wrap" hidden>
       <label for="comp-dono">Dono (administrador pode transferir)</label>
       <select id="comp-dono"></select>
@@ -965,6 +970,7 @@
 <script src="/js/modulos.js"></script>
 <script src="/js/notas.js"></script>
 <script src="/js/dashboards.js"></script>
+<script src="/js/compartilhar.js"></script>
 <script src="/js/menu.js"></script>
 <script src="/js/responsivo.js"></script>
 <script src="/js/app.js"></script>
