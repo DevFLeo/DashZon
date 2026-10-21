@@ -27,6 +27,7 @@ class SegurancaTest < Minitest::Test
   PERMITIDOS = [
     "ALTER TABLE usuarios ADD COLUMN \#{col} \#{tipo}",               # COLUNAS_USUARIO (constante)
     "ALTER TABLE dashboards ADD COLUMN \#{col} \#{tipo}",             # COLUNAS_DASHBOARD (constante)
+    "ALTER TABLE modulos ADD COLUMN \#{col} \#{tipo}",                # COLUNAS_MODULO (constante)
     "PRAGMA user_version = \#{SCHEMA_VERSION}",                         # constante
     "PRAGMA user_version = \#{VERSAO_NOVA}",                            # constante
     "VACUUM INTO '\#{destino.gsub(\"'\", \"''\")}'",                    # caminho do backup, aspas escapadas

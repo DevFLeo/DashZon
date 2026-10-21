@@ -34,7 +34,8 @@ module Usuarios
   LOGIN_RE = /\A(?=.{3,40}\z)[a-zA-Z0-9._-]+(?: [a-zA-Z0-9._-]+)*\z/
   LOGIN_ERRO = "Login deve ter de 3 a 40 caracteres: letras sem acento, números, ponto, hífen, _ ou espaço (ex.: teste 1)".freeze
   EMAIL_RE = /\A[^@\s]+@[^@\s]+\.[^@\s]{2,}\z/
-  PERFIS = %w[admin usuario].freeze
+  # visualizador: só vê; o que ele muda em registros vai para aprovação.
+  PERFIS = %w[admin usuario visualizador].freeze
   CARGOS_SUGERIDOS = ["Sócio", "Líder de produção", "Funcionário"].freeze
   EXIGIR_DOCUMENTO = %w[nao cpf cnpj qualquer].freeze
   TEMAS = %w[sistema claro suave escuro].freeze
@@ -419,6 +420,7 @@ module Usuarios
     Database.transaction do
       if herdeiro_id
         Database.execute("UPDATE dashboards SET dono_id = ?, atualizado_em = ? WHERE dono_id = ?", [herdeiro_id, Database.now, u["id"]])
+        Database.execute("UPDATE modulos SET dono_id = ? WHERE dono_id = ?", [herdeiro_id, u["id"]]) # módulos também têm dono
       end
       Database.execute("DELETE FROM usuarios WHERE id = ?", [u["id"]])
     end

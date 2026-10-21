@@ -108,8 +108,13 @@ module TemplateRegistry
   #
   # Os dashboards do template nascem de `dono_id` com a `visibilidade` pedida
   # (no setup: "equipe"; quando alguém instala depois: "privado").
-  def install!(tpl, com_exemplos: true, dono_id: nil, visibilidade: "privado")
+  # `pode_usar`: um módulo de mesmo nome só é reaproveitado se quem instala o
+  # vê; senão nasce outro com nome livre ("Nome (2)"). Módulos novos são de
+  # `dono_id`: "todos" quando o pedido é compartilhar (setup), senão "privado".
+  def install!(tpl, com_exemplos: true, dono_id: nil, visibilidade: "privado", pode_usar: nil)
     now = Database.now
+    Database.garantir_tabelas!
+    vis_modulo = visibilidade == "equipe" ? "todos" : "privado"
 
     Database.transaction do
       mapa = {}
@@ -118,20 +123,21 @@ module TemplateRegistry
 
       tpl["modulos"].each do |m|
         existente = Database.modulo_por_nome(m["nome"])
-        if existente
+        if existente && (pode_usar.nil? || pode_usar.call(existente))
           mapa[m["slug"]] = existente["slug"]
           reaproveitados[m["slug"]] = existente
           next
         end
 
         slug = slug_livre(m["slug"])
+        nome = existente ? nome_modulo_livre(m["nome"]) : m["nome"]
         mapa[m["slug"]] = slug
         ordem += 1
         schema = ModuleSchema.schema_de(m)
         modulo_id = Database.insert(
-          "INSERT INTO modulos (slug, nome, descricao, icone, schema, template_origem, ordem, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [slug, m["nome"], m["descricao"], m["icone"], JSON.generate(schema), tpl["id"], ordem, now]
+          "INSERT INTO modulos (slug, nome, descricao, icone, schema, template_origem, ordem, criado_em, dono_id, visibilidade)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [slug, nome, m["descricao"], m["icone"], JSON.generate(schema), tpl["id"], ordem, now, dono_id, vis_modulo]
         )
         next unless com_exemplos
 
@@ -190,6 +196,13 @@ module TemplateRegistry
     )
   end
 
+  # "Demandas" já existe (de outra pessoa) -> "Demandas (2)", "(3)"...
+  def nome_modulo_livre(base)
+    n = 2
+    n += 1 while Database.modulo_por_nome("#{base} (#{n})")
+    "#{base} (#{n})"
+  end
+
   def slug_livre(base)
     return base unless Database.slug_taken?(base)
 
@@ -201,9 +214,10 @@ module TemplateRegistry
   # Configuração atual no mesmo formato de template (reimportável).
   # `usuario_id`: leva só os dashboards que essa pessoa vê (os dela e os da
   # equipe); os privados dos outros não saem na exportação.
-  def export(com_dados: false, usuario_id: nil)
+  # `acesso` (lib/acesso.rb): leva só os módulos e dashboards que a pessoa vê.
+  def export(com_dados: false, acesso: nil)
     cfg = Database.config
-    modulos = Database.modulos.map do |m|
+    modulos = (acesso ? acesso.modulos_visiveis : Database.modulos).map do |m|
       # Os slots são detalhe de armazenamento: na exportação o módulo sai só com o que o template define.
       h = m.slice("slug", "nome", "descricao", "icone").merge(m["schema"].except("slots"))
       if com_dados
@@ -212,7 +226,7 @@ module TemplateRegistry
       h
     end
 
-    dashboards = Database.dashboards_visiveis(usuario_id).map do |d|
+    dashboards = (acesso ? acesso.dashboards_visiveis : Database.dashboards_visiveis(nil)).map do |d|
       widgets = Database.rows("SELECT * FROM widgets WHERE dashboard_id = ? ORDER BY y, x", [d["id"]]).map do |w|
         w.slice("titulo", "tipo", "x", "y", "w", "h").merge("modulo" => w["modulo_slug"], "config" => JSON.parse(w["config"]))
       end

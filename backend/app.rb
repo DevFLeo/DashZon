@@ -11,6 +11,8 @@ require_relative "lib/segredo"
 require_relative "lib/correio"
 require_relative "lib/usuarios"
 require_relative "lib/equipes"
+require_relative "lib/acesso"
+require_relative "lib/solicitacoes"
 require_relative "lib/desempenho"
 require_relative "lib/seguranca"
 
@@ -145,12 +147,56 @@ helpers do
     d
   end
 
-  def dashboard_visivel?(d)
-    d["visibilidade"] == "equipe" || d["dono_id"] == usuario_atual["id"]
+  # Regras de quem vê e quem altera: lib/acesso.rb (uma instância por requisição).
+  def acesso
+    @acesso ||= Acesso.new(usuario_atual)
   end
 
-  def dashboard_editavel?(d)
-    d["dono_id"] == usuario_atual["id"] || (usuario_atual["perfil"] == "admin" && d["visibilidade"] == "equipe")
+  def dashboard_visivel?(d) = acesso.dashboard_visivel?(d)
+  def dashboard_editavel?(d) = acesso.dashboard_editavel?(d)
+
+  # Perfil "visualizador": só vê (não cria dashboards, módulos nem instala templates).
+  def nao_visualizador!
+    halt json({ error: "Seu perfil é de visualização: você vê os dashboards, mas não cria nem altera" }, 403) if acesso.visualizador?
+  end
+
+  # Visualizador: criar, alterar ou excluir registro vira um pedido para o dono
+  # do módulo aprovar (lib/solicitacoes.rb). Responde 202 e não grava nada.
+  def pedir_aprovacao!(m, acao, registro_id: nil, dados: nil)
+    return unless acesso.visualizador?
+
+    s = Solicitacoes.criar!(usuario_atual, m, acao, registro_id: registro_id, dados: dados)
+    halt json({ pendente: true, solicitacao: s["id"], mensagem: "Enviado para aprovação de #{s['aprovador']}" }, 202)
+  end
+
+  # Compartilhar com equipes escolhidas: lista válida, não vazia, e só equipes
+  # que a pessoa pode usar (o admin, qualquer uma; os demais, as suas).
+  def equipes_para_compartilhar!(lista)
+    halt json({ error: "Escolha ao menos uma equipe" }, 422) unless lista.is_a?(Array) && !lista.empty?
+
+    ids = lista.map(&:to_i).uniq
+    existentes = Database.rows("SELECT id FROM equipes").map { |r| r["id"] }
+    halt json({ error: "Equipe inexistente na lista" }, 422) unless (ids - existentes).empty?
+    halt json({ error: "Você só pode compartilhar com equipes de que faz parte" }, 403) unless ids.all? { |e| acesso.pode_compartilhar_com?(e) }
+
+    ids
+  end
+
+  def gravar_equipes_do_dashboard!(dashboard_id, ids)
+    Database.execute("DELETE FROM dashboard_equipes WHERE dashboard_id = ?", [dashboard_id])
+    ids.each { |e| Database.execute("INSERT INTO dashboard_equipes (dashboard_id, equipe_id) VALUES (?, ?)", [dashboard_id, e]) }
+  end
+
+  def gravar_equipes_do_modulo!(modulo_id, ids)
+    Database.execute("DELETE FROM modulo_equipes WHERE modulo_id = ?", [modulo_id])
+    ids.each { |e| Database.execute("INSERT INTO modulo_equipes (modulo_id, equipe_id) VALUES (?, ?)", [modulo_id, e]) }
+  end
+
+  def nomes_das_equipes(ids)
+    return [] if ids.nil? || ids.empty?
+
+    todas = Database.rows("SELECT id, nome FROM equipes").to_h { |e| [e["id"], e["nome"]] }
+    ids.filter_map { |i| todas[i] && { "id" => i, "nome" => todas[i] } }
   end
 
   # Widget + dashboard dele, conferindo o acesso pelo dashboard.
@@ -169,8 +215,30 @@ helpers do
     d["visibilidade"] == "equipe" || d["compartilhar"] == true ? "equipe" : "privado"
   end
 
+  # Módulo que a pessoa pode VER (os de outros, sem acesso, respondem 404).
   def modulo!(slug)
-    Database.modulo(slug) || halt(json({ error: "Módulo '#{slug}' não encontrado" }, 404))
+    m = Database.modulo(slug)
+    halt json({ error: "Módulo '#{slug}' não encontrado" }, 404) unless m && acesso.modulo_visivel?(m)
+
+    m
+  end
+
+  # Módulo que a pessoa pode MUDAR (estrutura, compartilhamento, excluir).
+  def modulo_editavel!(slug)
+    m = modulo!(slug)
+    halt json({ error: "Só quem criou este módulo (ou um administrador) pode alterá-lo" }, 403) unless acesso.modulo_editavel?(m)
+
+    m
+  end
+
+  def modulo_json(m, totais = nil, exemplos = nil)
+    dono = m["dono_id"] && Usuarios.por_id(m["dono_id"])
+    m.merge(
+      "visibilidade" => m["visibilidade"] || "todos",
+      "equipes" => nomes_das_equipes(acesso.equipes_dos_modulos[m["id"]]),
+      "dono_nome" => dono && (dono["nome"].to_s.empty? ? dono["login"] : dono["nome"]),
+      "editavel" => acesso.modulo_editavel?(m)
+    ).merge(totais ? { "total" => totais[m["id"]] || 0 } : {}).merge(exemplos ? { "exemplos" => exemplos[m["id"]] || 0 } : {})
   end
 
   def texto_campos(schema)
@@ -348,6 +416,28 @@ end
 require_relative "rotas/usuarios"
 require_relative "rotas/equipes"
 
+# Equipes que a pessoa pode escolher ao compartilhar (o admin vê todas).
+get "/api/equipes" do
+  todas = Database.rows("SELECT id, nome, empresa FROM equipes ORDER BY lower(nome)")
+  json(todas.select { |e| acesso.pode_compartilhar_com?(e["id"]) }.map { |e| e.merge("empresa" => e["empresa"].to_i == 1) })
+end
+
+# Pedidos do perfil visualizador (lib/solicitacoes.rb): os que a pessoa
+# decide e os que ela fez.
+get "/api/solicitacoes" do
+  json Solicitacoes.listar(usuario_atual)
+end
+
+get "/api/solicitacoes/contagem" do
+  json Solicitacoes.contagem(usuario_atual)
+end
+
+post "/api/solicitacoes/:id/:decisao" do
+  halt 404 unless %w[aprovar negar].include?(params[:decisao])
+  Solicitacoes.decidir!(usuario_atual, params[:id], aprovar: params[:decisao] == "aprovar", motivo: body_json["motivo"])
+  json ok: true
+end
+
 
 
 # ------------------------------------------------------------- templates ---
@@ -368,14 +458,18 @@ post "/api/templates/validar" do
 end
 
 post "/api/templates/instalar" do
+  nao_visualizador!
   d = body_json
   bruto = d["template_id"] ? TemplateRegistry.find(d["template_id"]) : d["template"]
   halt json({ error: "Template não encontrado" }, 404) unless bruto
 
   # Os dashboards que o template criar são de quem instalou: privados, a não
   # ser que a pessoa peça para compartilhar com a equipe.
+  # Um módulo de mesmo nome só é reaproveitado se a pessoa o vê; senão nasce
+  # outro ("Nome (2)"), dela (relatório, problema 2).
   res = TemplateRegistry.install!(TemplateRegistry.normalize!(bruto), com_exemplos: d["com_exemplos"] != false,
-                                  dono_id: usuario_atual["id"], visibilidade: visibilidade_pedida(d))
+                                  dono_id: usuario_atual["id"], visibilidade: visibilidade_pedida(d),
+                                  pode_usar: ->(m) { acesso.modulo_visivel?(m) })
   # Um JSON colado/importado fica guardado no banco e volta na galeria.
   TemplateRegistry.salvar_importado!(bruto) unless d["template_id"]
   json res.merge(ok: true)
@@ -397,7 +491,7 @@ end
 # Cada exportação também fica guardada no banco (histórico de backups).
 get "/api/export" do
   com_dados = params[:dados] == "1"
-  dados = TemplateRegistry.export(com_dados: com_dados, usuario_id: usuario_atual["id"])
+  dados = TemplateRegistry.export(com_dados: com_dados, acesso: acesso)
   nome = "dashzon-#{Time.now.strftime('%Y%m%d-%H%M')}#{com_dados ? '-dados' : ''}.json"
   Database.salvar_json!("exportacao", nome, dados)
   attachment nome
@@ -425,31 +519,58 @@ end
 get "/api/modulos" do
   totais = Database.rows("SELECT modulo_id, COUNT(*) AS n FROM registros GROUP BY modulo_id").to_h { |r| [r["modulo_id"], r["n"]] }
   exemplos = Database.exemplos_por_modulo
-  json(Database.modulos.map { |m| m.merge("total" => totais[m["id"]] || 0, "exemplos" => exemplos[m["id"]] || 0) })
+  json(acesso.modulos_visiveis.map { |m| modulo_json(m, totais, exemplos) })
 end
 
 get "/api/modulos/:slug" do
   m = modulo!(params[:slug])
-  json m.merge("exemplos" => Database.exemplos_por_modulo[m["id"]] || 0)
+  json modulo_json(m, nil, Database.exemplos_por_modulo)
+end
+
+# Quem vê o módulo: todos, só o dono ou equipes escolhidas; dono_id (só admin)
+# transfere. Quem vê um dashboard que usa o módulo continua vendo os dados dele.
+put "/api/modulos/:slug/compartilhar" do
+  m = modulo_editavel!(params[:slug])
+  d = body_json
+  vis = d["visibilidade"].to_s
+  halt json({ error: "Visibilidade inválida (use todos, privado ou equipes)" }, 422) unless Acesso::VIS_MODULO.include?(vis)
+
+  ids = vis == "equipes" ? equipes_para_compartilhar!(d["equipes"]) : []
+  dono = m["dono_id"]
+  if d.key?("dono_id") && d["dono_id"].to_i != m["dono_id"]
+    halt json({ error: "Só um administrador transfere módulos" }, 403) unless acesso.admin?
+    alvo = Usuarios.por_id(d["dono_id"])
+    halt json({ error: "Escolha uma conta ativa para ser o novo dono" }, 422) unless alvo && alvo["ativo"].to_i == 1
+    dono = alvo["id"]
+  end
+  Database.transaction do
+    Database.execute("UPDATE modulos SET visibilidade = ?, dono_id = ? WHERE id = ?", [vis, dono, m["id"]])
+    gravar_equipes_do_modulo!(m["id"], ids)
+  end
+  json ok: true
 end
 
 # Apaga só os registros de exemplo do módulo (os que vieram com o template).
 delete "/api/modulos/:slug/exemplos" do
+  nao_visualizador!
   m = modulo!(params[:slug])
   json ok: true, apagados: Database.apagar_exemplos!(m["id"])
 end
 
 post "/api/modulos" do
+  nao_visualizador!
   m = ModuleSchema.normalize_modulo!(body_json)
   halt json({ error: "Já existe um módulo com o identificador '#{m['slug']}'" }, 422) if Database.slug_taken?(m["slug"])
   halt json({ error: "Já existe um módulo chamado '#{m['nome']}'" }, 422) if Database.modulo_por_nome(m["nome"])
 
-  TemplateRegistry.install!({ "id" => "personalizado", "modulos" => [m.merge("seed" => [])], "dashboards" => [] })
-  json Database.modulo(m["slug"]), 201
+  # Módulo novo é de quem criou e nasce privado (relatório, problema 2).
+  TemplateRegistry.install!({ "id" => "personalizado", "modulos" => [m.merge("seed" => [])], "dashboards" => [] },
+                            dono_id: usuario_atual["id"], visibilidade: "privado")
+  json modulo_json(Database.modulo(m["slug"])), 201
 end
 
 put "/api/modulos/:slug" do
-  atual = modulo!(params[:slug])
+  atual = modulo_editavel!(params[:slug])
   m = ModuleSchema.normalize_modulo!(body_json.merge("slug" => atual["slug"]), atual["schema"])
   if Database.modulo_por_nome(m["nome"], exceto_id: atual["id"])
     halt json({ error: "Já existe outro módulo chamado '#{m['nome']}'" }, 422)
@@ -467,7 +588,7 @@ put "/api/modulos/:slug" do
 end
 
 delete "/api/modulos/:slug" do
-  m = modulo!(params[:slug])
+  m = modulo_editavel!(params[:slug])
   Database.transaction do
     Database.execute("DELETE FROM widgets WHERE modulo_slug = ?", [m["slug"]])
     Database.execute("DELETE FROM registros WHERE modulo_id = ?", [m["id"]])
@@ -544,13 +665,16 @@ patch "/api/modulos/:slug/registros/:id" do
   mudancas = body_json.slice(*ids)
   halt json({ error: "Nenhum campo do módulo foi enviado" }, 422) if mudancas.empty?
 
-  Database.atualizar_registro(m, id, ModuleSchema.coerce_registro!(m["schema"], atual.slice(*ids).merge(mudancas)))
+  dados = ModuleSchema.coerce_registro!(m["schema"], atual.slice(*ids).merge(mudancas))
+  pedir_aprovacao!(m, "alterar", registro_id: id, dados: dados)
+  Database.atualizar_registro(m, id, dados)
   json Database.registro(m, id)
 end
 
 post "/api/modulos/:slug/registros" do
   m = modulo!(params[:slug])
   dados = ModuleSchema.coerce_registro!(m["schema"], body_json)
+  pedir_aprovacao!(m, "criar", dados: dados)
   id = Database.inserir_registro(m, dados)
   json Database.registro(m, id), 201
 end
@@ -560,12 +684,16 @@ put "/api/modulos/:slug/registros/:id" do
   id = params[:id].to_i
   halt json({ error: "Registro não encontrado" }, 404) unless Database.registro(m, id)
 
-  Database.atualizar_registro(m, id, ModuleSchema.coerce_registro!(m["schema"], body_json))
+  dados = ModuleSchema.coerce_registro!(m["schema"], body_json)
+  pedir_aprovacao!(m, "alterar", registro_id: id, dados: dados)
+  Database.atualizar_registro(m, id, dados)
   json Database.registro(m, id)
 end
 
 delete "/api/modulos/:slug/registros/:id" do
   m = modulo!(params[:slug])
+  halt json({ error: "Registro não encontrado" }, 404) unless Database.registro(m, params[:id].to_i)
+  pedir_aprovacao!(m, "excluir", registro_id: params[:id].to_i)
   Database.remover_registro(m, params[:id].to_i)
   json ok: true
 end
@@ -588,16 +716,23 @@ end
 # abre o dashboard que já usa o módulo, em vez de criar outro).
 get "/api/dashboards" do
   usados = Database.rows("SELECT DISTINCT dashboard_id, modulo_slug FROM widgets").group_by { |r| r["dashboard_id"] }
-  json(Database.dashboards_visiveis(usuario_atual["id"]).map do |d|
+  json(acesso.dashboards_visiveis.map do |d|
     dashboard_json(d, dashboard_editavel?(d)).merge("modulos" => (usados[d["id"]] || []).map { |r| r["modulo_slug"] })
   end)
 end
 
 post "/api/dashboards" do
+  nao_visualizador!
   d = body_json
   nome = nome_dashboard!(d)
-  id = Database.insert("INSERT INTO dashboards (nome, criado_em, atualizado_em, dono_id, visibilidade) VALUES (?, ?, ?, ?, ?)",
-                       [nome, Database.now, Database.now, usuario_atual["id"], visibilidade_pedida(d)])
+  vis = d["visibilidade"] == "equipes" ? "equipes" : visibilidade_pedida(d)
+  ids = vis == "equipes" ? equipes_para_compartilhar!(d["equipes"]) : []
+  id = nil
+  Database.transaction do
+    id = Database.insert("INSERT INTO dashboards (nome, criado_em, atualizado_em, dono_id, visibilidade) VALUES (?, ?, ?, ?, ?)",
+                         [nome, Database.now, Database.now, usuario_atual["id"], vis])
+    gravar_equipes_do_dashboard!(id, ids)
+  end
   json({ id: id }, 201)
 end
 
@@ -605,6 +740,7 @@ get "/api/dashboards/:id" do
   dash = dashboard!(params[:id])
   dono = Usuarios.por_id(dash["dono_id"])
   out = dashboard_json(dash.merge("dono_nome" => dono&.dig("nome"), "dono_login" => dono&.dig("login")), dashboard_editavel?(dash))
+  out["equipes"] = nomes_das_equipes(acesso.equipes_dos_dashboards[dash["id"]])
   out["widgets"] = Database.rows("SELECT * FROM widgets WHERE dashboard_id = ?", [dash["id"]]).map { |w| widget_json(w) }
   json out
 end
@@ -617,9 +753,13 @@ put "/api/dashboards/:id" do
   novo = {}
   novo["nome"] = nome_dashboard!(d) if d.key?("nome")
   novo["fixo"] = d["fixo"] == true ? 1 : 0 if d.key?("fixo")
+  equipes = nil
   if d.key?("visibilidade")
-    halt json({ error: "Visibilidade inválida (use privado ou equipe)" }, 422) unless %w[privado equipe].include?(d["visibilidade"])
+    unless Acesso::VIS_DASHBOARD.include?(d["visibilidade"])
+      halt json({ error: "Visibilidade inválida (use privado, equipe ou equipes)" }, 422)
+    end
     novo["visibilidade"] = d["visibilidade"]
+    equipes = d["visibilidade"] == "equipes" ? equipes_para_compartilhar!(d["equipes"]) : []
   end
   if d.key?("dono_id") && d["dono_id"].to_i != dash["dono_id"]
     halt json({ error: "Só um administrador transfere dashboards" }, 403) unless usuario_atual["perfil"] == "admin"
@@ -637,6 +777,7 @@ put "/api/dashboards/:id" do
   unless novo.empty?
     Database.transaction do
       novo.each { |campo, valor| Database.execute(sql.fetch(campo), [valor, dash["id"]]) }
+      gravar_equipes_do_dashboard!(dash["id"], equipes) if equipes
       Database.execute("UPDATE dashboards SET atualizado_em = ? WHERE id = ?", [Database.now, dash["id"]])
     end
   end

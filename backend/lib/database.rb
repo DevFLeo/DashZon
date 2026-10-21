@@ -172,6 +172,38 @@ module Database
       modulo_id INTEGER NOT NULL REFERENCES modulos(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_registros_exemplo_modulo ON registros_exemplo(modulo_id);
+
+    -- Compartilhar com equipes escolhidas (visibilidade "equipes"): o
+    -- dashboard ou módulo aparece para os membros delas. Ver lib/acesso.rb.
+    CREATE TABLE IF NOT EXISTS dashboard_equipes (
+      dashboard_id INTEGER NOT NULL REFERENCES dashboards(id) ON DELETE CASCADE,
+      equipe_id INTEGER NOT NULL REFERENCES equipes(id) ON DELETE CASCADE,
+      PRIMARY KEY (dashboard_id, equipe_id)
+    );
+    CREATE TABLE IF NOT EXISTS modulo_equipes (
+      modulo_id INTEGER NOT NULL REFERENCES modulos(id) ON DELETE CASCADE,
+      equipe_id INTEGER NOT NULL REFERENCES equipes(id) ON DELETE CASCADE,
+      PRIMARY KEY (modulo_id, equipe_id)
+    );
+
+    -- Pedidos de quem tem o perfil "visualizador": criar, alterar ou excluir
+    -- um registro só vale depois que o dono do módulo (ou um admin) aprova.
+    -- `dados` e `antes` em JSON (formato da API). Ver lib/solicitacoes.rb.
+    CREATE TABLE IF NOT EXISTS solicitacoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      modulo_id INTEGER NOT NULL REFERENCES modulos(id) ON DELETE CASCADE,
+      registro_id INTEGER,
+      acao TEXT NOT NULL,
+      dados TEXT,
+      antes TEXT,
+      solicitante_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pendente',
+      motivo TEXT,
+      revisor_id INTEGER,
+      criado_em TEXT NOT NULL,
+      decidido_em TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_solicitacoes_status ON solicitacoes(status, modulo_id);
   SQL
 
   # Uma única conexão para o processo, serializada por um Monitor (reentrante,
@@ -227,6 +259,7 @@ module Database
       connection.execute_batch(EXTRAS_SQL)
       migrar_usuarios!
       migrar_dashboards!
+      migrar_modulos!
       marcar_exemplos_antigos! if sem_exemplos
       @extras_ok = true
     end
@@ -288,6 +321,31 @@ module Database
       UPDATE dashboards SET dono_id = (SELECT MIN(id) FROM usuarios WHERE perfil = 'admin' AND ativo = 1)
       WHERE dono_id IS NULL OR dono_id NOT IN (SELECT id FROM usuarios)
     SQL
+  end
+
+  # Módulos ganharam dono e visibilidade (todos, privado, equipes). Os que já
+  # existiam ficam "todos", do primeiro administrador: ninguém perde acesso.
+  COLUNAS_MODULO = {
+    "dono_id" => "INTEGER",
+    "visibilidade" => "TEXT NOT NULL DEFAULT 'todos'"
+  }.freeze
+
+  def self.migrar_modulos!
+    existentes = connection.execute("PRAGMA table_info(modulos)").map { |c| c["name"] || c[1] }
+    return if existentes.empty? # antes do setup
+
+    COLUNAS_MODULO.each do |col, tipo|
+      connection.execute("ALTER TABLE modulos ADD COLUMN #{col} #{tipo}") unless existentes.include?(col)
+    end
+    connection.execute(<<~SQL)
+      UPDATE modulos SET dono_id = (SELECT MIN(id) FROM usuarios WHERE perfil = 'admin' AND ativo = 1)
+      WHERE dono_id IS NULL OR dono_id NOT IN (SELECT id FROM usuarios)
+    SQL
+  end
+
+  def self.modulo_por_id(id)
+    m = row("SELECT * FROM modulos WHERE id = ?", [id.to_i])
+    m && decode_modulo(m)
   end
 
   # Dashboards que `usuario_id` vê: os dele e os da equipe, com o nome do dono.
@@ -431,6 +489,7 @@ module Database
       end
       connection.execute_batch(SCHEMA)
       @migrado = true
+      @extras_ok = false # colunas/tabelas extras sobre o schema recém-criado
       connection.execute("PRAGMA user_version = #{SCHEMA_VERSION}")
       execute(
         "INSERT INTO config (id, org_name, moeda, configured_at) VALUES (1, ?, ?, ?)
