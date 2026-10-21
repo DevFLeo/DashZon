@@ -19,7 +19,11 @@ module ModuleSchema
   DIMENSOES = %w[selecao movimento booleano texto data].freeze
   SERIES = %w[selecao movimento booleano].freeze
   AGREGACOES = %w[contagem soma media saldo].freeze
-  WIDGET_TIPOS = %w[kpi bar line table].freeze
+  # pie (pizza) e calendario (um quadradinho por dia) entraram a pedido, para
+  # o acompanhamento de estudos; usam a mesma consulta e o mesmo motor.
+  WIDGET_TIPOS = %w[kpi bar line table pie calendario].freeze
+  # Meta de um card de número: total, do mês atual ou da semana atual.
+  PERIODOS_META = %w[tudo mes semana].freeze
   # Aparência do card (a pedido: escolher cores no editor). Não entra na
   # consulta: o motor e o resultado são os mesmos com ou sem cores.
   PALETAS = %w[padrao oceano por_do_sol floresta neon pastel terra galaxia mono].freeze
@@ -299,8 +303,25 @@ module ModuleSchema
 
     entrada = w["config"].is_a?(Hash) ? w["config"] : w
     cfg = normalize_consulta!(entrada, schema["campos"], "Widget '#{titulo}'")
-    cfg.delete("serie_por") if %w[kpi table].include?(tipo)
+    cfg.delete("serie_por") if %w[kpi table pie calendario].include?(tipo)
     cfg.merge!(normalize_aparencia!(entrada, "Widget '#{titulo}'"))
+    campo_tipo = ->(id) { schema["campos"].find { |c| c["id"] == id }&.dig("tipo") }
+    case tipo
+    when "pie"
+      raise Error, "Widget '#{titulo}': a pizza precisa de 'Separar por'" unless cfg["agrupar_por"]
+    when "calendario"
+      raise Error, "Widget '#{titulo}': o calendário precisa de um campo de data" unless campo_tipo.(cfg["agrupar_por"]) == "data"
+
+      cfg["formato_grupo"] = nil # um quadradinho por dia (o motor agrupa pela data inteira)
+    when "kpi"
+      meta = normalize_meta!(entrada, schema["campos"], "Widget '#{titulo}'")
+      cfg.merge!(meta)
+      if meta["periodo"] && meta["periodo"] != "tudo"
+        # O navegador soma só os dias do mês/semana atual: agrupa por dia.
+        cfg["agrupar_por"] = meta["campo_data"]
+        cfg["formato_grupo"] = nil
+      end
+    end
 
     {
       "titulo" => titulo,
@@ -311,6 +332,28 @@ module ModuleSchema
       "w" => [(w["w"] || 4).to_i, 1].max,
       "h" => [(w["h"] || 3).to_i, 1].max
     }
+  end
+
+  # Meta de um card de número (opcional): `meta` > 0, `periodo` (tudo, mes,
+  # semana) e, por mês/semana, `campo_data` (o primeiro campo de data, se não
+  # vier). O card mostra quanto já foi e quanto falta.
+  def normalize_meta!(cfg, campos, contexto)
+    return {} if cfg["meta"].nil? || cfg["meta"].to_s.strip.empty?
+
+    meta = cfg["meta"].is_a?(Numeric) ? cfg["meta"].to_f : Float(cfg["meta"].to_s.tr(",", "."), exception: false)
+    raise Error, "#{contexto}: a meta deve ser um número maior que zero" unless meta&.finite? && meta.positive? && meta <= 1e12
+
+    periodo = (cfg["periodo"] || "tudo").to_s
+    raise Error, "#{contexto}: período da meta inválido (use tudo, mes ou semana)" unless PERIODOS_META.include?(periodo)
+
+    out = { "meta" => meta, "periodo" => periodo }
+    return out if periodo == "tudo"
+
+    data = cfg["campo_data"].to_s
+    data = campos.find { |c| c["tipo"] == "data" }&.dig("id").to_s if data.empty?
+    raise Error, "#{contexto}: a meta por mês ou semana precisa de um campo de data" unless campos.any? { |c| c["id"] == data && c["tipo"] == "data" }
+
+    out.merge("campo_data" => data)
   end
 
   # Cores escolhidas no editor de card: `paleta` (nome), `cores` (cor por
