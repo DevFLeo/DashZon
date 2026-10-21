@@ -6,6 +6,24 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimento-empresa` · Correções do relatório de testes
+
+**O que** (os 9 problemas do `relatorio.md`):
+1. **Dashboard por equipe:** além de "só eu" e "todos", "equipes escolhidas".
+2. **Módulos com dono e "quem vê"** (só o dono, equipes ou todos). O que se cria nasce privado; quem vê um dashboard vê os módulos dos cards dele. Os módulos antigos ficaram "todos" e o Painel do adm ganhou "Módulos: quem vê" para mudar cada um.
+3. **Perfil Visualizador** com **Aprovações:** o que ele lança, edita ou apaga vira pedido que o dono do módulo (ou um admin) aprova ou nega, vendo o antes e o depois.
+4. Login aceita espaço ("teste 1").
+5. Opção "pedir para trocar a senha no primeiro acesso".
+6. Diário do adm registra criações, alterações e exclusões, com filtro.
+7. "Criar > Lote de produção" abre o dashboard que já existe.
+8. Excluir dashboard com exemplos avisa de outro dashboard no mesmo módulo.
+9. A pessoa vê as próprias equipes em Configurações > Conta.
+- Testes: 197 no backend (novo `acesso_test`); o cenário do relatório repetido numa cópia do banco real: 42/42; ponta a ponta 61/61 em duas rodadas com banco zerado; responsividade 109 telas, 0 erros.
+
+**Por quê:** pedido de resolver os problemas anotados no relatório de testes.
+
+---
+
 ## 2026-10-21 · `desenvolvimento-empresa` · Cubo animado, regras de senha, cores, estudos no dashboard e relatório de testes
 
 **O que:**

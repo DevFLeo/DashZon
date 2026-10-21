@@ -67,6 +67,8 @@ backend/
   lib/engine_client.rb     ponte com o binário C++
   lib/desempenho.rb        CacheResultados (motor) e CacheEstaticos (cabeçalhos)
   lib/usuarios.rb          contas, senhas, tokens, preferências, ajustes
+  lib/acesso.rb            quem vê e quem altera dashboards e módulos (por requisição)
+  lib/solicitacoes.rb      pedidos do perfil visualizador (aprovar/negar)
   lib/equipes.rb           equipes e membros; CNPJ em HMAC + máscara; empresa de teste
   lib/segredo.rb           chave do servidor (sessão e HMAC)
   lib/documento.rb         CPF/CNPJ: validação, máscara, HMAC
@@ -123,20 +125,22 @@ Docker Compose (`.env`): `DASHZON_DOMINIO` vira `DASHZON_HOSTS` e o domínio do 
 | Tabela | Colunas | Observações |
 |---|---|---|
 | `config` | `id` (=1), `org_name`, `moeda`, `configured_at` | Uma linha |
-| `modulos` | `id`, `slug` UNIQUE, `nome`, `descricao`, `icone`, `schema` (JSON: `campos`, `rotulo`, `resumo`, `slots`), `template_origem`, `ordem`, `criado_em` | Nome único sem diferenciar maiúsculas (comparado em Ruby, por causa dos acentos) |
+| `modulos` | `id`, `slug` UNIQUE, `nome`, `descricao`, `icone`, `schema` (JSON: `campos`, `rotulo`, `resumo`, `slots`), `template_origem`, `ordem`, `criado_em`, `dono_id`, `visibilidade` (`todos`/`privado`/`equipes`) | `dono_id` e `visibilidade` por `ALTER TABLE` (`migrar_modulos!`): os que já existiam viram `todos` do primeiro admin. Nome único sem diferenciar maiúsculas (comparado em Ruby, por causa dos acentos) |
 | `registros` | `id` INTEGER PK, `modulo_id` → modulos ON DELETE CASCADE, `dados` (array JSON compacto), `criado_em` INTEGER (epoch), `atualizado_em` INTEGER NULL | Índice `idx_registros_modulo` |
 | `dashboards` | `id`, `nome`, `criado_em`, `atualizado_em`, `dono_id`, `visibilidade` (`privado`/`equipe`), `fixo` (0/1) | Colunas novas por `ALTER TABLE` (`migrar_dashboards!`); os que já existiam viram `equipe` do primeiro admin |
 | `widgets` | `id`, `dashboard_id` → dashboards CASCADE, `titulo`, `tipo` (kpi/bar/line/table/pie/calendario), `modulo_slug`, `config` (JSON), `x`, `y`, `w`, `h` | Índice `idx_widgets_dashboard`; grade de 12 colunas |
 | `usuarios` | `id`, `login` UNIQUE, `senha_hash`, `sal`, `nome`, `email`, `email_verificado_em`, `documento_tipo`, `documento_hash`, `documento_mascara`, `cargo`, `perfil` (`admin`/`usuario`), `ativo`, `deve_trocar_senha`, `sessao_versao`, `ultimo_login_em`, `criado_em`, `atualizado_em`, `preferencias` (JSON) | Criada sob demanda; colunas novas por `ALTER TABLE` (`migrar_usuarios!`) |
 | `tokens` | `id`, `usuario_id` → usuarios CASCADE, `tipo` (`redefinir_senha` 24 h, `verificar_email` 7 dias), `token_hash` UNIQUE (SHA-256), `dado`, `expira_em`, `usado_em`, `criado_em` | Uso único |
 | `ajustes` | `chave` PK, `valor` | `exigir_documento` (nao/cpf/cnpj/qualquer), `exigir_email`, `exigir_email_verificado`; regras de senha: `senha_minima` (6 a 64, padrão 8), `senha_forte`, `senha_maiuscula`, `senha_numero`, `senha_simbolo` ("0"/"1", desligadas por padrão) |
+| `dashboard_equipes`, `modulo_equipes` | (`dashboard_id`/`modulo_id`, `equipe_id`), ambos CASCADE | Equipes escolhidas quando a visibilidade é `equipes` |
+| `solicitacoes` | `id`, `modulo_id` → modulos CASCADE, `registro_id`, `acao` (criar/alterar/excluir), `dados` e `antes` (JSON), `solicitante_id` → usuarios CASCADE, `status` (pendente/aprovada/negada), `motivo`, `revisor_id`, `criado_em`, `decidido_em` | Pedidos do perfil visualizador |
 | `registros_exemplo` | `registro_id` PK → registros CASCADE, `modulo_id` → modulos CASCADE | Dados de exemplo que vieram com um template. Marcados na instalação; editar um registro tira a marca. Bancos antigos: na criação da tabela, `marcar_exemplos_antigos!` marca os registros nunca editados criados até 5 s do módulo de template |
 | `eventos_seguranca` | `id`, `quando` INTEGER (epoch), `tipo`, `ip`, `conta` (HMAC do login digitado, 32 hex), `usuario_id`, `detalhe` | Diário de segurança e base da contagem de falhas (§8). Índices por `(ip, quando)`, `(conta, quando)` e `quando`. Guardado por 180 dias |
 | `jsons` | `id`, `tipo` (`template`/`exportacao`), `nome`, `conteudo` (BLOB zlib), `criado_em` | Índice `idx_jsons_tipo` |
 | `equipes` | `id`, `nome`, `descricao`, `empresa` (0/1), `exigir_cnpj` (0/1), `cnpj_hash` (HMAC), `cnpj_mascara`, `teste` (0/1), `criado_em`, `atualizado_em` | Grupo de usuários. Empresa pode exigir CNPJ ou não; CNPJ único (pelo HMAC). `teste` = empresa de teste com CNPJ fictício |
 | `equipe_membros` | `equipe_id` → equipes CASCADE, `usuario_id` → usuarios CASCADE, `criado_em`; PK (equipe, usuário) | Um usuário em nenhuma, uma ou várias equipes. Índice `idx_equipe_membros_usuario` |
 
-`usuarios`, `tokens`, `ajustes`, `jsons`, `eventos_seguranca`, `equipes`, `equipe_membros` e `registros_exemplo` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
+`usuarios`, `tokens`, `ajustes`, `jsons`, `eventos_seguranca`, `equipes`, `equipe_membros`, `registros_exemplo`, `dashboard_equipes`, `modulo_equipes` e `solicitacoes` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
 
 ### 5.3 Formato de `registros.dados` (`RecordCodec`)
 
@@ -237,7 +241,10 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | `POST /api/senha/esqueci`, `/api/senha/redefinir`, `/api/email/verificar` | Links por token (limite por IP) |
 | `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Configurações da pessoa. Preferências: `tema`, `fonte`, `tamanho_fonte`, `pagina_inicial`, `privacidade`, `modulos_ocultos` (slugs desligados no menu dela, até 100) e `ordem_menu` (`{dashboards: [ids], modulos: [slugs]}`, até 500 cada: a ordem arrastada na barra lateral) |
 | `GET/PUT /api/admin/ajustes`, `PUT /api/admin/config` | Regras de cadastro; organização e moeda |
-| `GET /api/admin/seguranca`, `POST /api/admin/seguranca/desbloquear` | Checagem da instalação, bloqueios em vigor e os últimos 100 eventos; desbloqueio de um IP (`ip`) ou conta (`conta` = hash) |
+| `GET /api/equipes` | Equipes que a pessoa pode escolher ao compartilhar |
+| `PUT /api/modulos/:slug/compartilhar` | `visibilidade` (todos/privado/equipes), `equipes`, `dono_id` (só admin) |
+| `GET /api/solicitacoes`, `GET /api/solicitacoes/contagem`, `POST /api/solicitacoes/:id/aprovar`, `.../negar` (`motivo`) | Pedidos do perfil visualizador: os que a pessoa decide e os dela |
+| `GET /api/admin/seguranca`, `POST /api/admin/seguranca/desbloquear` | Checagem da instalação, bloqueios em vigor e os últimos 300 eventos (acessos e alterações); desbloqueio de um IP (`ip`) ou conta (`conta` = hash) |
 | `GET/POST /api/admin/usuarios`, `PUT/DELETE /api/admin/usuarios/:id`, `POST .../:id/ativo`, `.../senha-temporaria`, `.../link-redefinicao`, `.../email-verificado`, `.../enviar-verificacao` | Gestão de usuários. A lista traz `equipes` de cada um (`[]` = nenhuma); `POST`/`PUT` aceitam `equipes` (ids; define exatamente em quais está, na mesma transação) |
 | `GET/POST /api/admin/equipes`, `PUT/DELETE /api/admin/equipes/:id`, `PUT .../:id/membros` (`usuario_ids`), `POST /api/admin/equipes/teste` | Equipes (`nome`, `descricao`, `empresa`, `exigir_cnpj`, `cnpj`); excluir não apaga as contas. `teste` cria uma empresa de teste com CNPJ fictício |
 | `GET /api/templates`, `GET /api/templates/:id`, `POST /api/templates/validar`, `POST /api/templates/instalar`, `DELETE /api/templates/:id` (só `salvo-*`) | Galeria |
@@ -258,6 +265,23 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 
 **Limites de cadastro:** nome de módulo, de campo e de dashboard ≤ 80; descrição de módulo ≤ 500; ícone ≤ 40; ajuda ≤ 500; até 100 campos por módulo e 200 opções por seleção (≤ 100 caracteres cada). Moeda: `BRL`, `USD` ou `EUR` (setup e painel do adm).
 
+### 7.0 Quem vê e quem altera (`lib/acesso.rb`)
+
+Regras num só lugar, um objeto por requisição (helper `acesso` no `app.rb`):
+
+| | Dashboard (`visibilidade`) | Módulo (`visibilidade`) |
+|---|---|---|
+| Só o dono | `privado` (nem os admins) | `privado` |
+| Equipes escolhidas | `equipes` (`dashboard_equipes`): membros, dono e admins | `equipes` (`modulo_equipes`): membros, dono e admins |
+| Todos | `equipe` (nome antigo mantido) | `todos` |
+| Além disso | | quem vê um dashboard vê os módulos dos cards dele |
+| Alterar | dono, ou admin quando não é privado | dono, ou admin quando não é privado (estrutura, compartilhar, excluir, apagar exemplos) |
+
+- Novo dashboard e novo módulo nascem privados de quem criou; o setup cria os do template como "todos". Instalar um template não reaproveita módulo que a pessoa não vê: cria "Nome (2)".
+- Quem não é admin só compartilha com as próprias equipes (`GET /api/equipes` lista as que pode usar). Excluir uma conta passa dashboards **e módulos** dela para quem excluiu.
+- `modulo!(slug)` responde 404 para módulo que a pessoa não vê; `modulo_editavel!` responde 403. A exportação leva só o visível.
+- **Perfil `visualizador`** (`Usuarios::PERFIS`): não cria dashboards, módulos nem instala templates (403). `POST/PUT/PATCH/DELETE` de registro valida os dados e responde **202** com `{pendente, mensagem}`, sem gravar: vira um pedido em `solicitacoes`. Decide o dono do módulo (se ativo e não visualizador) ou um admin: `POST /api/solicitacoes/:id/aprovar|negar`, que revalida e aplica na hora. No navegador: tela Aprovações (`js/aprovacoes.js`, `#/aprovacoes`) com o antes e o depois de cada campo; link no menu com o número de pedidos; notas só leitura para o visualizador.
+
 ### 7.1 Dashboards: dono, equipe e layout fixo
 
 - Cada dashboard tem **dono** (quem criou) e **visibilidade**: `privado` (só o dono vê, nem os administradores) ou `equipe` (todos veem). Novo nasce `privado`; o setup cria os do template como `equipe`; instalar um template depois cria os dele como `privado` de quem instalou (ou `equipe`, se pedido).
@@ -270,7 +294,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 ## 8. Autenticação e segurança
 
 - **Sessão:** cookie Rack assinado com a chave do servidor (`Segredo.chave`), `httponly`, `same_site: strict`, e `Secure` em HTTPS quando `DASHZON_COOKIE_SEGURO=1`. Guarda `uid` e `sv` (= `sessao_versao`). Trocar ou redefinir a senha, desativar o usuário ou "sair dos outros" incrementa `sessao_versao`, e as outras sessões caem na hora.
-- **Senha:** PBKDF2-HMAC-SHA256, 100.000 iterações, sal de 16 bytes por usuário, 32 bytes de saída. `ITERACOES` é imutável (as senhas gravadas dependem dele). Tamanho de 8 a 200. Login: `[A-Za-z0-9._-]{3,40}`.
+- **Senha:** PBKDF2-HMAC-SHA256, 100.000 iterações, sal de 16 bytes por usuário, 32 bytes de saída. `ITERACOES` é imutável (as senhas gravadas dependem dele). Login: 3 a 40 caracteres, letras sem acento, números, `.`, `-`, `_` e espaço simples entre as partes ("teste 1"); `Usuarios.normalizar_login` corta as pontas e junta espaços repetidos (cadastro, setup e entrada). O admin escolhe se quem é criado com senha precisa trocá-la no 1º acesso (`deve_trocar_senha`).
 - **CPF/CNPJ:** validado; só ficam gravados o HMAC-SHA256 com a chave do servidor e uma máscara para exibição.
 - **Tokens de link:** só o SHA-256 é gravado; uso único; validade de 24 h (redefinição) ou 7 dias (e-mail).
 - **Anti-força-bruta** (`lib/seguranca.rb`):
@@ -281,6 +305,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
   - login errado espera 0,5 s;
   - o login digitado é gravado só como HMAC (alguém pode digitar a senha no campo errado);
   - IP e conta vão ao SQLite sempre como TEXT (`Seguranca.texto`): o driver grava texto binário como BLOB, e BLOB nunca é igual a TEXT.
+- **Diário de alterações** (`AUDITORIA` no `app.rb`): um `before` lê o nome do alvo (antes de excluir) e um `after` grava, se a resposta deu certo, quem criou, alterou ou excluiu usuários, equipes, dashboards, módulos, regras, templates e pedidos de aprovação, com um resumo do pedido sem senha nem documento (o corpo vem do `body_json`). Painel do adm: filtro tudo / alterações / acessos.
 - **Diário de segurança:** login, saída, falhas, bloqueios, desbloqueios, trocas e redefinições de senha, "sair dos outros", escrita de outro site e excesso de requisições (os dois últimos no máximo 1 vez por minuto por IP). Aparece no Painel do adm, junto da checagem da instalação: HTTPS, cookie seguro, quantidade de admins, senhas temporárias, logins errados em 24 h e validade da sessão.
 - **Regras de senha** (Painel do adm > Regras de senha; `Usuarios.regras_senha`): só o tamanho é regra fixa (mínimo de 6 a 64, padrão 8; máximo 200). São **opções** do administrador, desligadas por padrão: "senha forte" (recusa a igual ao login, as ~60 mais comuns como `12345678` e `senha123`, um caractere repetido e as sequências `abcdefgh`/`87654321`), maiúsculas e minúsculas, letras e números, e um símbolo. Vale para cadastro, troca e redefinição; o setup usa o padrão (o banco ainda não existe). A senha temporária gerada cumpre as regras em vigor. `/api/status` expõe `regras_senha`, e as telas mostram "mínimo N, com..." e ajustam o `minlength`.
 - **Sessão:** cai depois de `DASHZON_SESSAO_HORAS` (12) sem uso e, no máximo, em `DASHZON_SESSAO_DIAS` (30); cada login começa uma sessão nova.
@@ -301,7 +326,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 
 ## 9. Frontend
 
-SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `fonte`, `api`, `markdown`, `setup`, `login`, `conta`, `config`, `admin`, `modulos`, `notas`, `dashboards`, `menu`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
+SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/chart.umd.js`, `util`, `ajuda`, `tema`, `fonte`, `api`, `markdown`, `setup`, `login`, `conta`, `config`, `admin`, `modulos`, `notas`, `dashboards`, `compartilhar`, `aprovacoes`, `menu`, `responsivo`, `app`. Cada tela segue o padrão `const X = (() => { ...; return {...}; })()`.
 
 **Ícones:** sem emojis (regra do `CLAUDE.md`, conferida por `test_interface_sem_emojis`). Ícones são SVG de traço por `Util.icone(nome)` (classe `.ico`: cor do texto, tamanho da letra). Marca: cubo 3D transparente girando à esquerda de "DashZon" (`.logo-3d`: seis faces em CSS 3D com `preserve-3d`, cores de `--accent`, núcleo que pulsa; acelera com o mouse; parado com `prefers-reduced-motion`).
 
@@ -389,7 +414,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 188 testes (com `equipes`, `dashboards_acesso`, `cores`, `cards_estudo`, `exemplos`); os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 197 testes (com `equipes`, `dashboards_acesso`, `cores`, `cards_estudo`, `exemplos`, `acesso`); os do motor dão `skip` se o binário não existir.
 - **Importador (Python):** `python -m unittest discover -s scripts -p "test_*.py"` (13 testes: conversão por tipo, leitura de `.xlsx`/`.csv` e as planilhas de `exemplos/`).
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:
