@@ -584,8 +584,13 @@ def dashboard_json(d, editavel)
           "fixo" => d["fixo"].to_i == 1, "editavel" => editavel)
 end
 
+# `modulos`: slugs que os cards de cada dashboard usam (o menu Criar > Lote
+# abre o dashboard que já usa o módulo, em vez de criar outro).
 get "/api/dashboards" do
-  json(Database.dashboards_visiveis(usuario_atual["id"]).map { |d| dashboard_json(d, dashboard_editavel?(d)) })
+  usados = Database.rows("SELECT DISTINCT dashboard_id, modulo_slug FROM widgets").group_by { |r| r["dashboard_id"] }
+  json(Database.dashboards_visiveis(usuario_atual["id"]).map do |d|
+    dashboard_json(d, dashboard_editavel?(d)).merge("modulos" => (usados[d["id"]] || []).map { |r| r["modulo_slug"] })
+  end)
 end
 
 post "/api/dashboards" do

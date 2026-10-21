@@ -48,7 +48,16 @@ const Admin = (() => {
     if (abrir) $("menu-criar").querySelector("button")?.focus();
   }
 
+  // Já instalado (algum dashboard usa o módulo do lote): abre o existente em
+  // vez de criar mais um "Produção" (relatório, problema 7).
   async function criarLote() {
+    const modulo = App.modulos().find((m) => m.template_origem === "lote-producao");
+    const existente = modulo && App.dashboards().find((d) => (d.modulos || []).includes(modulo.slug));
+    if (existente) {
+      Util.aviso(`O lote de produção já está instalado: abrindo "${existente.nome}".`);
+      App.ir(`#/d/${existente.id}`);
+      return;
+    }
     if (!confirm('Instalar o módulo "Lotes de produção" e o dashboard "Produção" (com 8 lotes de exemplo)?\n' +
       "O dashboard fica compartilhado com a equipe; o módulo é visto por todos.")) return;
     try {
