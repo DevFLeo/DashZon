@@ -90,7 +90,7 @@ class CronogramaTest < Minitest::Test
     get "/api/dashboards"
     dash = resposta.find { |d| d["nome"] == "Estudos" }
     get "/api/dashboards/#{dash['id']}"
-    assert_equal 8, resposta["widgets"].size
+    assert_equal 11, resposta["widgets"].size # 8 + calendário, meta do mês e pizza de matérias
     resposta["widgets"].each do |w|
       get "/api/widgets/#{w['id']}/data"
       assert_equal 200, last_response.status, "#{w['titulo']}: #{last_response.body}"
