@@ -9,7 +9,7 @@ As mesmas telas nas três versões estão em `prints/`. Os prefixos são `atual-
 | Tela | Arquivo |
 |---|---|
 | Login | `*-login.png` |
-| Dashboard Estudos (calendário, meta, pizza, barras, linha, tabela) | `*-estudos.png` |
+| Dashboard Estudos (calendário, meta, pizza, tabela; no React e no Next, com a dica de um dia) | `*-estudos.png` |
 | Dashboard Finanças pessoais | `*-financas.png` |
 | Finanças no tema claro | `*-financas-claro.png` |
 | Módulo (resumo, busca, filtros, registros) | `*-modulo.png` |
@@ -17,6 +17,7 @@ As mesmas telas nas três versões estão em `prints/`. Os prefixos são `atual-
 | Novo registro (só React e Next) | `react-formulario.png`, `next-formulario.png` |
 | Módulo no celular, registros em cartões (só React e Next) | `react-celular-modulo.png`, `next-celular-modulo.png` |
 | Menu em gaveta no celular (só React e Next) | `react-celular-menu.png`, `next-celular-menu.png` |
+| Calendário no celular, com a dica do dia (só React e Next) | `react-celular-calendario.png`, `next-celular-calendario.png` |
 
 ## O que tem e o que não tem
 
@@ -24,7 +25,7 @@ As mesmas telas nas três versões estão em `prints/`. Os prefixos são `atual-
 |---|---|
 | Login, barra lateral com o cubo 3D, tema claro/escuro (segue o sistema até a pessoa escolher) | Arrastar e redimensionar cards |
 | Menu com seções que abrem e fecham, barra recolhida com siglas, ordem e módulos ocultos da conta | Criar e editar cards e a estrutura dos módulos |
-| Dashboard com os cards: número, meta, barras, linha, pizza, tabela, calendário, na grade de 12 colunas | Painel do adm, configurações, notas (aparecem como tabela), aprovações |
+| Dashboard com os cards: número, meta, barras, linha, pizza, tabela, calendário (com meses, dica, teclado e resumo do período), na grade de 12 colunas | Painel do adm, configurações, notas (aparecem como tabela), aprovações |
 | Módulo: resumo, busca, filtros, checklist, "Carregar mais", criar, editar e excluir registro | |
 | Avisos, janelas com Esc e foco no primeiro campo, confirmação antes de excluir | |
 | Celular: menu em gaveta, dashboard empilhado na ordem salva, registros em cartões, formulário em tela cheia | |
@@ -55,7 +56,7 @@ Os dois apps usam os **mesmos componentes** (`ui/`). O que muda entre eles é s�
 | Rotas | `#/d/1`, `#/m/slug` (uma página só, como o atual) | `/d/1`, `/m/slug`, `/entrar` (um arquivo por rota em `app/`; a moldura é um layout que fica montado) |
 | API | proxy do servidor de desenvolvimento (`vite.config.js`) | route handler `app/api/[...caminho]/route.js` (funciona também em produção) |
 | Produção | arquivos estáticos (`dist/`), servidos por qualquer servidor | um processo Node (`next start`) ou exportação estática |
-| Tamanho (1ª carga, gzip) | ~132 KB de JS | ~179 KB de JS |
+| Tamanho (1ª carga, gzip) | ~133 KB de JS | ~180 KB de JS |
 | Boa escolha se | quer só trocar o frontend, mantendo o Ruby | quer páginas renderizadas no servidor, SEO ou juntar parte do backend no Node |
 
 ## Como rodar
