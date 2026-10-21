@@ -278,7 +278,8 @@ Regras num só lugar, um objeto por requisição (helper `acesso` no `app.rb`):
 | Além disso | | quem vê um dashboard vê os módulos dos cards dele |
 | Alterar | dono, ou admin quando não é privado | dono, ou admin quando não é privado (estrutura, compartilhar, excluir, apagar exemplos) |
 
-- Novo dashboard e novo módulo nascem privados de quem criou; o setup cria os do template como "todos". Instalar um template não reaproveita módulo que a pessoa não vê: cria "Nome (2)".
+- Novo dashboard e novo módulo nascem privados de quem criou; o setup cria os do template como "todos". Instalar um template só reaproveita módulo (de mesmo nome ou uma cópia "Nome (n)") que a pessoa vê **e** com o mesmo alcance do dashboard: privado reaproveita só módulo privado dela; para todos, só módulo de todos. Senão cria "Nome (2)", com os dados de exemplo. Assim um teste privado não grava nos dados de todos, e um dashboard para todos não expõe o módulo privado de ninguém.
+- Na janela "Novo dashboard", "Quem vê este dashboard?" fica no topo (um clique no template já instala), com "Só eu" marcado sempre que ela abre.
 - Quem não é admin só compartilha com as próprias equipes (`GET /api/equipes` lista as que pode usar). Excluir uma conta passa dashboards **e módulos** dela para quem excluiu.
 - `modulo!(slug)` responde 404 para módulo que a pessoa não vê; `modulo_editavel!` responde 403. A exportação leva só o visível.
 - **Perfil `visualizador`** (`Usuarios::PERFIS`): não cria dashboards, módulos nem instala templates (403). `POST/PUT/PATCH/DELETE` de registro valida os dados e responde **202** com `{pendente, mensagem}`, sem gravar: vira um pedido em `solicitacoes`. Decide o dono do módulo (se ativo e não visualizador) ou um admin: `POST /api/solicitacoes/:id/aprovar|negar`, que revalida e aplica na hora. No navegador: tela Aprovações (`js/aprovacoes.js`, `#/aprovacoes`) com o antes e o depois de cada campo; link no menu com o número de pedidos; notas só leitura para o visualizador.
@@ -467,7 +468,7 @@ Melhorias em **como o usuário alimenta** os dashboards são permitidas, desde q
 ### 12.2 Domínio
 
 - O JSON do usuário vai para `jsons`, comprimido, só pelos helpers (`salvar_json!`, `json_salvo`, `jsons`, `excluir_json!`). Só os templates padrão ficam no git.
-- Nome de módulo é único; instalar um template reaproveita o módulo que já existe com o mesmo nome.
+- Nome de módulo é único; instalar um template reaproveita o módulo que já existe com o mesmo nome, desde que a pessoa o veja e ele tenha o mesmo alcance do dashboard (§7.0).
 - O banco só nasce no setup.
 - Banco antigo nunca é apagado: vira `.bak`. Banco com dados nunca cai no `arquivar_versao_antiga!`: mudar o formato exige migração no lugar (§5.5).
 

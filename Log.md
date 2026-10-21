@@ -6,6 +6,20 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimentoUI-UX` · Dashboard de teste não mistura com os dados de todos
+
+**O que:**
+- **Backend:** instalar um template só reaproveita um módulo com o mesmo alcance do dashboard. Privado reaproveita só módulo privado de quem instala; para todos, só módulo de todos. Senão cria "Nome (2)" com os dados de exemplo, e as próximas instalações privadas reaproveitam essa cópia. Dois testes novos em `acesso_test.rb`.
+- **Frontend:** na janela "Novo dashboard", "Quem vê este dashboard?" (Só eu / Todos veem) fica no topo, com "Só eu" marcado sempre que ela abre; a confirmação do template diz a escolha.
+
+**Validação:** `rake test` 199/199 duas vezes; roteiro de ponta a ponta com o admin e uma conta comum (10 passos) duas vezes em instância zerada; `auditar-responsivo.ps1` 109 auditorias, 0 erros, 0 avisos.
+
+**Por quê:** o admin criava dashboards de teste privados, mas o template reaproveitava os módulos de todos (Lançamentos): os testes gravavam nos dados compartilhados, outra conta via o resultado, e os dados de exemplo não vinham. Pedido: compartilhar com todos deve ser uma escolha de cada vez, porque às vezes é só teste.
+
+**Não mudou:** o que já estava no banco. Dashboards já criados continuam ligados aos módulos de antes.
+
+---
+
 ## 2026-10-21 · `desenvolvimentoUI-UX` · Endereço local no `rodar.ps1`
 
 **O que:** `scripts/rodar.ps1` ganhou `-Endereco` (padrão: `DASHZON_HOST` ou `127.0.0.1`). O script passa o endereço ao servidor (`DASHZON_HOST`, que o `app.rb` já lia) e confere o `/api/status` nele, em vez do `127.0.0.1` fixo.
