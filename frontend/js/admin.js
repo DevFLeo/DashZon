@@ -38,7 +38,32 @@ const Admin = (() => {
     erro("rs-erro", "");
     renderEquipes();
     renderUsuarios();
+    renderModulos();
     await carregarSeguranca();
+  }
+
+  // Módulos e quem vê (relatório, problema 2): os antigos ficaram "todos";
+  // daqui o admin muda cada um sem abrir módulo por módulo.
+  function renderModulos() {
+    const mods = App.modulos();
+    if (!mods.length) { $("admin-modulos").innerHTML = '<p class="hint">Nenhum módulo.</p>'; return; }
+    const quem = (m) => Compartilhar.descrever(m.visibilidade === "todos" ? "equipe" : m.visibilidade, m.equipes);
+    $("admin-modulos").innerHTML = `<div class="table-wrap"><table class="data">
+      <thead><tr><th>Módulo</th><th>Dono</th><th>Quem vê</th><th></th></tr></thead><tbody>${mods.map((m) => `<tr>
+        <td><a href="#/m/${encodeURIComponent(m.slug)}">${esc(m.nome)}</a></td><td>${esc(m.dono_nome || "—")}</td>
+        <td>${m.visibilidade === "todos" ? '<span class="chip chip-teste">Todos</span>' : esc(quem(m))}</td>
+        <td>${m.editavel ? `<button class="btn btn-sm" data-mod-comp="${esc(m.slug)}">Compartilhar</button>` : ""}</td></tr>`).join("")}</tbody></table></div>`;
+    $("admin-modulos").querySelectorAll("[data-mod-comp]").forEach((b) => b.addEventListener("click", () => {
+      const m = App.modulo(b.dataset.modComp);
+      Compartilhar.abrir({
+        tipo: "modulo", titulo: `Quem vê "${m.nome}"`, atual: m,
+        onSalvar: async (corpo) => {
+          await Api.put(`/api/modulos/${encodeURIComponent(m.slug)}/compartilhar`, corpo);
+          await App.recarregarNav();
+          renderModulos();
+        }
+      });
+    }));
   }
 
   // ------------------------------------------------------- menu Criar ----
