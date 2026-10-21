@@ -43,7 +43,7 @@
         { "titulo": "Total de Processos no DGEO", "agregacao": "contagem", "campo": null, "filtro": {} },
         { "titulo": "Em Análise", "agregacao": "contagem", "campo": null, "filtro": { "status_tramitacao": "Em Análise" } },
         { "titulo": "Prazos Urgentes / Judiciais", "agregacao": "contagem", "campo": null, "filtro": { "prioridade": "Urgente (Prazo Legal / Judicial)" } },
-        { "titulo": "Demandas DASI (Outras Secretarias)", "agregacao": "contagem", "campo": null, "filtro": { "divisao_responsavel": "DASI - Divisão de Articulação com Secretarias" } }
+        { "titulo": "Demandas", "agregacao": "contagem", "campo": null, "filtro": { "divisao_responsavel": "DASI - Divisão de Articulação com Secretarias" } }
       ],
       "ordenacao": [],
       "seed": [
@@ -112,17 +112,17 @@
           "config": { "agregacao": "contagem", "filtro": { "status_tramitacao": "Em Análise" } } },
         { "titulo": "Prazos Urgentes / Judiciais", "tipo": "kpi", "modulo": "demandas", "x": 6, "y": 0, "w": 3, "h": 2,
           "config": { "agregacao": "contagem", "filtro": { "prioridade": "Urgente (Prazo Legal / Judicial)" } } },
-        { "titulo": "Demandas DASI (Outras Secretarias)", "tipo": "kpi", "modulo": "demandas", "x": 9, "y": 0, "w": 3, "h": 2,
+        { "titulo": "Demandas", "tipo": "kpi", "modulo": "demandas", "x": 9, "y": 0, "w": 3, "h": 2,
           "config": { "agregacao": "contagem", "filtro": { "divisao_responsavel": "DASI - Divisão de Articulação com Secretarias" } } },
         { "titulo": "Demandas por setor", "tipo": "bar", "modulo": "demandas", "x": 0, "y": 2, "w": 6, "h": 4,
           "config": { "agregacao": "contagem", "agrupar_por": "divisao_responsavel", "serie_por": "status_tramitacao" } },
         { "titulo": "Demandas por prioridade", "tipo": "bar", "modulo": "demandas", "x": 6, "y": 2, "w": 6, "h": 4,
           "config": { "agregacao": "contagem", "agrupar_por": "prioridade" } },
-        { "titulo": "Prazos das demandas (calendário)", "tipo": "calendario", "modulo": "demandas", "x": 0, "y": 6, "w": 12, "h": 3,
+        { "titulo": "Prazos das demandas (calendário)", "tipo": "calendario", "modulo": "demandas", "x": 0, "y": 6, "w": 12, "h": 4,
           "config": { "agregacao": "contagem", "agrupar_por": "data_limite" } },
-        { "titulo": "Status da tramitação", "tipo": "pie", "modulo": "demandas", "x": 0, "y": 9, "w": 6, "h": 4,
+        { "titulo": "Status da tramitação", "tipo": "pie", "modulo": "demandas", "x": 0, "y": 10, "w": 6, "h": 4,
           "config": { "agregacao": "contagem", "agrupar_por": "status_tramitacao" } },
-        { "titulo": "Carga por servidor", "tipo": "table", "modulo": "demandas", "x": 6, "y": 9, "w": 6, "h": 4,
+        { "titulo": "Carga por servidor", "tipo": "table", "modulo": "demandas", "x": 6, "y": 10, "w": 6, "h": 4,
           "config": { "agregacao": "contagem", "agrupar_por": "servidor_responsavel" } }
       ]
     },
@@ -140,7 +140,7 @@
           "config": { "agregacao": "contagem", "agrupar_por": "situacao", "serie_por": "ciencia" } },
         { "titulo": "Processos por unidade", "tipo": "pie", "modulo": "processos_sei", "x": 6, "y": 2, "w": 6, "h": 4,
           "config": { "agregacao": "contagem", "agrupar_por": "unidade_responsavel" } },
-        { "titulo": "Prazos dos processos (calendário)", "tipo": "calendario", "modulo": "processos_sei", "x": 0, "y": 6, "w": 12, "h": 3,
+        { "titulo": "Prazos dos processos (calendário)", "tipo": "calendario", "modulo": "processos_sei", "x": 0, "y": 6, "w": 12, "h": 4,
           "config": { "agregacao": "contagem", "agrupar_por": "prazo" } }
       ]
     }

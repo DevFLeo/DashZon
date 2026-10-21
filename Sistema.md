@@ -385,7 +385,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 | Módulo: Quadro | Colunas = opções do status (`produtividade.status` ou 1ª seleção); filtro de departamento pelo campo `unidade`; arrastar (HTML5) ou setas fazem `PATCH` do campo; 403 volta o cartão |
 | Módulo: Agenda | Registros por dia do campo de data, janelas -15/+15, -30, +30, -30/+30 |
 | Expansão de card | Clique em barra/série, fatia, linha da tabela, dia do calendário ou o botão do cabeçalho: lista os registros (busca com o filtro do card + a categoria), resumo pelo campo de unidade com próximo prazo, último prazo e atrasados |
-| Calendário com período | Botões Ano (padrão de antes) / -15/+15 / -30 / +30 / -30/+30; com período, uma faixa de dias em volta de hoje; escolha por card no `localStorage` |
+| Calendário com período | Seletor no cabeçalho do card: Ano (padrão de antes) / -15/+15 / -30 / +30 / -30/+30. O período é um **zoom do mesmo calendário do ano** (mesmas cores, níveis, meses e legenda): só as semanas que contêm o período, com o futuro, quadradinhos do maior tamanho que cabe no card (mínimo o do ano, máximo 44px; com 22px ou mais mostram o número do dia), hoje contornado, dias fora do período tracejados. Escolha por card no `localStorage` |
 | Anotações | Compartilhar e Excluir caderno (para quem altera o módulo, inclusive o gestor em cascata) |
 
 **Tipos de card** (`dashboards.js`, um só despacho `desenhar()` para o dashboard e a prévia):
@@ -396,7 +396,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 | `bar`, `line` | o de sempre | `renderGrafico` |
 | `table` | o de sempre | `renderTabela` |
 | `pie` | exige `agrupar_por` | `renderPizza`: rosca, número de categorias no centro (plugin do Chart.js), legenda à direita ou embaixo. Sem paleta, uma cor do tema por fatia |
-| `calendario` | `agrupar_por` = campo de data, `formato_grupo` nulo (um valor por dia) | `renderCalendario`: um quadradinho por dia, 4 níveis de intensidade, semanas que cabem na largura, dias ativos e sequências; redesenha em `resize`/`resizestop`. A pedido: período em volta de hoje (`renderFaixa`) e dias clicáveis (expansão) |
+| `calendario` | `agrupar_por` = campo de data, `formato_grupo` nulo (um valor por dia) | `renderCalendario`: um quadradinho por dia, 4 níveis de intensidade, semanas que cabem na largura, dias ativos e sequências; redesenha em `resize`/`resizestop`. A pedido: período em volta de hoje como zoom da mesma grade (`janelaDe`, `seletorJanela`) e dias clicáveis (expansão) |
 
 **Cores do card** (editor > passo "Cores"; `config.paleta`, `config.cores` {categoria: "#rrggbb"}, `config.cor`): 9 paletas nomeadas (`Util.PALETAS`), cor por categoria ou série com `<input type=color>`, e "Surpreenda-me" (`Util.paletaSurpresa`: matizes pelo ângulo de ouro, com um nome). `Util.corDe` = escolhida > paleta > identidade de sempre (`corSerie`); `Util.corUnica` para número, linha e calendário. Sem cores escolhidas, o desenho é idêntico ao de antes. O servidor valida (`normalize_aparencia!`) e não usa isso na consulta.
 

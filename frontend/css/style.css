@@ -1068,21 +1068,14 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 .agenda-item:hover, .agenda-item:focus-visible { border-color: var(--accent); outline: none; }
 
 /* Calendário com período: faixa de dias (-15/+15, -30, +30, -30/+30). */
-.cal-janelas { flex: 0 0 auto; align-self: flex-start; flex-wrap: wrap; }
-.widget-body.com-calendario:has(.cal-faixa) { justify-content: flex-start; overflow-y: auto; }
-.cal-faixa { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 3px; flex: 0 0 auto; }
-.cal-tile { display: grid; gap: 0; justify-items: center; align-content: center; padding: 2px 1px; border: 1px solid var(--border); border-radius: 6px; background: var(--hover); color: var(--text-primary); font: inherit; line-height: 1.15; cursor: pointer; min-height: 40px; }
-.cal-tile:hover, .cal-tile:focus-visible { border-color: var(--accent); outline: none; }
-.cal-tile[data-nivel="1"] { background: color-mix(in srgb, var(--cal-cor, var(--series-1)) 22%, var(--surface-1)); }
-.cal-tile[data-nivel="2"] { background: color-mix(in srgb, var(--cal-cor, var(--series-1)) 40%, var(--surface-1)); }
-.cal-tile[data-nivel="3"] { background: color-mix(in srgb, var(--cal-cor, var(--series-1)) 58%, var(--surface-1)); }
-.cal-tile[data-nivel="4"] { background: color-mix(in srgb, var(--cal-cor, var(--series-1)) 75%, var(--surface-1)); }
-.cal-tile.hoje { outline: 2px solid var(--accent); outline-offset: -2px; }
-.cal-tile.passado .cal-tile-sem, .cal-tile.passado .cal-tile-dia { color: var(--text-secondary); }
-.cal-tile-sem { font-size: max(11px, calc(11px * var(--fs))); text-transform: uppercase; letter-spacing: .03em; color: var(--text-secondary); }
-.cal-tile-dia { font-size: max(11px, calc(12px * var(--fs))); font-variant-numeric: tabular-nums; font-weight: 600; }
-.cal-tile-valor { font-size: max(11px, calc(12px * var(--fs))); }
-.cal-tile-valor:empty { display: none; }
+.cal-dia.hoje { outline: 2px solid var(--accent); outline-offset: -1px; }
+/* Zoom do calendário (período em volta de hoje): mesmas células, maiores. */
+.cal-grade .cal-dia { width: var(--cel, 11px); height: var(--cel, 11px); display: inline-flex; align-items: center; justify-content: center; }
+.cal-zoom .cal-dia { border-radius: 5px; }
+.cal-dia.cal-fora { background: transparent; outline: 1px dashed var(--border); }
+.cal-num { font-size: max(11px, calc(var(--cel, 11px) * .4)); font-variant-numeric: tabular-nums; color: var(--text-secondary); line-height: 1; pointer-events: none; }
+.cal-dia[data-nivel="3"] .cal-num, .cal-dia[data-nivel="4"] .cal-num { color: var(--surface-1); }
+.cal-periodo { flex: 0 0 auto; width: auto; max-width: 150px; padding: 2px 6px; font-size: max(11px, calc(12px * var(--fs))); cursor: pointer; }
 .cal-dia[data-chave] { cursor: pointer; }
 
 /* Expansão de card. */
@@ -1203,7 +1196,7 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
   .grid-stack > .grid-stack-item > .grid-stack-item-content { inset: 0 !important; }
   .grid-stack .ui-resizable-handle { display: none !important; }
   .grid-stack .widget-header { cursor: default; pointer-events: none; }
-  .grid-stack .widget-header .tools { pointer-events: auto; }
+  .grid-stack .widget-header .tools, .grid-stack .widget-header .cal-periodo { pointer-events: auto; }
   #view-dashboard .page-header .hint { display: none; }
 
   /* Modais em tela cheia, com os botões sempre à vista no rodapé. */
@@ -1300,13 +1293,12 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
   .agenda-dia { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .classificar { display: flex; width: 100%; flex-wrap: wrap; }
   .classificar select { flex: 1 1 160px; min-width: 0; max-width: 100%; }
-  .cal-faixa { grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); }
   .papel-linha { flex-wrap: wrap; }
   .prod-barra { width: 44px; }
 }
 @media (max-width: 820px), (pointer: coarse) {
   .link-expandir { min-height: 36px; }
-  .cal-tile { min-height: 56px; }
   .agenda-item { min-height: 40px; }
   .papel-linha select, .pessoas-unidade select, .classificar select { min-height: 40px; }
+  .cal-periodo { min-height: 36px; font-size: max(16px, calc(14px * var(--fs))); }
 }

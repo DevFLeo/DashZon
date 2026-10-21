@@ -6,6 +6,17 @@ Como registrar: uma entrada por entrega, com data, branch, commits, o que mudou 
 
 ---
 
+## 2026-10-21 · `desenvolvimento-ideiamarvin` · Calendário com zoom, sistema sem módulos
+
+**O que:**
+- Período do calendário (-15/+15, -30, +30, -30/+30) virou um **zoom do mesmo calendário do ano**, no lugar da faixa de quadros: mesmas cores, meses e legenda, quadradinhos maiores com o número do dia, hoje contornado. O seletor foi para o cabeçalho do card. Os calendários do template ficaram com 4 linhas de altura para o zoom mostrar os números.
+- Card "Demandas DASI (Outras Secretarias)" renomeado para "Demandas" (o filtro da DASI continua).
+- Sistema real sem módulos e sem dashboards; o setup da tela não vem mais com modelo marcado nem com dados de exemplo.
+
+**Por quê:** pedidos do usuário ("não gostei que veio com os módulos criados"; "o calendário apenas um zoom, igual ao do ano"; "deixe apenas como Demandas").
+
+---
+
 ## 2026-10-21 · `desenvolvimento-ideiamarvin` · Prefeitura DashZ (versão 1)
 
 **Commits:** `9f6c4d9` (motor), `27a0688` e `e7d8fbe` (backend e testes), `32b6edc` (frontend e scripts), seguidos dos de documentação.

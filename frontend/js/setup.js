@@ -86,8 +86,7 @@ const Setup = (() => {
     if (senha.length < 8) { erro("A senha precisa ter ao menos 8 caracteres."); return; }
 
     const ativos = importados.filter((i) => i.ativo).map((i) => i.template);
-    if (!selecionados.size && !ativos.length &&
-        !confirm("Começar sem nenhum módulo? Você poderá adicionar templates depois.")) return;
+    // Sem modelo marcado é o normal: o sistema começa sem módulos (a pedido).
 
     const botao = $("setup-enviar");
     botao.disabled = true;
@@ -113,7 +112,7 @@ const Setup = (() => {
 
   async function iniciar(onConcluido) {
     templates = await Api.get("/api/templates");
-    if (templates.length) selecionados.add(templates[0].id);
+    // Nenhum modelo vem marcado: quem instala escolhe (ou começa sem módulos).
     render();
     $("setup-importar").addEventListener("change", importar);
     $("setup-form").addEventListener("submit", (ev) => enviar(ev, onConcluido));

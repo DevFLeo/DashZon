@@ -22,7 +22,7 @@ O que foi definido, como foi definido, como alterar, como foi testado, onde deu 
 | 4 | Função mestre DGEO -> SUPLAN -> SEMEC | `backend/lib/produtividade.rb` (seção 3) |
 | 5 | Tabela de acesso fácil para o gestor | **Painel do gestor** (`#/produtividade`), com CSV e impressão |
 | 6 | Classificar por | Tela do módulo: A-Z, criação, alteração, prazo, prioridade, valores |
-| 6.1 | Calendário -15/+15, +30, -30, -30/+30 | Botões no card de calendário e na **Agenda** do módulo |
+| 6.1 | Calendário -15/+15, +30, -30, -30/+30 | Seletor no cabeçalho do card: é um **zoom do mesmo calendário do ano** (só as semanas do período, quadradinhos maiores, número do dia); também na **Agenda** do módulo, em lista |
 | 6.2 | Trello por departamento | **Quadro** na tela do módulo (filtro de departamento, arrastar ou setas) |
 | 7 | Expansão da dashboard | Clicar em barra, fatia, linha ou dia; botão de expandir em todo card |
 | 8 | Testes, entidades de teste 2 de cada, relatório, rodar com ADMTOTAL | Seções 4 a 6 |
@@ -30,6 +30,8 @@ O que foi definido, como foi definido, como alterar, como foi testado, onde deu 
 ## 2. O JSON das demandas: o que foi acrescentado
 
 O JSON enviado entrou com os mesmos campos, nomes, opções e resumo. Acréscimos (todos opcionais, explicados no próprio template):
+
+O card "Demandas DASI (Outras Secretarias)" (resumo e dashboard) foi renomeado para **"Demandas"**, a pedido; ele continua contando só as demandas da DASI (filtro igual ao do JSON).
 
 | Acréscimo | Por quê |
 |---|---|
@@ -105,7 +107,8 @@ Prints das duas rodadas em `log/e2e/` e da auditoria em `log/responsivo/` (fora 
 ## 6. Banco de dados e ADMTOTAL
 
 - O banco anterior (`data/dashzon.db`, do DashZon) foi **apagado**, a pedido ("apague o banco de dados atual, será outro sistema"). As cópias `.bak` antigas que já existiam em `data/` (de setembro e outubro, feitas antes desta versão) não foram tocadas.
-- O sistema novo começou zerado: setup com o login **ADMTOTAL** (administrador, acesso a tudo), os três modelos instalados **sem** dados de exemplo e nenhuma unidade (crie em Painel do adm > Criar > Estrutura modelo, ou à mão).
+- O sistema real ficou **sem módulos e sem dashboards** (a pedido: os três modelos que o setup tinha instalado foram removidos). Restam o **ADMTOTAL** e a estrutura de unidades. Os módulos se instalam quando quiser, em Módulos > + (galeria) ou Configurações > Módulos.
+- O setup da tela não vem mais com nenhum modelo marcado nem com "dados de exemplo" ligado.
 - A `segredo.key` foi mantida (ela é por pasta, não por banco).
 
 ## 7. Onde deu erro (e foi corrigido)

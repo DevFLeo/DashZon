@@ -116,10 +116,12 @@ async function main() {
     checar("setup aparece numa instância zerada", await ate("document.getElementById('setup')?.classList.contains('open') && document.querySelectorAll('#setup-galeria .tpl-card').length >= 1", 20));
     const nomesGaleria = await js("[...document.querySelectorAll('#setup-galeria .tpl-card h3, #setup-galeria .tpl-card strong')].map(e => e.textContent).join(' | ')");
     checar("galeria sem finanças, fluxo de caixa, cronograma e lote", !/finan|fluxo de caixa|cronograma|lote/i.test(nomesGaleria), nomesGaleria);
+    checar("setup não vem com modelo marcado nem dados de exemplo", await js("!document.querySelector('#setup-galeria .tpl-card.selected') && !document.getElementById('setup-exemplos').checked"));
     checar("marca Prefeitura DashZ no setup", (await js("document.querySelector('#setup h1').textContent")).includes("Prefeitura DashZ"));
     await print("01-setup");
     await js(`(() => {
       document.getElementById('setup-org').value = 'SEMEC - Teste';
+      document.getElementById('setup-exemplos').checked = true; // a instância de teste usa os dados de exemplo
       document.getElementById('setup-usuario').value = 'admteste';
       document.getElementById('setup-senha').value = ${JSON.stringify(SENHA)};
       const conf = document.getElementById('setup-senha2') || document.querySelector('#setup-form input[type=password]:not(#setup-senha)');
@@ -247,20 +249,25 @@ async function main() {
     await print("11-expandir-media");
     await js("document.querySelectorAll('.modal-overlay.open').forEach(o => o.classList.remove('open')); 0");
     const cal = await js("[...document.querySelectorAll('.grid-stack-item')].find(i => i.querySelector('.title')?.textContent.includes('calendário'))?.getAttribute('gs-id')");
-    await js(`document.querySelector('[gs-id="${cal}"] [data-janela="-15+15"]').click(); 0`);
-    checar("calendário -15/+15 mostra 31 dias", await ate(`document.querySelectorAll('[gs-id="${cal}"] .cal-tile').length === 31`));
-    await js(`document.querySelector('[gs-id="${cal}"] [data-janela="+30"]').click(); 0`);
-    checar("calendário +30 mostra 31 dias a partir de hoje", await ate(`document.querySelectorAll('[gs-id="${cal}"] .cal-tile').length === 31 && document.querySelector('[gs-id="${cal}"] .cal-tile').classList.contains('hoje')`));
-    await js(`document.querySelector('[gs-id="${cal}"] [data-janela="-30+30"]').click(); 0`);
-    await ate(`document.querySelectorAll('[gs-id="${cal}"] .cal-tile').length === 61`);
+    // Período = zoom do mesmo calendário do ano (seletor no cabeçalho do card).
+    const periodo = (v) => js(`((s) => { s.value = '${v}'; s.dispatchEvent(new Event('change')); })(document.querySelector('[gs-id="${cal}"] [data-cal-periodo]')); 0`);
+    const diasCal = `document.querySelectorAll('[gs-id="${cal}"] .cal-grade .cal-dia[data-chave]')`;
+    const tamCel = `parseFloat(getComputedStyle(document.querySelector('[gs-id="${cal}"] .cal-grade .cal-dia[data-chave]')).width)`;
+    const celAno = await js(tamCel);
+    await periodo("-15+15");
+    checar("calendário -15/+15: 31 dias, mesma grade do ano com zoom", await ate(`${diasCal}.length === 31 && !!document.querySelector('[gs-id="${cal}"] .cal-grade.cal-zoom') && ${tamCel} > ${celAno}`), `ano ${celAno}px`);
+    await periodo("+30");
+    checar("calendário +30: 31 dias a partir de hoje", await ate(`${diasCal}.length === 31 && ${diasCal}[0].classList.contains('hoje')`));
+    await periodo("-30+30");
+    await ate(`${diasCal}.length === 61`);
     await esperar(300);
     await print("12-calendario-30-30");
-    await js(`(document.querySelector('[gs-id="${cal}"] .cal-tile[data-nivel="1"], [gs-id="${cal}"] .cal-tile[data-nivel="2"], [gs-id="${cal}"] .cal-tile[data-nivel="3"], [gs-id="${cal}"] .cal-tile[data-nivel="4"]') || document.querySelector('[gs-id="${cal}"] .cal-tile.hoje')).click(); 0`);
+    await js(`(document.querySelector('[gs-id="${cal}"] .cal-grade .cal-dia[data-chave][data-nivel="1"], [gs-id="${cal}"] .cal-grade .cal-dia[data-chave][data-nivel="2"], [gs-id="${cal}"] .cal-grade .cal-dia[data-chave][data-nivel="3"], [gs-id="${cal}"] .cal-grade .cal-dia[data-chave][data-nivel="4"]') || document.querySelector('[gs-id="${cal}"] .cal-dia.hoje')).click(); 0`);
     checar("clicar num dia do calendário lista o previsto no dia", await ate("document.getElementById('modal-expandir').classList.contains('open') && /registro/.test(document.getElementById('exp-sub').textContent)"));
     await print("13-expandir-dia");
     await js("document.querySelectorAll('.modal-overlay.open').forEach(o => o.classList.remove('open')); 0");
-    await js(`document.querySelector('[gs-id="${cal}"] [data-janela="padrao"]').click(); 0`);
-    checar("calendário volta ao padrão (Ano)", await ate(`!!document.querySelector('[gs-id="${cal}"] .cal-grade')`));
+    await periodo("padrao");
+    checar("calendário volta ao Ano (sem zoom)", await ate(`!!document.querySelector('[gs-id="${cal}"] .cal-grade') && !document.querySelector('[gs-id="${cal}"] .cal-zoom')`));
 
     // ------------------------------------------------------------ temas ----
     for (const [tema, attr] of [["floresta_dia", "forest-day"], ["floresta_tarde", "forest-dusk"], ["floresta_noite", "forest-night"]]) {
