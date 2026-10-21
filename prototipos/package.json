@@ -1,0 +1,11 @@
+{
+  "name": "dashzon-prototipos",
+  "private": true,
+  "description": "Protótipos do DashZon em React (Vite) e em Next.js, usando a mesma API Ruby. Experimento: o frontend oficial continua em frontend/.",
+  "workspaces": ["ui", "react", "next"],
+  "scripts": {
+    "react": "npm run dev -w dashzon-react",
+    "next": "npm run dev -w dashzon-next",
+    "build": "npm run build -w dashzon-react && npm run build -w dashzon-next"
+  }
+}

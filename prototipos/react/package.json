@@ -1,0 +1,22 @@
+{
+  "name": "dashzon-react",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@dashzon/ui": "*",
+    "chart.js": "4.4.9",
+    "react": "19.1.0",
+    "react-chartjs-2": "5.3.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.4.1",
+    "vite": "6.3.5"
+  }
+}

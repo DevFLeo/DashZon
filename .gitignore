@@ -83,3 +83,12 @@ deploy/*.env
 !deploy/publico.env.example
 deploy/bin/
 deploy/logs/
+
+# --- Protótipos React e Next (prototipos/) -----------------------------------
+!/prototipos/package.json
+!/prototipos/package-lock.json
+!/prototipos/*/package.json
+!/prototipos/next/jsconfig.json
+node_modules/
+/prototipos/next/.next/
+/prototipos/react/dist/
