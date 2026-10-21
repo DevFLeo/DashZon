@@ -163,6 +163,15 @@ module Database
       PRIMARY KEY (equipe_id, usuario_id)
     );
     CREATE INDEX IF NOT EXISTS idx_equipe_membros_usuario ON equipe_membros(usuario_id);
+
+    -- Registros de exemplo que vieram com um template ("com dados de exemplo").
+    -- Apagar um dashboard pode levar junto os exemplos dos módulos dele; editar
+    -- um exemplo tira a marca (passa a ser um dado de verdade).
+    CREATE TABLE IF NOT EXISTS registros_exemplo (
+      registro_id INTEGER PRIMARY KEY REFERENCES registros(id) ON DELETE CASCADE,
+      modulo_id INTEGER NOT NULL REFERENCES modulos(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_registros_exemplo_modulo ON registros_exemplo(modulo_id);
   SQL
 
   # Uma única conexão para o processo, serializada por um Monitor (reentrante,
@@ -214,9 +223,11 @@ module Database
     LOCK.synchronize do
       next if @extras_ok
 
+      sem_exemplos = connection.get_first_value("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'registros_exemplo'").to_i.zero?
       connection.execute_batch(EXTRAS_SQL)
       migrar_usuarios!
       migrar_dashboards!
+      marcar_exemplos_antigos! if sem_exemplos
       @extras_ok = true
     end
   end
@@ -531,6 +542,44 @@ module Database
     r && achatar(RecordCodec.plano(modulo["schema"]), r, true)
   end
 
+  # Bancos de antes da marcação: os exemplos instalados com um template são
+  # os registros nunca editados criados no mesmo instante que o módulo
+  # (TemplateRegistry.install! grava tudo com o mesmo relógio). Roda uma vez,
+  # quando a tabela registros_exemplo nasce.
+  def self.marcar_exemplos_antigos!
+    return if connection.get_first_value("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'registros'").to_i.zero?
+
+    rows("SELECT id, criado_em FROM modulos WHERE COALESCE(template_origem, '') <> ''").each do |m|
+      criado = Time.iso8601(m["criado_em"].to_s).to_i rescue next
+      rows("SELECT id FROM registros WHERE modulo_id = ? AND atualizado_em IS NULL AND criado_em BETWEEN ? AND ?",
+           [m["id"], criado - 5, criado + 5]).each do |r|
+        execute("INSERT OR IGNORE INTO registros_exemplo (registro_id, modulo_id) VALUES (?, ?)", [r["id"], m["id"]])
+      end
+    end
+  end
+
+  def self.marcar_exemplo!(modulo_id, registro_id)
+    garantir_tabelas!
+    execute("INSERT OR IGNORE INTO registros_exemplo (registro_id, modulo_id) VALUES (?, ?)", [registro_id, modulo_id])
+  end
+
+  # { modulo_id => quantos exemplos ainda existem }
+  def self.exemplos_por_modulo
+    garantir_tabelas!
+    rows("SELECT modulo_id, COUNT(*) AS n FROM registros_exemplo GROUP BY modulo_id").to_h { |r| [r["modulo_id"], r["n"]] }
+  end
+
+  # Apaga os registros de exemplo de um módulo; devolve quantos.
+  def self.apagar_exemplos!(modulo_id)
+    garantir_tabelas!
+    transaction do
+      n = alterar("DELETE FROM registros WHERE modulo_id = ? AND id IN (SELECT registro_id FROM registros_exemplo WHERE modulo_id = ?)",
+                  [modulo_id, modulo_id])
+      execute("DELETE FROM registros_exemplo WHERE modulo_id = ?", [modulo_id])
+      n
+    end
+  end
+
   def self.inserir_registro(modulo, dados, agora = agora_i)
     insert("INSERT INTO registros (modulo_id, dados, criado_em) VALUES (?, ?, ?)",
            [modulo["id"], RecordCodec.pack(modulo["schema"], dados), agora])
@@ -538,6 +587,8 @@ module Database
 
   # Devolve false se o registro não existe.
   def self.atualizar_registro(modulo, id, dados)
+    garantir_tabelas!
+    execute("DELETE FROM registros_exemplo WHERE registro_id = ?", [id]) # editado: deixa de ser exemplo
     alterar("UPDATE registros SET dados = ?, atualizado_em = ? WHERE id = ? AND modulo_id = ?",
             [RecordCodec.pack(modulo["schema"], dados), agora_i, id, modulo["id"]]).positive?
   end

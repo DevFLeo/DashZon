@@ -137,7 +137,7 @@ module TemplateRegistry
 
         modulo = { "id" => modulo_id, "schema" => schema }
         agora = Database.agora_i
-        m["seed"].each { |dados| Database.inserir_registro(modulo, dados, agora) }
+        m["seed"].each { |dados| Database.marcar_exemplo!(modulo_id, Database.inserir_registro(modulo, dados, agora)) }
       end
 
       pulados = 0

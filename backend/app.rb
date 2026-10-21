@@ -424,11 +424,19 @@ end
 # --------------------------------------------------------------- módulos ---
 get "/api/modulos" do
   totais = Database.rows("SELECT modulo_id, COUNT(*) AS n FROM registros GROUP BY modulo_id").to_h { |r| [r["modulo_id"], r["n"]] }
-  json(Database.modulos.map { |m| m.merge("total" => totais[m["id"]] || 0) })
+  exemplos = Database.exemplos_por_modulo
+  json(Database.modulos.map { |m| m.merge("total" => totais[m["id"]] || 0, "exemplos" => exemplos[m["id"]] || 0) })
 end
 
 get "/api/modulos/:slug" do
-  json modulo!(params[:slug])
+  m = modulo!(params[:slug])
+  json m.merge("exemplos" => Database.exemplos_por_modulo[m["id"]] || 0)
+end
+
+# Apaga só os registros de exemplo do módulo (os que vieram com o template).
+delete "/api/modulos/:slug/exemplos" do
+  m = modulo!(params[:slug])
+  json ok: true, apagados: Database.apagar_exemplos!(m["id"])
 end
 
 post "/api/modulos" do
@@ -630,10 +638,34 @@ put "/api/dashboards/:id" do
   json ok: true
 end
 
+# Módulos que os cards do dashboard usam e quantos registros de exemplo cada
+# um ainda tem (para oferecer apagar junto com o dashboard).
+def exemplos_do_dashboard(dash)
+  slugs = Database.rows("SELECT DISTINCT modulo_slug FROM widgets WHERE dashboard_id = ?", [dash["id"]]).map { |r| r["modulo_slug"] }
+  exemplos = Database.exemplos_por_modulo
+  slugs.filter_map do |s|
+    m = Database.modulo(s)
+    n = m && exemplos[m["id"]].to_i
+    { "id" => m["id"], "slug" => m["slug"], "nome" => m["nome"], "exemplos" => n } if n&.positive?
+  end
+end
+
+get "/api/dashboards/:id/exemplos" do
+  dash = dashboard_editavel!(params[:id])
+  mods = exemplos_do_dashboard(dash)
+  json total: mods.sum { |m| m["exemplos"] }, modulos: mods.map { |m| m.except("id") }
+end
+
+# ?exemplos=1: apaga também os registros de exemplo dos módulos que o
+# dashboard usa (os dados de verdade e os módulos ficam).
 delete "/api/dashboards/:id" do
   dash = dashboard_editavel!(params[:id])
-  Database.execute("DELETE FROM dashboards WHERE id = ?", [dash["id"]])
-  json ok: true
+  apagados = 0
+  Database.transaction do
+    exemplos_do_dashboard(dash).each { |m| apagados += Database.apagar_exemplos!(m["id"]) } if params[:exemplos] == "1"
+    Database.execute("DELETE FROM dashboards WHERE id = ?", [dash["id"]])
+  end
+  json ok: true, exemplos_apagados: apagados
 end
 
 # --------------------------------------------------------------- widgets ---
