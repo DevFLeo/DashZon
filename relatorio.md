@@ -32,6 +32,26 @@ Continuam como observação (não eram problemas da lista):
 - **Barras com mais de 8 opções:** o tema tem 8 cores, então da 9ª opção em diante as barras ficam cinza; escolher uma paleta resolve (E6).
 - **Consulta de CNPJ por API:** continua só verificada, como pedido.
 
+## Protótipos em React e Next.js (21/10/2026)
+
+Teste à parte, a pedido: como o DashZon ficaria com React e com Next.js (pasta `prototipos/`, só leitura, mesma API). Verificado:
+
+| Verificação | Resultado |
+|---|---|
+| Compilação de produção dos dois (`vite build`, `next build`) | OK |
+| Login pela tela, com a sessão do backend Ruby, nos dois | OK |
+| Dashboards Estudos e Finanças, com todos os tipos de card | OK: os mesmos números do frontend atual |
+| Tema claro e escuro; celular (390 px) | OK |
+| Erros de JavaScript no navegador (atual, React e Next) | Nenhum |
+
+Ajustes feitos durante o teste:
+
+- as séries ficaram na ordem das opções do campo (Entrada antes de Saída), como no atual;
+- os cards de número ficaram compactos no celular;
+- a barra lateral ficou fixa na altura da página.
+
+Os prints estão em `prototipos/prints/`, e a comparação está no `prototipos/README.md`.
+
 O texto abaixo é o relatório original, de antes das correções.
 
 ---
