@@ -126,6 +126,41 @@ class AcessoTest < Minitest::Test
     end
   end
 
+  # Dashboard de teste (privado) não grava nos módulos de todos: ganha os
+  # dele, com os dados de exemplo, e reaproveita essa cópia nas próximas vezes.
+  def test_template_privado_nao_reaproveita_modulo_de_todos
+    configurar!
+    post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => false, "visibilidade" => "equipe" }
+    assert_equal 200, last_response.status, last_response.body
+
+    post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => true, "visibilidade" => "privado" }
+    assert_equal 200, last_response.status, last_response.body
+    assert_empty resposta["reaproveitados"]
+    get "/api/modulos"
+    copia = resposta.find { |m| m["nome"] == "Demandas (2)" }
+    assert_equal "privado", copia["visibilidade"]
+    assert_operator copia["total"], :>, 0, "o teste recebe os dados de exemplo"
+    assert_equal 0, resposta.find { |m| m["nome"] == "Demandas" }["total"], "o módulo de todos não recebe nada"
+
+    post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => true, "visibilidade" => "privado" }
+    assert_equal ["Demandas (2)"], resposta["reaproveitados"]
+    get "/api/modulos"
+    assert_equal ["Demandas", "Demandas (2)"], resposta.map { |m| m["nome"] }.select { |n| n.start_with?("Demandas") }
+  end
+
+  # Dashboard para todos não expõe o módulo privado de quem instalou.
+  def test_template_para_todos_nao_reaproveita_modulo_privado
+    configurar!
+    usuario!("leonardo")
+    post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => true, "visibilidade" => "privado" }
+    assert_equal 200, last_response.status, last_response.body
+
+    post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => false, "visibilidade" => "equipe" }
+    assert_equal 200, last_response.status, last_response.body
+    assert_empty resposta["reaproveitados"]
+    assert_equal ["Demandas (2)"], modulos_de("leonardo")
+  end
+
   def test_modulos_que_ja_existiam_continuam_de_todos
     configurar!
     post_json "/api/templates/instalar", { "template_id" => "lote-producao", "com_exemplos" => false }

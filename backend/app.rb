@@ -566,11 +566,20 @@ post "/api/templates/instalar" do
 
   # Os dashboards que o template criar são de quem instalou: privados, a não
   # ser que a pessoa peça para compartilhar com a equipe.
-  # Um módulo de mesmo nome só é reaproveitado se a pessoa o vê; senão nasce
-  # outro ("Nome (2)"), dela (relatório, problema 2).
+  # Um módulo de mesmo nome só é reaproveitado se a pessoa o vê E se ele tem o
+  # mesmo alcance do dashboard; senão nasce outro ("Nome (2)"), com os dados de
+  # exemplo (relatório, problema 2):
+  # - privado (um teste, por exemplo): só um módulo privado da própria pessoa,
+  #   para não gravar nos dados de todos nem misturar o teste com eles;
+  # - para todos: só um módulo de todos, para não expor o privado de ninguém.
+  vis = visibilidade_pedida(d)
+  uid = usuario_atual["id"]
+  mesmo_alcance = lambda do |m|
+    vis == "privado" ? m["visibilidade"] == "privado" && m["dono_id"] == uid : ["", "todos"].include?(m["visibilidade"].to_s)
+  end
   res = TemplateRegistry.install!(TemplateRegistry.normalize!(bruto), com_exemplos: d["com_exemplos"] != false,
-                                  dono_id: usuario_atual["id"], visibilidade: visibilidade_pedida(d),
-                                  pode_usar: ->(m) { acesso.modulo_visivel?(m) })
+                                  dono_id: uid, visibilidade: vis,
+                                  pode_usar: ->(m) { acesso.modulo_visivel?(m) && mesmo_alcance.call(m) })
   # Um JSON colado/importado fica guardado no banco e volta na galeria.
   TemplateRegistry.salvar_importado!(bruto) unless d["template_id"]
   json res.merge(ok: true)

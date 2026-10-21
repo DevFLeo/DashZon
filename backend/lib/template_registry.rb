@@ -122,15 +122,20 @@ module TemplateRegistry
       ordem = Database.row("SELECT COALESCE(MAX(ordem), 0) AS m FROM modulos")["m"].to_i
 
       tpl["modulos"].each do |m|
-        existente = Database.modulo_por_nome(m["nome"])
-        if existente && (pode_usar.nil? || pode_usar.call(existente))
+        # Reaproveita o módulo de mesmo nome ou uma cópia dele ("Nome (2)"), o
+        # primeiro que `pode_usar` aceitar (o de nome exato tem preferência).
+        # Assim um teste privado reaproveita a cópia privada da própria pessoa
+        # em vez de criar "Nome (3)", "Nome (4)"... a cada instalação.
+        candidatos = mesmo_modulo(m["nome"])
+        existente = candidatos.find { |x| pode_usar.nil? || pode_usar.call(x) }
+        if existente
           mapa[m["slug"]] = existente["slug"]
           reaproveitados[m["slug"]] = existente
           next
         end
 
         slug = slug_livre(m["slug"])
-        nome = existente ? nome_modulo_livre(m["nome"]) : m["nome"]
+        nome = candidatos.any? ? nome_modulo_livre(m["nome"]) : m["nome"]
         mapa[m["slug"]] = slug
         ordem += 1
         schema = ModuleSchema.schema_de(m)
@@ -197,6 +202,14 @@ module TemplateRegistry
   end
 
   # "Demandas" já existe (de outra pessoa) -> "Demandas (2)", "(3)"...
+  # Módulos chamados `base` ou "base (n)", o de nome exato primeiro.
+  def mesmo_modulo(base)
+    alvo = base.to_s.strip.downcase
+    copia = /\A#{Regexp.escape(alvo)} \(\d+\)\z/
+    Database.modulos.select { |x| (n = x["nome"].to_s.strip.downcase) == alvo || n.match?(copia) }
+                    .sort_by.with_index { |x, i| [x["nome"].to_s.strip.downcase == alvo ? 0 : 1, i] }
+  end
+
   def nome_modulo_livre(base)
     n = 2
     n += 1 while Database.modulo_por_nome("#{base} (#{n})")
