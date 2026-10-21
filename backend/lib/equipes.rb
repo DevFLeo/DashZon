@@ -3,20 +3,25 @@ require_relative "database"
 require_relative "segredo"
 require_relative "documento"
 require_relative "usuarios"
+require_relative "unidades"
 
-# Equipes: grupos de usuários criados no Painel do adm.
-#  - Uma equipe pode ser uma EMPRESA: aí ganha CNPJ, que pode ser obrigatório
-#    ou não (`exigir_cnpj`). O CNPJ fica só em HMAC (para achar duplicados) +
-#    máscara para exibir, como o CPF/CNPJ das contas.
-#  - "Empresa de teste": uma empresa marcada como `teste`, com CNPJ fictício
-#    (válido nos dígitos, mas inventado), para experimentar sem misturar com
-#    as reais.
-#  - Membros: um usuário pode estar em nenhuma, uma ou várias equipes.
+# Equipes e unidades da prefeitura: grupos de usuários criados no Painel do adm
+# (ou por um gestor, dentro do alcance dele: rotas/gestao.rb).
+#  - `tipo`: secretaria, subsecretaria, departamento, divisão ou equipe (grupo
+#    livre). Com `pai_id`, as unidades formam a árvore da prefeitura
+#    (SEMEC / SUPLAN / DGEO / DCAD). Regras da árvore: lib/unidades.rb.
+#  - `sigla`: única (sem diferenciar maiúsculas). É por ela que um campo de
+#    seleção como "DCAD - Divisão de Cadastro" é ligado à unidade.
+#  - Membros: um usuário pode estar em nenhuma, uma ou várias unidades, como
+#    "membro" ou "gestor" (administra a unidade e tudo abaixo dela).
+#  - Uma equipe pode ser uma EMPRESA (CNPJ em HMAC + máscara). "Empresa de
+#    teste": CNPJ fictício. Mantidas da versão anterior.
 module Equipes
   Erro = Usuarios::Erro
 
   NOME_MAX = 80
   DESCRICAO_MAX = 300
+  SIGLA_RE = /\A[\p{Lu}0-9][\p{Lu}0-9_.\-]{0,19}\z/
 
   module_function
 
@@ -30,54 +35,89 @@ module Equipes
   end
 
   def por_id!(id)
-    por_id(id) || raise(Erro.new("Equipe não encontrada", 404))
+    por_id(id) || raise(Erro.new("Unidade não encontrada", 404))
   end
 
-  # Todas, com os membros (id, nome, login). Ordem: reais primeiro, por nome.
+  # Todas, com os membros (id, nome, login, papel) e o caminho na árvore.
+  # Ordem: de cima para baixo (pai antes dos filhos), irmãs por sigla/nome.
   def todas
     tabelas!
     membros = Database.rows(
-      "SELECT m.equipe_id, u.id, u.nome, u.login FROM equipe_membros m JOIN usuarios u ON u.id = m.usuario_id
-       ORDER BY lower(COALESCE(NULLIF(u.nome, ''), u.login))"
+      "SELECT m.equipe_id, m.papel, u.id, u.nome, u.login, u.ativo FROM equipe_membros m JOIN usuarios u ON u.id = m.usuario_id
+       ORDER BY m.papel DESC, lower(COALESCE(NULLIF(u.nome, ''), u.login))"
     ).group_by { |r| r["equipe_id"] }
-    Database.rows("SELECT * FROM equipes ORDER BY teste, lower(nome)").map do |e|
-      publica(e, (membros[e["id"]] || []).map { |m| { "id" => m["id"], "nome" => m["nome"].to_s.empty? ? m["login"] : m["nome"], "login" => m["login"] } })
+    linhas = Database.rows("SELECT * FROM equipes ORDER BY teste, lower(COALESCE(sigla, nome))")
+    por_id = linhas.to_h { |e| [e["id"], e] }
+    em_arvore(linhas).map do |e, nivel|
+      lista = (membros[e["id"]] || []).map do |m|
+        { "id" => m["id"], "nome" => m["nome"].to_s.empty? ? m["login"] : m["nome"], "login" => m["login"],
+          "papel" => m["papel"] || "membro", "ativo" => m["ativo"].to_i == 1 }
+      end
+      publica(e, lista).merge("nivel" => nivel, "caminho" => Unidades.caminho(e["id"], por_id))
     end
+  end
+
+  # Percorre a árvore em profundidade: [[unidade, nível], ...]. Unidades com
+  # pai inexistente (ou num ciclo) aparecem como raiz, para não sumirem.
+  def em_arvore(linhas)
+    ids = linhas.to_set { |e| e["id"] }
+    filhos = linhas.group_by { |e| ids.include?(e["pai_id"]) ? e["pai_id"] : nil }
+    out = []
+    vistos = Set.new
+    visitar = lambda do |e, nivel|
+      next if vistos.include?(e["id"])
+
+      vistos << e["id"]
+      out << [e, nivel]
+      (filhos[e["id"]] || []).each { |f| visitar.call(f, nivel + 1) }
+    end
+    (filhos[nil] || []).each { |e| visitar.call(e, 0) }
+    linhas.each { |e| visitar.call(e, 0) } # sobras de um ciclo
+    out
   end
 
   def publica(e, membros = nil)
     {
       "id" => e["id"],
       "nome" => e["nome"],
+      "sigla" => e["sigla"],
+      "tipo" => e["tipo"] || "equipe",
+      "pai_id" => e["pai_id"],
       "descricao" => e["descricao"].to_s,
       "empresa" => e["empresa"].to_i == 1,
       "exigir_cnpj" => e["exigir_cnpj"].to_i == 1,
       "cnpj" => e["cnpj_mascara"],
       "teste" => e["teste"].to_i == 1,
       "membros" => membros,
+      "gestores" => membros&.select { |m| m["papel"] == "gestor" }&.map { |m| m["id"] },
       "total" => membros&.size,
       "criado_em" => e["criado_em"]
-    }.compact
+    }.compact.merge("pai_id" => e["pai_id"], "sigla" => e["sigla"])
   end
 
-  # Equipes de cada usuário: { usuario_id => [{id, nome, empresa, teste}] }.
+  # Unidades de cada usuário: { usuario_id => [{id, nome, sigla, tipo, papel, ...}] }.
   def por_usuario
     tabelas!
     Database.rows(
-      "SELECT m.usuario_id, e.id, e.nome, e.empresa, e.teste FROM equipe_membros m JOIN equipes e ON e.id = m.equipe_id
-       ORDER BY lower(e.nome)"
+      "SELECT m.usuario_id, m.papel, e.id, e.nome, e.sigla, e.tipo, e.empresa, e.teste FROM equipe_membros m
+       JOIN equipes e ON e.id = m.equipe_id ORDER BY lower(COALESCE(e.sigla, e.nome))"
     ).group_by { |r| r["usuario_id"] }
-     .transform_values { |l| l.map { |r| { "id" => r["id"], "nome" => r["nome"], "empresa" => r["empresa"].to_i == 1, "teste" => r["teste"].to_i == 1 } } }
+     .transform_values do |l|
+       l.map do |r|
+         { "id" => r["id"], "nome" => r["nome"], "sigla" => r["sigla"], "tipo" => r["tipo"] || "equipe",
+           "papel" => r["papel"] || "membro", "empresa" => r["empresa"].to_i == 1, "teste" => r["teste"].to_i == 1 }
+       end
+     end
   end
 
-  # Equipes de uma pessoa, para ela mesma (Configurações > Conta): nome, se é
-  # empresa e o CNPJ mascarado (o mesmo que o admin vê).
+  # Unidades de uma pessoa, para ela mesma (Configurações > Conta).
   def do_usuario(usuario_id)
     tabelas!
     Database.rows(
-      "SELECT e.* FROM equipe_membros m JOIN equipes e ON e.id = m.equipe_id WHERE m.usuario_id = ? ORDER BY lower(e.nome)",
+      "SELECT e.*, m.papel FROM equipe_membros m JOIN equipes e ON e.id = m.equipe_id WHERE m.usuario_id = ?
+       ORDER BY lower(COALESCE(e.sigla, e.nome))",
       [usuario_id.to_i]
-    ).map { |e| publica(e).slice("id", "nome", "descricao", "empresa", "cnpj", "teste") }
+    ).map { |e| publica(e).slice("id", "nome", "sigla", "tipo", "descricao", "empresa", "cnpj", "teste").merge("papel" => e["papel"] || "membro") }
   end
 
   # --- validação ------------------------------------------------------------------
@@ -85,17 +125,44 @@ module Equipes
   # Campos ausentes mantêm o valor atual (`atual`, ao editar).
   def validar!(d, atual: nil)
     out = {}
-    nome = (d.key?("nome") ? d["nome"] : atual&.dig("nome")).to_s.strip
-    raise Erro, "Informe o nome da equipe" if nome.empty?
-    raise Erro, "Nome da equipe muito longo (máximo #{NOME_MAX})" if nome.length > NOME_MAX
+    valor = ->(k) { d.key?(k) ? d[k] : atual&.dig(k) }
 
-    outra = Database.rows("SELECT id, nome FROM equipes").find do |e|
-      e["nome"].to_s.strip.downcase == nome.downcase && e["id"] != atual&.dig("id")
+    tipo = (valor.("tipo") || "equipe").to_s
+    raise Erro, "Tipo de unidade inválido (use: #{Unidades::TIPOS.join(', ')})" unless Unidades::TIPOS.include?(tipo)
+    out["tipo"] = tipo
+
+    pai_id = valor.("pai_id")
+    pai_id = nil if pai_id.to_s.strip.empty?
+    out["pai_id"] = validar_pai!(pai_id&.to_i, tipo, atual)
+
+    nome = valor.("nome").to_s.strip
+    raise Erro, "Informe o nome da unidade" if nome.empty?
+    raise Erro, "Nome muito longo (máximo #{NOME_MAX})" if nome.length > NOME_MAX
+
+    # Nome único entre as irmãs (dois departamentos podem ter um "Gabinete").
+    outra = Database.rows("SELECT id, nome, pai_id FROM equipes").find do |e|
+      e["pai_id"] == out["pai_id"] && e["nome"].to_s.strip.downcase == nome.downcase && e["id"] != atual&.dig("id")
     end
-    raise Erro, "Já existe uma equipe chamada '#{outra['nome']}'" if outra
+    raise Erro, "Já existe uma unidade chamada '#{outra['nome']}' neste nível" if outra
     out["nome"] = nome
 
-    descricao = (d.key?("descricao") ? d["descricao"] : atual&.dig("descricao")).to_s.strip
+    sigla = valor.("sigla").to_s.strip.upcase
+    if sigla.empty?
+      raise Erro, "Informe a sigla (ex.: SEMEC, DGEO)" unless tipo == "equipe"
+
+      out["sigla"] = nil
+    else
+      raise Erro, "Sigla inválida: use letras maiúsculas, números, '.', '-' ou '_' (até 20)" unless sigla.match?(SIGLA_RE)
+
+      dona = Database.rows("SELECT id, nome, sigla FROM equipes WHERE sigla IS NOT NULL").find do |e|
+        e["sigla"].to_s.upcase == sigla && e["id"] != atual&.dig("id")
+      end
+      raise Erro, "A sigla #{sigla} já é de '#{dona['nome']}'" if dona
+
+      out["sigla"] = sigla
+    end
+
+    descricao = valor.("descricao").to_s.strip
     raise Erro, "Descrição muito longa (máximo #{DESCRICAO_MAX})" if descricao.length > DESCRICAO_MAX
     out["descricao"] = descricao
 
@@ -105,6 +172,33 @@ module Equipes
     out["exigir_cnpj"] = exigir ? 1 : 0
     out.merge!(validar_cnpj!(d, atual, empresa, exigir))
     out
+  end
+
+  # O pai existe, não é a própria unidade nem uma de baixo dela (ciclo), não
+  # está abaixo na hierarquia (divisão não contém departamento) e a árvore
+  # não passa da profundidade máxima.
+  def validar_pai!(pai_id, tipo, atual)
+    return nil unless pai_id
+
+    lista = Unidades.todas
+    por_id = lista.to_h { |u| [u["id"], u] }
+    pai = por_id[pai_id] || raise(Erro, "Unidade superior não encontrada")
+    if atual
+      raise Erro, "Uma unidade não pode ficar dentro dela mesma" if pai_id == atual["id"]
+      if Unidades.descendentes(atual["id"], Unidades.filhos(lista)).include?(pai_id)
+        raise Erro, "A unidade superior escolhida está dentro desta unidade"
+      end
+    end
+    nivel_pai = Unidades::NIVEL[pai["tipo"]]
+    nivel = Unidades::NIVEL[tipo]
+    if nivel && nivel_pai && nivel < nivel_pai
+      raise Erro, "#{Unidades::NOMES_TIPO[tipo]} não pode ficar dentro de #{Unidades::NOMES_TIPO[pai['tipo']].downcase} (#{Unidades.rotulo(pai)})"
+    end
+    if Unidades.ancestrais(pai_id, por_id).size + 2 > Unidades::PROFUNDIDADE_MAX
+      raise Erro, "Estrutura muito profunda (máximo #{Unidades::PROFUNDIDADE_MAX} níveis)"
+    end
+
+    pai_id
   end
 
   def validar_cnpj!(d, atual, empresa, exigir)
@@ -140,9 +234,10 @@ module Equipes
     v = validar!(d)
     now = Database.now
     Database.insert(
-      "INSERT INTO equipes (nome, descricao, empresa, exigir_cnpj, cnpj_hash, cnpj_mascara, teste, criado_em, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [v["nome"], v["descricao"], v["empresa"], v["exigir_cnpj"], v["cnpj_hash"], v["cnpj_mascara"], teste ? 1 : 0, now, now]
+      "INSERT INTO equipes (nome, descricao, empresa, exigir_cnpj, cnpj_hash, cnpj_mascara, teste, criado_em, atualizado_em, tipo, sigla, pai_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [v["nome"], v["descricao"], v["empresa"], v["exigir_cnpj"], v["cnpj_hash"], v["cnpj_mascara"], teste ? 1 : 0, now, now,
+       v["tipo"], v["sigla"], v["pai_id"]]
     )
   end
 
@@ -161,50 +256,123 @@ module Equipes
              "empresa" => true, "exigir_cnpj" => true, "cnpj" => Documento.gerar_cnpj_ficticio }, teste: true)
   end
 
+  # Estrutura modelo da SEMEC (exemplo da prefeitura), sem usuários. Unidades
+  # cuja sigla já existe são reaproveitadas, então rodar duas vezes não duplica.
+  MODELO = [
+    ["SEMEC", "Secretaria Municipal de Educação", "secretaria", nil],
+    ["SUPLAN", "Subsecretaria de Planejamento", "subsecretaria", "SEMEC"],
+    ["SURÇAM", "Subsecretaria SURÇAM", "subsecretaria", "SEMEC"],
+    ["DGEO", "Departamento de Geoprocessamento", "departamento", "SUPLAN"],
+    ["DIPLAD", "Departamento DIPLAD", "departamento", "SUPLAN"],
+    ["DIPEI", "Departamento DIPEI", "departamento", "SUPLAN"],
+    ["DCAD", "Divisão de Cadastro (Dados)", "divisao", "DGEO"],
+    ["DTAD", "Divisão de Tecnologia e Dados", "divisao", "DGEO"],
+    ["DASI", "Divisão de Articulação com Secretarias", "divisao", "DGEO"]
+  ].freeze
+
+  def criar_modelo!
+    tabelas!
+    criadas = 0
+    Database.transaction do
+      MODELO.each do |sigla, nome, tipo, pai|
+        next if Database.rows("SELECT sigla FROM equipes WHERE sigla IS NOT NULL").any? { |e| e["sigla"].upcase == sigla }
+
+        pai_id = pai && Database.rows("SELECT id, sigla FROM equipes WHERE sigla IS NOT NULL").find { |e| e["sigla"].upcase == pai }&.dig("id")
+        criar!({ "sigla" => sigla, "nome" => nome, "tipo" => tipo, "pai_id" => pai_id })
+        criadas += 1
+      end
+    end
+    criadas
+  end
+
   def atualizar!(id, d)
     atual = por_id!(id)
     v = validar!(d, atual: atual)
     Database.execute(
-      "UPDATE equipes SET nome = ?, descricao = ?, empresa = ?, exigir_cnpj = ?, cnpj_hash = ?, cnpj_mascara = ?, atualizado_em = ?
-       WHERE id = ?",
-      [v["nome"], v["descricao"], v["empresa"], v["exigir_cnpj"], v["cnpj_hash"], v["cnpj_mascara"], Database.now, atual["id"]]
+      "UPDATE equipes SET nome = ?, descricao = ?, empresa = ?, exigir_cnpj = ?, cnpj_hash = ?, cnpj_mascara = ?, atualizado_em = ?,
+       tipo = ?, sigla = ?, pai_id = ? WHERE id = ?",
+      [v["nome"], v["descricao"], v["empresa"], v["exigir_cnpj"], v["cnpj_hash"], v["cnpj_mascara"], Database.now,
+       v["tipo"], v["sigla"], v["pai_id"], atual["id"]]
     )
     por_id(atual["id"])
   end
 
+  # Unidade com unidades dentro não é excluída: o que está abaixo ficaria solto
+  # (e as permissões em cascata mudariam sem ninguém perceber).
   def excluir!(id)
     e = por_id!(id)
+    filhas = Database.rows("SELECT nome FROM equipes WHERE pai_id = ?", [e["id"]])
+    unless filhas.empty?
+      raise Erro, "Antes, exclua ou mova as unidades de dentro de '#{e['nome']}': #{filhas.map { |f| f['nome'] }.first(5).join(', ')}"
+    end
+
     Database.execute("DELETE FROM equipes WHERE id = ?", [e["id"]]) # membros saem em cascata
   end
 
-  # Define exatamente quem está na equipe.
-  def definir_membros!(id, usuario_ids)
+  # Define exatamente quem está na unidade. `gestores`: ids (entre os membros,
+  # ou acrescentados) que ficam com o papel de gestor.
+  def definir_membros!(id, usuario_ids, gestores = nil)
     e = por_id!(id)
     ids = ids_validos!(usuario_ids)
+    chefes = gestores.nil? ? papeis_atuais(e["id"]).select { |_, p| p == "gestor" }.keys : ids_validos!(gestores)
+    ids |= chefes
     Database.transaction do
       Database.execute("DELETE FROM equipe_membros WHERE equipe_id = ?", [e["id"]])
-      ids.each { |uid| Database.execute("INSERT INTO equipe_membros (equipe_id, usuario_id, criado_em) VALUES (?, ?, ?)", [e["id"], uid, Database.now]) }
+      ids.each do |uid|
+        Database.execute("INSERT INTO equipe_membros (equipe_id, usuario_id, criado_em, papel) VALUES (?, ?, ?, ?)",
+                         [e["id"], uid, Database.now, chefes.include?(uid) ? "gestor" : "membro"])
+      end
     end
   end
 
-  # Define exatamente em quais equipes o usuário está.
-  def definir_equipes_do_usuario!(usuario_id, equipe_ids)
+  def papeis_atuais(equipe_id)
+    Database.rows("SELECT usuario_id, papel FROM equipe_membros WHERE equipe_id = ?", [equipe_id]).to_h { |r| [r["usuario_id"], r["papel"]] }
+  end
+
+  # Põe (ou muda o papel de) uma pessoa numa unidade.
+  def definir_membro!(equipe_id, usuario_id, papel)
+    raise Erro, "Papel inválido (use membro ou gestor)" unless Unidades::PAPEIS.include?(papel)
+
+    e = por_id!(equipe_id)
+    ids_validos!([usuario_id])
+    Database.execute(
+      "INSERT INTO equipe_membros (equipe_id, usuario_id, criado_em, papel) VALUES (?, ?, ?, ?)
+       ON CONFLICT(equipe_id, usuario_id) DO UPDATE SET papel = excluded.papel",
+      [e["id"], usuario_id.to_i, Database.now, papel]
+    )
+  end
+
+  def remover_membro!(equipe_id, usuario_id)
+    Database.alterar("DELETE FROM equipe_membros WHERE equipe_id = ? AND usuario_id = ?", [equipe_id.to_i, usuario_id.to_i])
+  end
+
+  # Define exatamente em quais unidades o usuário está. `gestor_de`: as que
+  # ele gere (nil = mantém os papéis que já tinha nas que continuam).
+  def definir_equipes_do_usuario!(usuario_id, equipe_ids, gestor_de = nil)
     ids = ids_de_equipes!(equipe_ids)
+    chefe = gestor_de.nil? ? nil : ids_de_equipes!(gestor_de)
+    ids |= chefe if chefe
+    antes = Database.rows("SELECT equipe_id, papel FROM equipe_membros WHERE usuario_id = ?", [usuario_id.to_i])
+                    .to_h { |r| [r["equipe_id"], r["papel"]] }
     Database.transaction do
       Database.execute("DELETE FROM equipe_membros WHERE usuario_id = ?", [usuario_id.to_i])
-      ids.each { |eid| Database.execute("INSERT INTO equipe_membros (equipe_id, usuario_id, criado_em) VALUES (?, ?, ?)", [eid, usuario_id.to_i, Database.now]) }
+      ids.each do |eid|
+        papel = chefe ? (chefe.include?(eid) ? "gestor" : "membro") : (antes[eid] || "membro")
+        Database.execute("INSERT INTO equipe_membros (equipe_id, usuario_id, criado_em, papel) VALUES (?, ?, ?, ?)",
+                         [eid, usuario_id.to_i, Database.now, papel])
+      end
     end
   end
 
-  # Confere a lista de equipes ANTES de gravar qualquer coisa (criar um
-  # usuário com uma equipe inválida não pode deixar o usuário pela metade).
+  # Confere a lista de unidades ANTES de gravar qualquer coisa (criar um
+  # usuário com uma unidade inválida não pode deixar o usuário pela metade).
   def ids_de_equipes!(equipe_ids)
     tabelas!
     raise Erro, "'equipes' deve ser uma lista" unless equipe_ids.is_a?(Array)
 
     ids = equipe_ids.map(&:to_i).uniq
     existentes = ids.empty? ? [] : Database.rows("SELECT id FROM equipes").map { |r| r["id"] } & ids
-    raise Erro, "Equipe inexistente na lista" if existentes.size != ids.size
+    raise Erro, "Unidade inexistente na lista" if existentes.size != ids.size
 
     ids
   end

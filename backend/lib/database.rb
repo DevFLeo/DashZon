@@ -204,6 +204,14 @@ module Database
       decidido_em TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_solicitacoes_status ON solicitacoes(status, modulo_id);
+
+    -- Quem lançou cada registro (Prefeitura DashZ). Sem campo de unidade no
+    -- módulo, a unidade do registro é a de quem o lançou (lib/acesso.rb).
+    -- Registros antigos ou de exemplo podem não ter autor.
+    CREATE TABLE IF NOT EXISTS registro_autores (
+      registro_id INTEGER PRIMARY KEY REFERENCES registros(id) ON DELETE CASCADE,
+      usuario_id INTEGER NOT NULL
+    );
   SQL
 
   # Uma única conexão para o processo, serializada por um Monitor (reentrante,
@@ -260,6 +268,7 @@ module Database
       migrar_usuarios!
       migrar_dashboards!
       migrar_modulos!
+      migrar_equipes!
       marcar_exemplos_antigos! if sem_exemplos
       @extras_ok = true
     end
@@ -341,6 +350,36 @@ module Database
       UPDATE modulos SET dono_id = (SELECT MIN(id) FROM usuarios WHERE perfil = 'admin' AND ativo = 1)
       WHERE dono_id IS NULL OR dono_id NOT IN (SELECT id FROM usuarios)
     SQL
+  end
+
+  # Estrutura da prefeitura (lib/unidades.rb): uma equipe pode ser uma
+  # secretaria, subsecretaria, departamento ou divisão, com sigla e unidade
+  # superior (pai_id). As que já existiam continuam "equipe", sem pai.
+  # O membro ganha um papel: "gestor" administra a unidade e tudo abaixo dela.
+  COLUNAS_EQUIPE = {
+    "tipo" => "TEXT NOT NULL DEFAULT 'equipe'",
+    "sigla" => "TEXT",
+    "pai_id" => "INTEGER"
+  }.freeze
+
+  def self.migrar_equipes!
+    existentes = connection.execute("PRAGMA table_info(equipes)").map { |c| c["name"] || c[1] }
+    COLUNAS_EQUIPE.each do |col, tipo|
+      connection.execute("ALTER TABLE equipes ADD COLUMN #{col} #{tipo}") unless existentes.include?(col)
+    end
+    membros = connection.execute("PRAGMA table_info(equipe_membros)").map { |c| c["name"] || c[1] }
+    connection.execute("ALTER TABLE equipe_membros ADD COLUMN papel TEXT NOT NULL DEFAULT 'membro'") unless membros.include?("papel")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_equipes_pai ON equipes(pai_id)")
+  end
+
+  def self.autor_de(registro_id)
+    row("SELECT usuario_id FROM registro_autores WHERE registro_id = ?", [registro_id.to_i])&.dig("usuario_id")
+  end
+
+  def self.marcar_autor!(registro_id, usuario_id)
+    return unless usuario_id
+
+    execute("INSERT OR REPLACE INTO registro_autores (registro_id, usuario_id) VALUES (?, ?)", [registro_id.to_i, usuario_id.to_i])
   end
 
   def self.modulo_por_id(id)

@@ -1,0 +1,373 @@
+require_relative "test_helper"
+
+# Prefeitura DashZ: estrutura em árvore (secretaria > subsecretaria >
+# departamento > divisão), permissões em cascata e o painel de produtividade.
+#
+# Cenário do pedido:
+#   Larissa: gestora da SUPLAN e da SURÇAM (põe e tira gente das duas);
+#   Marvin:  gestor do DGEO (DCAD, DTAD e DASI ficam abaixo dele);
+#   Eduardo: gerente (gestor) do DTAD, só o DTAD;
+#   Hayrine: membro do DCAD.
+class PrefeituraTest < Minitest::Test
+  include DashZonTeste
+
+  SENHA = "senha-forte-1".freeze
+
+  def motor? = EngineClient.binary_path && File.exist?(EngineClient.binary_path)
+
+  def patch_json(path, dados = {})
+    patch path, JSON.generate(dados), "CONTENT_TYPE" => "application/json"
+  end
+
+  def como(login)
+    entrar(login, SENHA)
+    yield
+  ensure
+    entrar("dono", SENHA)
+  end
+
+  def unidade!(sigla, tipo, pai = nil, nome: nil)
+    post_json "/api/admin/equipes", { "sigla" => sigla, "nome" => nome || "Unidade #{sigla}", "tipo" => tipo, "pai_id" => pai }
+    assert_equal 201, last_response.status, last_response.body
+    resposta["id"]
+  end
+
+  def usuario!(login, unidades: [], gestor_de: [])
+    post_json "/api/admin/usuarios", { "login" => login, "nome" => login.capitalize, "senha" => SENHA, "deve_trocar_senha" => false,
+                                       "equipes" => unidades, "gestor_de" => gestor_de }
+    assert_equal 201, last_response.status, last_response.body
+    resposta["usuario"]["id"]
+  end
+
+  # SEMEC / {SUPLAN / {DGEO / {DCAD, DTAD, DASI}, DIPLAD}, SURÇAM}
+  def montar!
+    configurar!
+    @semec = unidade!("SEMEC", "secretaria")
+    @suplan = unidade!("SUPLAN", "subsecretaria", @semec)
+    @surcam = unidade!("SURÇAM", "subsecretaria", @semec)
+    @dgeo = unidade!("DGEO", "departamento", @suplan)
+    @diplad = unidade!("DIPLAD", "departamento", @suplan)
+    @dcad = unidade!("DCAD", "divisao", @dgeo)
+    @dtad = unidade!("DTAD", "divisao", @dgeo)
+    @dasi = unidade!("DASI", "divisao", @dgeo)
+    @larissa = usuario!("larissa", gestor_de: [@suplan, @surcam])
+    @marvin = usuario!("marvin", gestor_de: [@dgeo])
+    @eduardo = usuario!("eduardo", gestor_de: [@dtad])
+    @hayrine = usuario!("hayrine", unidades: [@dcad])
+    @fora = usuario!("fora", unidades: [@diplad])
+  end
+
+  def instalar_demandas!
+    post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => false, "visibilidade" => "equipe" }
+    assert_equal 200, last_response.status, last_response.body
+  end
+
+  DCAD = "DCAD - Divisão de Cadastro (Dados)".freeze
+  DTAD = "DTAD - Divisão de Tecnologia e Dados".freeze
+  DASI = "DASI - Divisão de Articulação com Secretarias".freeze
+  GAB = "DGEO - Gabinete do Diretor".freeze
+
+  def demanda(divisao, status: "Em Análise", prioridade: "Média", prazo: nil, titulo: "Demanda")
+    { "titulo_processo" => titulo, "status_tramitacao" => status, "prioridade" => prioridade, "divisao_responsavel" => divisao,
+      "data_limite" => prazo, "descricao_demanda" => "Teste" }
+  end
+
+  def criar_demanda!(dados)
+    post_json "/api/modulos/demandas/registros", dados
+    assert_equal 201, last_response.status, last_response.body
+    resposta["id"]
+  end
+
+  # --- estrutura -----------------------------------------------------------------
+
+  def test_arvore_valida_tipo_sigla_ciclo_e_exclusao
+    montar!
+    get "/api/admin/equipes"
+    dgeo = resposta.find { |e| e["sigla"] == "DGEO" }
+    assert_equal "SEMEC / SUPLAN / DGEO", dgeo["caminho"]
+    assert_equal 2, dgeo["nivel"]
+    assert_equal %w[SEMEC SUPLAN DGEO DASI DCAD DTAD DIPLAD SURÇAM], resposta.map { |e| e["sigla"] }, "ordem de árvore"
+
+    post_json "/api/admin/equipes", { "sigla" => "X1", "nome" => "Dep", "tipo" => "departamento", "pai_id" => @dcad }
+    assert_equal 422, last_response.status, "departamento dentro de divisão"
+    post_json "/api/admin/equipes", { "sigla" => "dgeo", "nome" => "Outro", "tipo" => "departamento", "pai_id" => @suplan }
+    assert_match(/já é de/, resposta["error"])
+    post_json "/api/admin/equipes", { "nome" => "Sem sigla", "tipo" => "departamento" }
+    assert_match(/sigla/, resposta["error"])
+    put_json "/api/admin/equipes/#{@suplan}", { "pai_id" => @dtad }
+    assert_equal 422, last_response.status, "ciclo"
+    delete "/api/admin/equipes/#{@dgeo}"
+    assert_equal 422, last_response.status, "unidade com unidades dentro"
+    post_json "/api/admin/equipes", { "sigla" => "DCAD2", "nome" => "Divisão interna", "tipo" => "divisao", "pai_id" => @dcad }
+    assert_equal 201, last_response.status, "divisão dentro de divisão é aceita"
+  end
+
+  def test_estrutura_modelo_nao_duplica
+    configurar!
+    post_json "/api/admin/equipes/modelo", {}
+    assert_equal 9, resposta["criadas"]
+    post_json "/api/admin/equipes/modelo", {}
+    assert_equal 0, resposta["criadas"]
+    assert_equal "SEMEC / SUPLAN / DGEO / DTAD", resposta["equipes"].find { |e| e["sigla"] == "DTAD" }["caminho"]
+  end
+
+  # --- gestão em cascata ----------------------------------------------------------
+
+  def test_larissa_gere_suplan_e_surcam_inteiras
+    montar!
+    como("larissa") do
+      get "/api/gestao"
+      assert_equal 200, last_response.status
+      assert_equal %w[DASI DCAD DGEO DIPLAD DTAD SUPLAN SURÇAM], resposta["unidades"].map { |e| e["sigla"] }.sort
+      %w[larissa marvin eduardo hayrine fora].each { |l| assert(resposta["pessoas"].any? { |p| p["login"] == l }, l) }
+
+      post_json "/api/gestao/usuarios", { "login" => "novo.dtad", "nome" => "Novo", "unidade_id" => @dtad }
+      assert_equal 201, last_response.status, last_response.body
+      assert resposta["senha_temporaria"]
+      novo = resposta["usuario"]["id"]
+      post_json "/api/gestao/usuarios", { "login" => "novo.surcam", "nome" => "Novo 2", "unidade_id" => @surcam }
+      assert_equal 201, last_response.status
+      post_json "/api/gestao/usuarios", { "login" => "adm2", "nome" => "X", "unidade_id" => @surcam, "perfil" => "admin" }
+      assert_equal 403, last_response.status, "gestor não cria administrador"
+      post_json "/api/gestao/usuarios", { "login" => "x.semec", "nome" => "X", "unidade_id" => @semec }
+      assert_equal 403, last_response.status, "SEMEC está acima dela"
+
+      delete "/api/gestao/unidades/#{@dtad}/membros/#{novo}"
+      assert_equal 200, last_response.status
+      put_json "/api/gestao/unidades/#{@dcad}/membros/#{novo}", { "papel" => "gestor" }
+      assert_equal 200, last_response.status
+      post_json "/api/gestao/usuarios/#{novo}/ativo", { "ativo" => false }
+      assert_equal 200, last_response.status
+      delete "/api/gestao/usuarios/#{novo}"
+      assert_equal 200, last_response.status
+      delete "/api/gestao/unidades/#{@suplan}"
+      assert_equal 403, last_response.status, "não exclui a unidade que ela gere"
+      post_json "/api/gestao/unidades", { "sigla" => "DNOVO", "nome" => "Departamento novo", "tipo" => "departamento", "pai_id" => @suplan }
+      assert_equal 201, last_response.status, last_response.body
+    end
+  end
+
+  def test_marvin_so_no_dgeo_e_eduardo_so_no_dtad
+    montar!
+    como("marvin") do
+      get "/api/gestao"
+      assert_equal %w[DASI DCAD DGEO DTAD], resposta["unidades"].map { |e| e["sigla"] }.sort
+      put_json "/api/gestao/unidades/#{@dcad}/membros/#{@fora}", { "papel" => "membro" }
+      assert_equal 200, last_response.status
+      post_json "/api/gestao/usuarios", { "login" => "x.surcam", "nome" => "X", "unidade_id" => @surcam }
+      assert_equal 403, last_response.status
+      post_json "/api/gestao/usuarios/#{@fora}/ativo", { "ativo" => false }
+      assert_equal 403, last_response.status, "'fora' também está no DIPLAD, fora do alcance do Marvin"
+      post_json "/api/gestao/usuarios/#{@larissa}/senha-temporaria", {}
+      assert_equal 403, last_response.status
+    end
+    como("eduardo") do
+      get "/api/gestao"
+      assert_equal %w[DTAD], resposta["unidades"].map { |e| e["sigla"] }
+      put_json "/api/gestao/unidades/#{@dtad}/membros/#{@hayrine}", { "papel" => "membro" }
+      assert_equal 200, last_response.status
+      put_json "/api/gestao/unidades/#{@dcad}/membros/#{@eduardo}", { "papel" => "gestor" }
+      assert_equal 403, last_response.status, "não se promove fora do DTAD"
+      delete "/api/gestao/unidades/#{@dtad}/membros/#{@eduardo}"
+      assert_equal 403, last_response.status, "não se tira da unidade que gere"
+    end
+    como("hayrine") do
+      get "/api/gestao"
+      assert_equal 403, last_response.status, "membro comum não usa a gestão"
+      get "/api/status"
+      refute resposta["usuario"]["gestor"]
+    end
+  end
+
+  # --- registros por unidade --------------------------------------------------------
+
+  def test_registros_seguem_a_unidade_em_cascata
+    skip "motor C++ não compilado" unless motor?
+    montar!
+    instalar_demandas!
+    dcad = criar_demanda!(demanda(DCAD, titulo: "Do DCAD"))
+
+    get "/api/modulos/demandas"
+    assert_nil resposta["opcoes_unidade"], "admin lança em qualquer divisão"
+    como("eduardo") do
+      get "/api/modulos/demandas"
+      assert_equal [DTAD], resposta["opcoes_unidade"]
+      post_json "/api/modulos/demandas/registros", demanda(DTAD)
+      assert_equal 201, last_response.status
+      dtad = resposta["id"]
+      post_json "/api/modulos/demandas/registros", demanda(DCAD)
+      assert_equal 403, last_response.status, "Eduardo não lança no DCAD"
+      put_json "/api/modulos/demandas/registros/#{dcad}", demanda(DCAD, titulo: "Mudado")
+      assert_equal 403, last_response.status, "nem edita o DCAD"
+      delete "/api/modulos/demandas/registros/#{dcad}"
+      assert_equal 403, last_response.status
+      patch_json "/api/modulos/demandas/registros/#{dtad}", { "divisao_responsavel" => DCAD }
+      assert_equal 403, last_response.status, "não passa a demanda para o DCAD"
+      patch_json "/api/modulos/demandas/registros/#{dtad}", { "status_tramitacao" => "Deferido / Concluído" }
+      assert_equal 200, last_response.status
+    end
+    como("hayrine") do
+      patch_json "/api/modulos/demandas/registros/#{dcad}", { "prioridade" => "Alta" }
+      assert_equal 200, last_response.status, "membro edita a da própria divisão"
+      delete "/api/modulos/demandas/registros/#{dcad}"
+      assert_equal 403, last_response.status, "excluir é do gestor"
+      propria = criar_demanda!(demanda(DCAD, titulo: "Da Hayrine"))
+      delete "/api/modulos/demandas/registros/#{propria}"
+      assert_equal 200, last_response.status, "quem lançou pode excluir"
+    end
+    como("fora") do
+      patch_json "/api/modulos/demandas/registros/#{dcad}", { "prioridade" => "Baixa" }
+      assert_equal 403, last_response.status, "DIPLAD não mexe no DGEO"
+    end
+    como("larissa") do
+      patch_json "/api/modulos/demandas/registros/#{dcad}", { "prioridade" => "Baixa" }
+      assert_equal 200, last_response.status, "gestora da SUPLAN edita o que está abaixo"
+    end
+    como("marvin") do
+      delete "/api/modulos/demandas/registros/#{dcad}"
+      assert_equal 200, last_response.status, "gestor do DGEO exclui da divisão"
+    end
+  end
+
+  # Anotações (item 2): o caderno criado por alguém e compartilhado com a
+  # unidade pode ser excluído por quem gere essa unidade, em cascata.
+  def test_caderno_de_anotacoes_excluido_em_cascata
+    montar!
+    como("eduardo") do
+      post_json "/api/templates/instalar", { "template_id" => "anotacoes", "com_exemplos" => true }
+      assert_equal 200, last_response.status, last_response.body
+      put_json "/api/modulos/anotacoes/compartilhar", { "visibilidade" => "equipes", "equipes" => [@dtad] }
+      assert_equal 200, last_response.status, last_response.body
+    end
+    como("hayrine") do
+      get "/api/modulos/anotacoes"
+      assert_equal 404, last_response.status, "DCAD não vê o caderno do DTAD"
+    end
+    como("fora") do
+      delete "/api/modulos/anotacoes"
+      assert_equal 404, last_response.status
+    end
+    como("marvin") do
+      get "/api/modulos/anotacoes"
+      assert resposta["editavel"], "gestor do DGEO altera o que é do DTAD"
+      delete "/api/modulos/anotacoes"
+      assert_equal 200, last_response.status
+    end
+  end
+
+  # --- produtividade (função mestre) ----------------------------------------------
+
+  def test_produtividade_soma_de_baixo_para_cima
+    skip "motor C++ não compilado" unless motor?
+    montar!
+    instalar_demandas!
+    hoje = Date.today
+    criar_demanda!(demanda(DCAD, prazo: (hoje - 2).iso8601))                       # atrasada
+    criar_demanda!(demanda(DCAD, status: "Deferido / Concluído", prazo: (hoje - 2).iso8601))
+    criar_demanda!(demanda(DTAD, prazo: (hoje + 3).iso8601))                       # vence em 7 dias
+    criar_demanda!(demanda(DTAD, status: "Indeferido / Arquivado"))
+    criar_demanda!(demanda(DASI))                                                  # sem prazo
+    criar_demanda!(demanda(GAB, prazo: (hoje + 30).iso8601))                       # do próprio DGEO
+
+    get "/api/produtividade?modulo=demandas"
+    assert_equal 200, last_response.status, last_response.body
+    u = resposta["unidades"].to_h { |x| [x["sigla"], x] }
+    assert_equal 2, u["DCAD"]["total"]["total"]
+    assert_equal 1, u["DCAD"]["total"]["atrasados"]
+    assert_equal 1, u["DTAD"]["total"]["vencem_7"]
+    assert_equal 1, u["DTAD"]["total"]["encerrados"]
+    assert_equal 1, u["DGEO"]["direto"]["total"], "Gabinete do Diretor conta no próprio DGEO"
+    assert_equal 6, u["DGEO"]["total"]["total"], "DGEO = DCAD + DTAD + DASI + o dele"
+    assert_equal 6, u["SUPLAN"]["total"]["total"], "SUPLAN recebe o DGEO"
+    assert_equal 6, u["SEMEC"]["total"]["total"], "SEMEC recebe a SUPLAN"
+    assert_equal 0, u["SURÇAM"]["total"]["total"]
+    dgeo = u["DGEO"]["total"]
+    assert_equal [1, 1, 4, 1, 1, 1], dgeo.values_at("concluidos", "encerrados", "andamento", "atrasados", "vencem_7", "sem_prazo")
+    assert_in_delta 33.3, dgeo["taxa"], 0.1
+
+    get "/api/produtividade"
+    assert_equal 6, resposta["unidades"].find { |x| x["sigla"] == "SEMEC" }["total"]["total"], "sem módulo: soma os dois (SEI vazio)"
+
+    como("eduardo") do
+      get "/api/produtividade"
+      assert_equal %w[DTAD], resposta["unidades"].map { |x| x["sigla"] }, "gestor vê só o escopo"
+      assert_nil resposta["sem_unidade"]
+    end
+    como("hayrine") do
+      get "/api/produtividade"
+      assert_equal 403, last_response.status
+    end
+  end
+
+  # --- classificar por ------------------------------------------------------------
+
+  def test_classificar_por
+    skip "motor C++ não compilado" unless motor?
+    configurar!
+    instalar_demandas!
+    hoje = Date.today
+    criar_demanda!(demanda(DCAD, prioridade: "Baixa", prazo: (hoje + 9).iso8601, titulo: "beta"))
+    criar_demanda!(demanda(DCAD, prioridade: "Urgente (Prazo Legal / Judicial)", titulo: "Álvaro"))
+    criar_demanda!(demanda(DCAD, prioridade: "Alta", prazo: (hoje + 1).iso8601, titulo: "carta"))
+    lista = ->(ordem) { get "/api/modulos/demandas/registros?ordem=#{ordem}"; resposta["result"].map { |r| r["titulo_processo"] } }
+    assert_equal %w[Álvaro beta carta], lista.("titulo_processo:asc"), "A-Z sem diferenciar acento"
+    assert_equal %w[carta beta Álvaro], lista.("data_limite:asc"), "prazo mais próximo primeiro; sem prazo no fim"
+    assert_equal %w[Álvaro carta beta], lista.("prioridade:desc"), "seleção na ordem das opções"
+    assert_equal %w[beta Álvaro carta], lista.("_criado_em:asc")
+    assert_equal %w[carta Álvaro beta], lista.("nao_existe:asc"), "inválido: ordem padrão (mais novo antes)"
+  end
+
+  def test_tema_floresta
+    configurar!
+    %w[floresta_dia floresta_tarde floresta_noite].each do |t|
+      put_json "/api/eu/preferencias", { "tema" => t }
+      assert_equal t, resposta["preferencias"]["tema"]
+    end
+  end
+
+  # Duas de cada (pedido 8): secretariasteste1/2 > subsecretariasteste > departamentoteste > divisaoteste,
+  # com usuariodepartamentoteste1/2. Um não enxerga nem altera o que é do outro.
+  def test_duas_de_cada_nao_se_misturam
+    skip "motor C++ não compilado" unless motor?
+    configurar!
+    ids = {}
+    [1, 2].each do |n|
+      ids["sec#{n}"] = unidade!("SECTESTE#{n}", "secretaria", nome: "secretariasteste#{n}")
+      ids["sub#{n}"] = unidade!("SUBTESTE#{n}", "subsecretaria", ids["sec#{n}"], nome: "subsecretariateste#{n}")
+      ids["dep#{n}"] = unidade!("DEPTESTE#{n}", "departamento", ids["sub#{n}"], nome: "departamentoteste#{n}")
+      ids["div#{n}"] = unidade!("DIVTESTE#{n}", "divisao", ids["dep#{n}"], nome: "divisaoteste#{n}")
+      usuario!("usuariosecretariateste#{n}", gestor_de: [ids["sec#{n}"]])
+      usuario!("usuariodepartamentoteste#{n}", gestor_de: [ids["dep#{n}"]])
+      usuario!("usuariodivisaoteste#{n}", unidades: [ids["div#{n}"]])
+    end
+    post_json "/api/modulos", { "slug" => "teste_mod", "nome" => "Teste", "unidade" => "unidade",
+                                "produtividade" => { "status" => "status", "concluido" => ["Feito"] },
+                                "campos" => [{ "id" => "t", "nome" => "T", "tipo" => "texto" },
+                                             { "id" => "unidade", "nome" => "Unidade", "tipo" => "selecao", "opcoes" => %w[DIVTESTE1 DIVTESTE2 DEPTESTE1] },
+                                             { "id" => "status", "nome" => "Status", "tipo" => "selecao", "opcoes" => %w[Aberto Feito] }] }
+    assert_equal 201, last_response.status, last_response.body
+    put_json "/api/modulos/teste_mod/compartilhar", { "visibilidade" => "todos" }
+
+    como("usuariodivisaoteste1") do
+      post_json "/api/modulos/teste_mod/registros", { "t" => "a", "unidade" => "DIVTESTE1", "status" => "Aberto" }
+      assert_equal 201, last_response.status
+      post_json "/api/modulos/teste_mod/registros", { "t" => "b", "unidade" => "DIVTESTE2", "status" => "Aberto" }
+      assert_equal 403, last_response.status
+    end
+    como("usuariodepartamentoteste2") do
+      post_json "/api/modulos/teste_mod/registros", { "t" => "c", "unidade" => "DIVTESTE2", "status" => "Feito" }
+      assert_equal 201, last_response.status, "gestor do departamento 2 lança na divisão 2"
+      post_json "/api/modulos/teste_mod/registros", { "t" => "d", "unidade" => "DEPTESTE1", "status" => "Aberto" }
+      assert_equal 403, last_response.status
+      get "/api/produtividade"
+      assert_equal %w[DEPTESTE2 DIVTESTE2], resposta["unidades"].map { |x| x["sigla"] }
+      assert_equal 1, resposta["unidades"].first["total"]["concluidos"]
+    end
+    como("usuariosecretariateste1") do
+      get "/api/produtividade"
+      sec = resposta["unidades"].find { |x| x["sigla"] == "SECTESTE1" }
+      assert_equal 1, sec["total"]["total"], "secretaria 1 só soma a sua árvore"
+      refute(resposta["unidades"].any? { |x| x["sigla"].end_with?("2") })
+    end
+  end
+end

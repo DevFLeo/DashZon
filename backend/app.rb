@@ -12,6 +12,8 @@ require_relative "lib/correio"
 require_relative "lib/usuarios"
 require_relative "lib/equipes"
 require_relative "lib/acesso"
+require_relative "lib/unidades"
+require_relative "lib/produtividade"
 require_relative "lib/solicitacoes"
 require_relative "lib/desempenho"
 require_relative "lib/seguranca"
@@ -238,8 +240,33 @@ helpers do
       "visibilidade" => m["visibilidade"] || "todos",
       "equipes" => nomes_das_equipes(acesso.equipes_dos_modulos[m["id"]]),
       "dono_nome" => dono && (dono["nome"].to_s.empty? ? dono["login"] : dono["nome"]),
-      "editavel" => acesso.modulo_editavel?(m)
+      "editavel" => acesso.modulo_editavel?(m),
+      # Opções do campo de unidade em que a pessoa pode lançar (nil = todas).
+      "opcoes_unidade" => m["schema"]["unidade"] ? acesso.opcoes_permitidas(m) : nil
     ).merge(totais ? { "total" => totais[m["id"]] || 0 } : {}).merge(exemplos ? { "exemplos" => exemplos[m["id"]] || 0 } : {})
+  end
+
+  # Registro que a pessoa pode alterar (acao :editar) ou excluir (:excluir):
+  # regras em Acesso#registro_editavel? (unidade do registro, em cascata).
+  # O visualizador continua pedindo aprovação (antes desta checagem).
+  def registro_permitido!(m, id, dados, acao)
+    return if acesso.visualizador?
+    return if acesso.registro_editavel?(m, dados, Database.autor_de(id), acao)
+
+    verbo = acao == :excluir ? "excluir" : "alterar"
+    halt json({ error: "Você não pode #{verbo} este registro: ele é de outra unidade (só a unidade dele e quem a gere, em cascata)" }, 403)
+  end
+
+  def criacao_permitida!(m, dados)
+    return if acesso.visualizador? || acesso.pode_criar_registro?(m, dados)
+
+    halt json({ error: "Você só pode lançar registros da sua unidade (ou das unidades que você gere)" }, 403)
+  end
+
+  # Trocar a unidade de um registro exige poder lançar na unidade nova.
+  def mudou_de_unidade!(m, antes, dados)
+    campo = m["schema"]["unidade"]
+    criacao_permitida!(m, dados) if campo && antes[campo] != dados[campo]
   end
 
   def texto_campos(schema)
@@ -363,7 +390,9 @@ get "/api/status" do
   # regras_senha: as telas mostram o mínimo e o que é exigido (nada secreto).
   base = { configured: true, org_name: cfg["org_name"], email_configurado: Correio.configurado?, regras_senha: Usuarios.regras_senha }
   if u
-    json base.merge(usuario: Usuarios.publico(u), moeda: cfg["moeda"])
+    # gestor: a pessoa gere alguma unidade (ou é admin): mostra o painel de
+    # produtividade e a tela "Minha equipe".
+    json base.merge(usuario: Usuarios.publico(u).merge("gestor" => acesso.gestor?), moeda: cfg["moeda"])
   else
     # Antes do login: só o necessário para a tela de entrada.
     json base.merge(usuario: nil, sem_usuario: !Usuarios.existe_algum?)
@@ -432,6 +461,19 @@ AUDITORIA = [
   ["PUT", %r{\A/api/admin/equipes/(\d+)\z}, "equipe_alterada", :equipe],
   ["DELETE", %r{\A/api/admin/equipes/(\d+)\z}, "equipe_excluida", :equipe],
   ["PUT", %r{\A/api/admin/equipes/(\d+)/membros\z}, "equipe_membros", :equipe],
+  ["POST", %r{\A/api/admin/equipes/modelo\z}, "estrutura_modelo", nil],
+  # Gestores, dentro do escopo deles (rotas/gestao.rb).
+  ["POST", %r{\A/api/gestao/unidades\z}, "unidade_criada", nil],
+  ["PUT", %r{\A/api/gestao/unidades/(\d+)\z}, "unidade_alterada", :equipe],
+  ["DELETE", %r{\A/api/gestao/unidades/(\d+)\z}, "unidade_excluida", :equipe],
+  ["PUT", %r{\A/api/gestao/unidades/(\d+)/membros/\d+\z}, "membro_definido", :equipe],
+  ["DELETE", %r{\A/api/gestao/unidades/(\d+)/membros/\d+\z}, "membro_removido", :equipe],
+  ["POST", %r{\A/api/gestao/usuarios\z}, "usuario_criado", nil],
+  ["POST", %r{\A/api/gestao/usuarios/(\d+)/ativo\z}, "usuario_ativo", :usuario],
+  ["POST", %r{\A/api/gestao/usuarios/(\d+)/senha-temporaria\z}, "senha_temporaria", :usuario],
+  ["DELETE", %r{\A/api/gestao/usuarios/(\d+)\z}, "usuario_excluido", :usuario],
+  # Registros: quem alterou ou excluiu (a cascata dá esse poder a gestores).
+  ["DELETE", %r{\A/api/modulos/([^/]+)/registros/\d+\z}, "registro_excluido", :modulo],
   ["PUT", %r{\A/api/admin/ajustes\z}, "regras_alteradas", nil],
   ["PUT", %r{\A/api/admin/config\z}, "organizacao_alterada", nil],
   ["POST", %r{\A/api/dashboards\z}, "dashboard_criado", nil],
@@ -480,7 +522,7 @@ helpers do
   def resumo_da_auditoria(d)
     return "" unless d.is_a?(Hash)
 
-    partes = %w[nome login perfil visibilidade template_id].filter_map { |k| "#{k}: #{d[k]}" unless d[k].to_s.empty? }
+    partes = %w[nome sigla tipo login perfil papel visibilidade template_id].filter_map { |k| "#{k}: #{d[k]}" unless d[k].to_s.empty? }
     partes << "ativo: #{d['ativo']}" if d.key?("ativo")
     if d["equipes"].is_a?(Array)
       nomes = Database.rows("SELECT id, nome FROM equipes").to_h { |e| [e["id"], e["nome"]] }
@@ -489,7 +531,7 @@ helpers do
     partes << "membros: #{d['usuario_ids'].size}" if d["usuario_ids"].is_a?(Array)
     partes << "dono: #{Usuarios.por_id(d['dono_id'])&.dig('login')}" if d["dono_id"]
     partes << "fixo: #{d['fixo']}" if d.key?("fixo")
-    outros = d.keys - %w[nome login perfil visibilidade template_id ativo equipes usuario_ids dono_id fixo senha documento motivo]
+    outros = d.keys - %w[nome sigla tipo login perfil papel visibilidade template_id ativo equipes usuario_ids dono_id fixo senha documento motivo]
     partes << "campos: #{outros.first(8).join(', ')}" unless outros.empty?
     partes << "motivo: #{d['motivo']}" unless d["motivo"].to_s.strip.empty?
     partes.join(" · ")
@@ -504,6 +546,8 @@ end
 after "/api/*" do
   tipo, = @auditoria
   next unless tipo && usuario_atual
+
+  tipo = "pedido_criado" if tipo == "registro_excluido" && response.status == 202 # visualizador: virou pedido
   next if tipo == "pedido_criado" && response.status != 202
   next unless response.status.between?(200, 299)
 
@@ -516,11 +560,22 @@ end
 # Login, minha conta e painel do administrador.
 require_relative "rotas/usuarios"
 require_relative "rotas/equipes"
+require_relative "rotas/gestao"
 
 # Equipes que a pessoa pode escolher ao compartilhar (o admin vê todas).
 get "/api/equipes" do
-  todas = Database.rows("SELECT id, nome, empresa FROM equipes ORDER BY lower(nome)")
-  json(todas.select { |e| acesso.pode_compartilhar_com?(e["id"]) }.map { |e| e.merge("empresa" => e["empresa"].to_i == 1) })
+  todas = Database.rows("SELECT id, nome, sigla, tipo, empresa FROM equipes ORDER BY lower(COALESCE(sigla, nome))")
+  json(todas.select { |e| acesso.pode_compartilhar_com?(e["id"]) }.map do |e|
+    e.merge("empresa" => e["empresa"].to_i == 1, "caminho" => Unidades.caminho(e["id"], acesso.unidades_por_id))
+  end)
+end
+
+# Painel de produtividade (função mestre, lib/produtividade.rb): gestores
+# (de qualquer unidade) e administradores. ?modulo=slug filtra um módulo.
+get "/api/produtividade" do
+  halt json({ error: "Só gestores de unidade e administradores veem o painel de produtividade" }, 403) unless acesso.gestor?
+
+  json Produtividade.painel(acesso, slug: params[:modulo].to_s.empty? ? nil : params[:modulo].to_s)
 end
 
 # Pedidos do perfil visualizador (lib/solicitacoes.rb): os que a pessoa
@@ -733,7 +788,10 @@ get "/api/modulos/:slug/registros" do
   filtros = params["f"].is_a?(Hash) ? params["f"].reject { |_, v| v.to_s.empty? } : {}
   inicio = [params[:inicio].to_i, 0].max
   limite = (params[:limite] || REGISTROS_POR_PAGINA).to_i.clamp(1, REGISTROS_MAX_PAGINA)
-  res = CacheResultados.buscar("busca", m["id"], m["schema"], params[:q].to_s, filtros, inicio, limite) do
+  # "Classificar por" escolhido na tela (?ordem=campo:asc|desc); inválido = a
+  # ordenação do módulo.
+  ordem = ModuleSchema.ordem_pedida(m["schema"], params[:ordem])
+  res = CacheResultados.buscar("busca", m["id"], m["schema"], params[:q].to_s, filtros, inicio, limite, ordem) do
     tudo = EngineClient.run(
       cmd: "search",
       records: Database.registros(m),
@@ -743,7 +801,7 @@ get "/api/modulos/:slug/registros" do
     )
     # A busca do motor devolve do mais novo para o mais antigo; a ordenação do
     # módulo (ex.: cronograma por data e hora) vale antes de cortar a página.
-    lista = ModuleSchema.ordenar_registros(m["schema"], tudo["result"])
+    lista = ordem ? ModuleSchema.ordenar_por(m["schema"], tudo["result"], ordem) : ModuleSchema.ordenar_registros(m["schema"], tudo["result"])
     { "result" => lista[inicio, limite] || [], "count" => tudo["count"], "inicio" => inicio, "limite" => limite }
   end
   json res
@@ -768,6 +826,8 @@ patch "/api/modulos/:slug/registros/:id" do
 
   dados = ModuleSchema.coerce_registro!(m["schema"], atual.slice(*ids).merge(mudancas))
   pedir_aprovacao!(m, "alterar", registro_id: id, dados: dados)
+  registro_permitido!(m, id, atual, :editar)
+  mudou_de_unidade!(m, atual, dados)
   Database.atualizar_registro(m, id, dados)
   json Database.registro(m, id)
 end
@@ -776,25 +836,33 @@ post "/api/modulos/:slug/registros" do
   m = modulo!(params[:slug])
   dados = ModuleSchema.coerce_registro!(m["schema"], body_json)
   pedir_aprovacao!(m, "criar", dados: dados)
-  id = Database.inserir_registro(m, dados)
+  criacao_permitida!(m, dados)
+  id = nil
+  Database.transaction do
+    id = Database.inserir_registro(m, dados)
+    Database.marcar_autor!(id, usuario_atual["id"])
+  end
   json Database.registro(m, id), 201
 end
 
 put "/api/modulos/:slug/registros/:id" do
   m = modulo!(params[:slug])
   id = params[:id].to_i
-  halt json({ error: "Registro não encontrado" }, 404) unless Database.registro(m, id)
+  antes = Database.registro(m, id) || halt(json({ error: "Registro não encontrado" }, 404))
 
   dados = ModuleSchema.coerce_registro!(m["schema"], body_json)
   pedir_aprovacao!(m, "alterar", registro_id: id, dados: dados)
+  registro_permitido!(m, id, antes, :editar)
+  mudou_de_unidade!(m, antes, dados)
   Database.atualizar_registro(m, id, dados)
   json Database.registro(m, id)
 end
 
 delete "/api/modulos/:slug/registros/:id" do
   m = modulo!(params[:slug])
-  halt json({ error: "Registro não encontrado" }, 404) unless Database.registro(m, params[:id].to_i)
+  antes = Database.registro(m, params[:id].to_i) || halt(json({ error: "Registro não encontrado" }, 404))
   pedir_aprovacao!(m, "excluir", registro_id: params[:id].to_i)
+  registro_permitido!(m, params[:id].to_i, antes, :excluir)
   Database.remover_registro(m, params[:id].to_i)
   json ok: true
 end

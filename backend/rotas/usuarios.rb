@@ -294,10 +294,11 @@ post "/api/admin/usuarios" do
   informada = d["senha"].to_s
   senha = informada.empty? ? Usuarios.senha_temporaria : informada
   equipes = d.key?("equipes") ? Equipes.ids_de_equipes!(d["equipes"]) : nil
+  gestor_de = d.key?("gestor_de") ? Equipes.ids_de_equipes!(d["gestor_de"]) : nil
   id = nil
   Database.transaction do
     id = Usuarios.criar!(d, senha: senha, deve_trocar: informada.empty? || d["deve_trocar_senha"] != false)
-    Equipes.definir_equipes_do_usuario!(id, equipes) if equipes
+    Equipes.definir_equipes_do_usuario!(id, equipes || [], gestor_de) if equipes || gestor_de
   end
   u = Usuarios.por_id(id)
   json({ usuario: Usuarios.publico(u), senha_temporaria: informada.empty? ? senha : nil }, 201)
@@ -309,10 +310,14 @@ put "/api/admin/usuarios/:id" do
   rebaixando = d.key?("perfil") && d["perfil"] != "admin" && alvo["perfil"] == "admin"
   nao_em_si_mesmo!(alvo, "tirar o perfil de administrador de") if rebaixando
   equipes = d.key?("equipes") ? Equipes.ids_de_equipes!(d["equipes"]) : nil
+  gestor_de = d.key?("gestor_de") ? Equipes.ids_de_equipes!(d["gestor_de"]) : nil
   u = nil
   Database.transaction do
     u = Usuarios.atualizar!(alvo["id"], d, por_admin: true)
-    Equipes.definir_equipes_do_usuario!(alvo["id"], equipes) if equipes
+    if equipes || gestor_de
+      atuais = Database.rows("SELECT equipe_id FROM equipe_membros WHERE usuario_id = ?", [alvo["id"]]).map { |r| r["equipe_id"] }
+      Equipes.definir_equipes_do_usuario!(alvo["id"], equipes || atuais, gestor_de)
+    end
   end
   json Usuarios.publico(u)
 end

@@ -7,6 +7,9 @@ TMP_TESTE = Dir.mktmpdir("dashzon-teste")
 ENV["DASHZON_DB_PATH"] = File.join(TMP_TESTE, "teste.db")
 ENV["APP_ENV"] = "test"
 ENV["DASHZON_HOSTS"] = "example.org" # host padrão do Rack::Test
+# Templates que saíram do sistema (Prefeitura DashZ) mas seguem como dados de
+# teste dos tipos genéricos: movimento/saldo, hora, nota (lib/template_registry.rb).
+ENV["DASHZON_TEMPLATES_EXTRA"] = File.expand_path("fixtures", __dir__)
 ENV.delete("DASHZON_SESSION_SECRET")
 %w[HOST PORTA USUARIO SENHA REMETENTE].each { |k| ENV.delete("DASHZON_SMTP_#{k}") }
 

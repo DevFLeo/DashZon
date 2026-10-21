@@ -1,6 +1,8 @@
-# Equipes (Painel do adm > Criar): grupos de usuários, que podem ser uma
-# empresa (com CNPJ). Só administradores: o filtro do app.rb barra
-# /api/admin/* para os demais. Regras em lib/equipes.rb.
+# Estrutura da prefeitura (Painel do adm > Criar): secretarias,
+# subsecretarias, departamentos, divisões e equipes, em árvore, com membros e
+# gestores. Só administradores: o filtro do app.rb barra /api/admin/* para os
+# demais (gestores usam rotas/gestao.rb, limitadas ao escopo deles).
+# Regras em lib/equipes.rb e lib/unidades.rb.
 
 get "/api/admin/equipes" do
   json Equipes.todas
@@ -17,6 +19,12 @@ post "/api/admin/equipes/teste" do
   json Equipes.todas.find { |e| e["id"] == id }, 201
 end
 
+# Estrutura modelo da SEMEC (SEMEC / SUPLAN / DGEO / DCAD...), sem usuários.
+post "/api/admin/equipes/modelo" do
+  criadas = Equipes.criar_modelo!
+  json ok: true, criadas: criadas, equipes: Equipes.todas
+end
+
 put "/api/admin/equipes/:id" do
   Equipes.atualizar!(params[:id], body_json)
   json Equipes.todas.find { |e| e["id"] == params[:id].to_i }
@@ -27,8 +35,10 @@ delete "/api/admin/equipes/:id" do
   json ok: true
 end
 
-# Define exatamente quem está na equipe: { "usuario_ids": [1, 2, 3] }.
+# Define exatamente quem está na unidade: { "usuario_ids": [1, 2, 3],
+# "gestores": [1] } (sem "gestores", os papéis atuais ficam).
 put "/api/admin/equipes/:id/membros" do
-  Equipes.definir_membros!(params[:id], body_json["usuario_ids"])
+  d = body_json
+  Equipes.definir_membros!(params[:id], d["usuario_ids"], d["gestores"])
   json Equipes.todas.find { |e| e["id"] == params[:id].to_i }
 end

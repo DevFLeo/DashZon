@@ -1,6 +1,7 @@
 require "json"
 require_relative "database"
 require_relative "module_schema"
+require_relative "ambiente"
 
 # Templates são arquivos JSON (backend/templates/*.json) que descrevem um
 # pacote de módulos + dados de exemplo + dashboards prontos. O mesmo formato
@@ -8,6 +9,11 @@ require_relative "module_schema"
 # atual (backup / levar para outro servidor).
 module TemplateRegistry
   DIR = File.expand_path("../templates", __dir__)
+  # Pastas extras de templates (separadas por ";"). Só a suíte de testes usa:
+  # os templates antigos (finanças, lote, cronograma) ficaram fora do sistema,
+  # mas continuam como dados de teste dos tipos genéricos (movimento, saldo,
+  # hora, nota). Ver test/test_helper.rb.
+  EXTRAS = Ambiente["DASHZON_TEMPLATES_EXTRA", ""].split(";").map(&:strip).reject(&:empty?)
   FORMATO = "dashzon-template".freeze
 
   module_function
@@ -18,7 +24,7 @@ module TemplateRegistry
   # usuário importou (tabela `jsons` do banco, fora do git). Antes do setup o
   # banco não existe, então só os arquivos aparecem.
   def all
-    padrao = Dir[File.join(DIR, "*.json")].map { |f| JSON.parse(File.read(f, encoding: "UTF-8")).merge("origem" => "padrao") }
+    padrao = ([DIR] + EXTRAS).flat_map { |d| Dir[File.join(d, "*.json")] }.map { |f| JSON.parse(File.read(f, encoding: "UTF-8")).merge("origem" => "padrao") }
                                           .sort_by { |t| [t["ordem"] || 99, t["nome"].to_s] }
     padrao + salvos
   end
@@ -143,7 +149,11 @@ module TemplateRegistry
 
         modulo = { "id" => modulo_id, "schema" => schema }
         agora = Database.agora_i
-        m["seed"].each { |dados| Database.marcar_exemplo!(modulo_id, Database.inserir_registro(modulo, dados, agora)) }
+        m["seed"].each do |dados|
+          rid = Database.inserir_registro(modulo, dados, agora)
+          Database.marcar_exemplo!(modulo_id, rid)
+          Database.marcar_autor!(rid, dono_id)
+        end
       end
 
       pulados = 0

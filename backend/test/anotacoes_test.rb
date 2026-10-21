@@ -75,12 +75,6 @@ class AnotacoesTest < Minitest::Test
 
   # --- templates ---------------------------------------------------------------
 
-  def test_modulo_anotacoes_igual_nos_dois_templates
-    a = template("anotacoes")["modulos"].find { |m| m["slug"] == "anotacoes" }
-    b = template("cronograma-estudos")["modulos"].find { |m| m["slug"] == "anotacoes" }
-    assert_equal a, b, "o módulo Anotações precisa ser idêntico nos dois templates"
-  end
-
   def test_kit_de_estudos_e_anotacoes_sem_duplicar
     configurar!
     instalar!("cronograma-estudos")
@@ -97,24 +91,24 @@ class AnotacoesTest < Minitest::Test
     skip "motor C++ não compilado" unless motor?
     configurar!
     instalar!("anotacoes")
-    get "/api/modulos/anotacoes/registros?q=discriminante"
-    assert_equal ["Funções do 2º grau"], resposta["result"].map { |r| r["titulo"] }
+    get "/api/modulos/anotacoes/registros?q=semsa"
+    assert_equal ["Reunião de alinhamento"], resposta["result"].map { |r| r["titulo"] }
     get "/api/modulos/anotacoes/registros"
     # Pasta e depois título; nota sem pasta (vazio) fica por último.
-    assert_equal ["Present perfect", "Funções do 1º grau", "Funções do 2º grau", "Laços e condicionais",
-                  "Como usar as anotações", "Plano da semana"], resposta["result"].map { |r| r["titulo"] }
+    assert_equal ["Rotina semanal do DGEO", "Reunião de alinhamento", "Processos SEI: como acompanhar",
+                  "Como usar as anotações"], resposta["result"].map { |r| r["titulo"] }
   end
 
   def test_nota_editada_com_patch_guarda_o_markdown
     configurar!
     instalar!("anotacoes")
-    id = Database.registros(Database.modulo("anotacoes")).find { |r| r["titulo"] == "Plano da semana" }["id"]
+    id = Database.registros(Database.modulo("anotacoes")).find { |r| r["titulo"] == "Rotina semanal do DGEO" }["id"]
     novo = "# Plano\n\n- [x] Tudo feito\n\n```\n  recuo mantido\n```"
     patch "/api/modulos/anotacoes/registros/#{id}", JSON.generate("conteudo" => novo), "CONTENT_TYPE" => "application/json"
     assert_equal 200, last_response.status, last_response.body
     get "/api/modulos/anotacoes/registros/#{id}"
     assert_equal novo, resposta["conteudo"]
-    assert_equal "Plano da semana", resposta["titulo"]
+    assert_equal "Rotina semanal do DGEO", resposta["titulo"]
   end
 
   # --- módulos ocultos por usuário ------------------------------------------------

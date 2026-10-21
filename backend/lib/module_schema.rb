@@ -97,6 +97,8 @@ module ModuleSchema
       "visao" => normalize_visao!(defn["visao"], slug, campos),
       "nota" => normalize_nota!(defn["nota"], slug, campos),
       "configuracoes" => normalize_configuracoes!(defn["configuracoes"], slug, vistos),
+      "unidade" => normalize_unidade!(defn["unidade"], slug, campos),
+      "produtividade" => normalize_produtividade!(defn["produtividade"], slug, campos),
       "slots" => atribuir_slots(campos, anterior)
     }.compact
   end
@@ -161,6 +163,86 @@ module ModuleSchema
     end
   end
 
+  # "unidade": id de um campo (seleção ou texto) cujo valor diz de qual unidade
+  # da prefeitura é o registro (ex.: "DCAD - Divisão de Cadastro" -> DCAD, pela
+  # sigla; ver Unidades.resolver). Dá a permissão em cascata (lib/acesso.rb) e
+  # a soma por unidade do painel de produtividade (lib/produtividade.rb).
+  def normalize_unidade!(campo, slug, campos)
+    return nil if campo.nil? || campo.to_s.empty?
+
+    campo_do_tipo!(campos, campo, %w[selecao texto], slug, "o campo de unidade")
+  end
+
+  # "produtividade": {"status": campo de seleção, "concluido": [opções],
+  # "encerrado": [opções] (opcional), "prazo": campo de data (opcional)}. Diz ao
+  # painel do gestor o que é concluído, o que foi encerrado sem conclusão
+  # (arquivado/indeferido) e qual data é o prazo (para "atrasados").
+  def normalize_produtividade!(p, slug, campos)
+    return nil if p.nil?
+    raise Error, "Módulo '#{slug}': 'produtividade' deve ser um objeto" unless p.is_a?(Hash)
+
+    status = campo_do_tipo!(campos, p["status"], %w[selecao], slug, "o status da produtividade")
+    opcoes = campos.find { |c| c["id"] == status }["opcoes"]
+    listas = %w[concluido encerrado].to_h do |k|
+      lista = Array(p[k]).map(&:to_s).uniq
+      lista.each { |o| raise Error, "Módulo '#{slug}': '#{o}' (produtividade.#{k}) não é opção de '#{status}'" unless opcoes.include?(o) }
+      [k, lista]
+    end
+    raise Error, "Módulo '#{slug}': informe ao menos uma opção em 'produtividade.concluido'" if listas["concluido"].empty?
+
+    {
+      "status" => status,
+      "concluido" => listas["concluido"],
+      "encerrado" => listas["encerrado"],
+      "prazo" => campo_do_tipo!(campos, p["prazo"], %w[data], slug, "o prazo da produtividade", obrigatorio: false)
+    }.compact
+  end
+
+  # "Classificar por" da tabela do módulo (a pedido): um critério escolhido na
+  # tela, que vale no lugar da `ordenacao` do módulo. `campo` pode ser um campo
+  # ou _criado_em/_atualizado_em. Seleção segue a ordem das opções (Baixa,
+  # Média, Alta...); vazios sempre por último; empate = mais novo antes.
+  ORDEM_META = %w[_criado_em _atualizado_em].freeze
+
+  def ordem_pedida(schema, texto)
+    campo, direcao = texto.to_s.split(":", 2)
+    direcao = "asc" if direcao.to_s.empty?
+    return nil unless DIRECOES.include?(direcao)
+    return { "campo" => campo, "direcao" => direcao } if ORDEM_META.include?(campo) || campo == "id"
+    return nil unless schema["campos"].any? { |c| c["id"] == campo }
+
+    { "campo" => campo, "direcao" => direcao }
+  end
+
+  def ordenar_por(schema, lista, ordem)
+    c = schema["campos"].find { |x| x["id"] == ordem["campo"] }
+    posicao = c && c["opcoes"] ? c["opcoes"].each_with_index.to_h : nil
+    chave = lambda do |r|
+      v = r[ordem["campo"]]
+      v = nil if v.is_a?(String) && v.strip.empty?
+      return nil if v.nil?
+      return posicao.fetch(v, posicao.size) if posicao
+      return (v ? 1 : 0) if c && c["tipo"] == "booleano"
+
+      # Datas de criação/alteração empatam no mesmo segundo: o id desempata.
+      return [v, r["id"].to_i] if ORDEM_META.include?(ordem["campo"])
+
+      v.is_a?(String) ? v.unicode_normalize(:nfd).gsub(/\p{Mn}/, "").downcase : v
+    end
+    lista.each_with_index.sort do |(a, i), (b, j)|
+      va = chave.call(a)
+      vb = chave.call(b)
+      cmp = if va == vb then 0
+            elsif va.nil? then 1
+            elsif vb.nil? then -1
+            else
+              x = (va <=> vb) || (va.to_s <=> vb.to_s)
+              ordem["direcao"] == "desc" ? -x : x
+            end
+      cmp.zero? ? i <=> j : cmp
+    end.map(&:first)
+  end
+
   # Ordem da lista de registros na tela do módulo (ex.: um cronograma por data
   # e hora). Vazia = do mais novo para o mais antigo, como sempre. Só muda a
   # ordem da lista: cards e resumos não dependem dela.
@@ -216,7 +298,7 @@ module ModuleSchema
 
   # A parte do módulo que vai para a coluna `modulos.schema`.
   def schema_de(modulo)
-    modulo.slice("campos", "rotulo", "resumo", "ordenacao", "visao", "nota", "configuracoes", "slots")
+    modulo.slice("campos", "rotulo", "resumo", "ordenacao", "visao", "nota", "configuracoes", "unidade", "produtividade", "slots")
   end
 
   # Ids dos campos que as consultas do motor realmente leem (agrupar, série,

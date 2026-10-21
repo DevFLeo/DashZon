@@ -12,19 +12,26 @@ sys.path.insert(0, AQUI)  # o Python "embeddable" não põe a pasta do script no
 import importar_planilha as ip  # noqa: E402
 
 EXEMPLOS = os.path.join(AQUI, "..", "exemplos")
-CAMPOS = [  # mesmo schema do template cronograma-estudos
-    {"id": "data", "nome": "Data", "tipo": "data", "obrigatorio": True, "padrao": "$hoje"},
-    {"id": "hora", "nome": "Horário", "tipo": "hora"},
-    {"id": "materia", "nome": "Matéria", "tipo": "selecao", "obrigatorio": True,
-     "opcoes": ["Matemática", "Português", "Inglês", "Física", "Química", "Biologia", "História", "Geografia", "Programação", "Outra"]},
-    {"id": "assunto", "nome": "Assunto", "tipo": "texto", "obrigatorio": True},
-    {"id": "atividade", "nome": "Atividade", "tipo": "selecao", "opcoes": ["Leitura", "Videoaula", "Exercícios", "Resumo", "Revisão", "Simulado"]},
-    {"id": "duracao", "nome": "Duração (horas)", "tipo": "numero"},
-    {"id": "estudado", "nome": "Estudado", "tipo": "booleano"},
-    {"id": "anotacoes", "nome": "Anotações", "tipo": "texto_longo"},
+CAMPOS = [  # mesmo schema do módulo "demandas" (template gestao-demandas)
+    {"id": "titulo_processo", "nome": "Título / Objeto", "tipo": "texto", "obrigatorio": True},
+    {"id": "status_tramitacao", "nome": "Status da Tramitação", "tipo": "selecao", "obrigatorio": True,
+     "opcoes": ["Aguardando Triagem", "Em Análise", "Análise Externa (Outras Secretarias)", "Deferido / Concluído", "Indeferido / Arquivado"]},
+    {"id": "prioridade", "nome": "Prioridade", "tipo": "selecao", "obrigatorio": True,
+     "opcoes": ["Baixa", "Média", "Alta", "Urgente (Prazo Legal / Judicial)"]},
+    {"id": "divisao_responsavel", "nome": "Divisão Responsável", "tipo": "selecao", "obrigatorio": True,
+     "opcoes": ["DCAD - Divisão de Cadastro (Dados)", "DTAD - Divisão de Tecnologia e Dados",
+                "DASI - Divisão de Articulação com Secretarias", "DGEO - Gabinete do Diretor"]},
+    {"id": "servidor_responsavel", "nome": "Servidor Responsável", "tipo": "selecao",
+     "opcoes": ["Marvin (Diretor DGEO)", "Hayrine (Gerente DCAD)", "Edu (Gerente DTAD)", "Davi (Gerente DASI)", "Técnico Designado"]},
+    {"id": "data_limite", "nome": "Prazo Legal (Vencimento)", "tipo": "data"},
+    {"id": "orcamento_estimado", "nome": "Dotação / Custo Estimado", "tipo": "moeda"},
+    {"id": "processo_sei", "nome": "Nº Processo SEI", "tipo": "texto"},
+    {"id": "descricao_demanda", "nome": "Descrição do Pedido / Justificativa", "tipo": "texto_longo", "obrigatorio": True},
 ]
-PRIMEIRA = {"data": "2026-10-12", "hora": "19:00", "materia": "Matemática", "assunto": "Conjuntos e intervalos",
-            "atividade": "Videoaula", "duracao": 1.5, "estudado": True}
+PRIMEIRA = {"titulo_processo": "Atualizar cadastro de escolas no mapa", "status_tramitacao": "Em Análise", "prioridade": "Alta",
+            "divisao_responsavel": "DCAD - Divisão de Cadastro (Dados)", "servidor_responsavel": "Hayrine (Gerente DCAD)",
+            "data_limite": "2026-10-15", "processo_sei": "6016.2026/0001001-1",
+            "descricao_demanda": "Conferir endereços e coordenadas das unidades escolares."}
 
 
 class ConversaoTest(unittest.TestCase):
@@ -80,22 +87,28 @@ class ConversaoTest(unittest.TestCase):
 
 class LeituraTest(unittest.TestCase):
     def test_xlsx_de_exemplo(self):
-        linhas = ip.ler_tabela(os.path.join(EXEMPLOS, "cronograma-estudos.xlsx"))
-        self.assertEqual(linhas[0][:3], ["Data", "Horário", "Matéria"])
+        linhas = ip.ler_tabela(os.path.join(EXEMPLOS, "demandas-dgeo.xlsx"))
+        self.assertEqual(linhas[0][:3], ["Título / Objeto", "Status da Tramitação", "Prioridade"])
         registros, erros, ignoradas = ip.montar_registros(linhas, CAMPOS)
-        self.assertEqual((len(registros), erros, ignoradas), (14, [], []))
+        self.assertEqual((len(registros), erros, ignoradas), (8, [], []))
         self.assertEqual(registros[0], (2, PRIMEIRA))
+        self.assertEqual(registros[3][1]["orcamento_estimado"], 18500.0)
 
     def test_csv_de_exemplo_da_o_mesmo_que_o_xlsx(self):
-        xlsx, _, _ = ip.montar_registros(ip.ler_tabela(os.path.join(EXEMPLOS, "cronograma-estudos.xlsx")), CAMPOS)
-        csv_, erros, _ = ip.montar_registros(ip.ler_tabela(os.path.join(EXEMPLOS, "cronograma-estudos.csv")), CAMPOS)
+        xlsx, _, _ = ip.montar_registros(ip.ler_tabela(os.path.join(EXEMPLOS, "demandas-dgeo.xlsx")), CAMPOS)
+        csv_, erros, _ = ip.montar_registros(ip.ler_tabela(os.path.join(EXEMPLOS, "demandas-dgeo.csv")), CAMPOS)
         self.assertEqual(erros, [])
-        # O CSV traz a duração como texto ("1,5"); o resto é igual.
-        normal = lambda regs: [(n, {**r, "duracao": float(str(r["duracao"]).replace(",", "."))}) for n, r in regs]
+        # O CSV traz o custo como texto ("18500,00"); o resto é igual.
+        valor = lambda v: v if isinstance(v, float) else float(v.replace(".", "").replace(",", "."))
+        normal = lambda regs: [(n, {**r, **({"orcamento_estimado": valor(r["orcamento_estimado"])} if "orcamento_estimado" in r else {})})
+                               for n, r in regs]
         self.assertEqual(normal(csv_), normal(xlsx))
 
     def test_csv_com_virgula_cp1252_linhas_vazias_e_erros(self):
-        conteudo = "Assunto,Matéria,Data,Coluna extra\nFrações,Matematica,01/11/2026,a\n,,,\nSem matéria,,02/11/2026,b\nX,Química,31/02/2026,c\n"
+        conteudo = ("Título / Objeto,Prioridade,Status da Tramitação,Divisão Responsável,Descrição do Pedido / Justificativa,Prazo Legal (Vencimento),Coluna extra\n"
+                    "Mapa de escolas,alta,em analise,DCAD - Divisão de Cadastro (Dados),Atualizar,01/11/2026,a\n,,,,,,\n"
+                    "Sem prioridade,,Em Análise,DTAD - Divisão de Tecnologia e Dados,X,02/11/2026,b\n"
+                    "Data errada,Baixa,Em Análise,DTAD - Divisão de Tecnologia e Dados,X,31/02/2026,c\n")
         with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="cp1252", newline="") as f:
             f.write(conteudo)
         try:
@@ -103,15 +116,18 @@ class LeituraTest(unittest.TestCase):
         finally:
             os.unlink(f.name)
         self.assertEqual(ignoradas, ["Coluna extra"])
-        # Sem a coluna "Estudado", o campo fica de fora (a API aplica o padrão).
-        # "Sem matéria" passa aqui e é recusada pela API (campo obrigatório).
-        self.assertEqual(registros, [(2, {"assunto": "Frações", "materia": "Matemática", "data": "2026-11-01"}),
-                                     (4, {"assunto": "Sem matéria", "data": "2026-11-02"})])
+        # Seleção sem diferenciar acento e maiúsculas ("em analise" -> "Em Análise").
+        # "Sem prioridade" passa aqui e é recusada pela API (campo obrigatório).
+        self.assertEqual(registros, [
+            (2, {"titulo_processo": "Mapa de escolas", "prioridade": "Alta", "status_tramitacao": "Em Análise",
+                 "divisao_responsavel": "DCAD - Divisão de Cadastro (Dados)", "descricao_demanda": "Atualizar", "data_limite": "2026-11-01"}),
+            (4, {"titulo_processo": "Sem prioridade", "status_tramitacao": "Em Análise",
+                 "divisao_responsavel": "DTAD - Divisão de Tecnologia e Dados", "descricao_demanda": "X", "data_limite": "2026-11-02"})])
         self.assertEqual([n for n, _ in erros], [5])  # data que não existe; a linha 3 (vazia) é pulada
 
     def test_falta_coluna_obrigatoria(self):
-        with self.assertRaisesRegex(ip.ErroPlanilha, "Matéria"):
-            ip.montar_registros([["Assunto"], ["a"]], CAMPOS)
+        with self.assertRaisesRegex(ip.ErroPlanilha, "Prioridade"):
+            ip.montar_registros([["Título / Objeto"], ["a"]], CAMPOS)
 
     def test_nenhuma_coluna_reconhecida(self):
         with self.assertRaisesRegex(ip.ErroPlanilha, "Nenhuma coluna"):

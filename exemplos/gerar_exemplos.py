@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Gera as planilhas de exemplo do Cronograma de estudos:
+"""Gera as planilhas de exemplo da Gestão de Demandas do DGEO:
 
-  exemplos/cronograma-estudos.xlsx  (Excel: data e horário em células de data/hora)
-  exemplos/cronograma-estudos.csv   (como o Excel brasileiro salva: ; e DD/MM/AAAA)
+  exemplos/demandas-dgeo.xlsx  (Excel: prazo em célula de data, custo em número)
+  exemplos/demandas-dgeo.csv   (como o Excel brasileiro salva: ; e DD/MM/AAAA)
 
 As duas têm as mesmas linhas e o cabeçalho com os nomes dos campos do módulo
-"Cronograma de estudos" (template cronograma-estudos). Para importar:
+"Gestão de Demandas - DGEO" (template gestao-demandas). Para importar:
 
-  python scripts/importar_planilha.py exemplos/cronograma-estudos.xlsx --modulo cronograma_estudos --usuario SEU_LOGIN
+  python scripts/importar_planilha.py exemplos/demandas-dgeo.xlsx --modulo demandas --usuario SEU_LOGIN
 
 Só biblioteca padrão. Rode de novo depois de mudar LINHAS.
 """
@@ -18,31 +18,31 @@ import zipfile
 from xml.sax.saxutils import escape
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
-CABECALHO = ["Data", "Horário", "Matéria", "Assunto", "Atividade", "Duração (horas)", "Estudado", "Anotações"]
+CABECALHO = ["Título / Objeto", "Status da Tramitação", "Prioridade", "Divisão Responsável", "Servidor Responsável",
+             "Prazo Legal (Vencimento)", "Dotação / Custo Estimado", "Nº Processo SEI", "Descrição do Pedido / Justificativa"]
 INICIO = dt.date(2026, 10, 12)  # uma segunda-feira
 
-# (dia a partir do INÍCIO, horário, matéria, assunto, atividade, horas, estudado, anotações)
+DCAD = "DCAD - Divisão de Cadastro (Dados)"
+DTAD = "DTAD - Divisão de Tecnologia e Dados"
+DASI = "DASI - Divisão de Articulação com Secretarias"
+GAB = "DGEO - Gabinete do Diretor"
+
+# (título, status, prioridade, divisão, servidor, dia do prazo a partir do INÍCIO, custo, nº SEI, descrição)
 LINHAS = [
-    (0, "19:00", "Matemática", "Conjuntos e intervalos", "Videoaula", 1.5, True, ""),
-    (0, "20:45", "Português", "Classes de palavras", "Leitura", 1.0, True, ""),
-    (1, "19:00", "Programação", "Variáveis e tipos", "Exercícios", 2.0, True, "Lista 1 completa"),
-    (2, "19:00", "Inglês", "Simple past", "Exercícios", 1.0, False, "Remarcar"),
-    (2, "20:15", "Física", "Grandezas e unidades", "Resumo", 1.0, True, ""),
-    (3, "19:30", "Matemática", "Funções do 1º grau", "Exercícios", 2.0, True, ""),
-    (4, "19:00", "História", "Brasil Colônia", "Leitura", 1.5, False, ""),
-    (5, "09:00", "Química", "Modelos atômicos", "Videoaula", 1.5, False, ""),
-    (5, "10:45", "Biologia", "Citologia", "Resumo", 1.0, False, ""),
-    (7, "19:00", "Programação", "Funções", "Videoaula", 1.5, False, ""),
-    (8, "19:00", "Português", "Concordância verbal", "Exercícios", 1.0, False, ""),
-    (9, "19:30", "Geografia", "Clima e vegetação", "Leitura", 1.0, False, ""),
-    (10, "19:00", "Matemática", "Revisão: funções", "Revisão", 2.0, False, ""),
-    (12, "09:00", "Outra", "Simulado geral", "Simulado", 4.0, False, "Cronometrar"),
+    ("Atualizar cadastro de escolas no mapa", "Em Análise", "Alta", DCAD, "Hayrine (Gerente DCAD)", 3, 0, "6016.2026/0001001-1", "Conferir endereços e coordenadas das unidades escolares."),
+    ("Base de matrículas georreferenciada", "Aguardando Triagem", "Média", DTAD, "Edu (Gerente DTAD)", 10, 0, "", "Cruzar matrículas com setores censitários."),
+    ("Ofício da SEMSA sobre área de risco", "Análise Externa (Outras Secretarias)", "Urgente (Prazo Legal / Judicial)", DASI, "Davi (Gerente DASI)", 1, 0, "6016.2026/0001002-0", "Responder ofício com mapa das escolas em área de risco."),
+    ("Licença de software de geoprocessamento", "Em Análise", "Alta", DTAD, "Edu (Gerente DTAD)", 20, 18500.0, "6016.2026/0001003-8", "Renovação anual das licenças."),
+    ("Relatório anual de cobertura escolar", "Deferido / Concluído", "Média", GAB, "Marvin (Diretor DGEO)", -5, 0, "", "Entregue à SUPLAN."),
+    ("Pedido de mapa para audiência pública", "Indeferido / Arquivado", "Baixa", DASI, "Técnico Designado", -12, 0, "", "Pedido duplicado; arquivado."),
+    ("Correção de limites de bairros", "Aguardando Triagem", "Baixa", DCAD, "Técnico Designado", 30, 0, "", "Divergência entre bases municipais."),
+    ("Demanda judicial: transporte escolar", "Em Análise", "Urgente (Prazo Legal / Judicial)", GAB, "Marvin (Diretor DGEO)", -1, 0, "6016.2026/0001004-6", "Prazo judicial para informar rotas."),
 ]
 
 
 def linhas_completas():
-    for dia, hora, *resto in LINHAS:
-        yield (INICIO + dt.timedelta(days=dia), hora, *resto)
+    for titulo, status, prioridade, divisao, servidor, dia, custo, sei, descricao in LINHAS:
+        yield (titulo, status, prioridade, divisao, servidor, INICIO + dt.timedelta(days=dia), custo, sei, descricao)
 
 
 # ----------------------------------------------------------------- CSV ----
@@ -52,9 +52,9 @@ def gerar_csv(caminho):
     with open(caminho, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f, delimiter=";")
         w.writerow(CABECALHO)
-        for data, hora, materia, assunto, atividade, horas, estudado, notas in linhas_completas():
-            w.writerow([data.strftime("%d/%m/%Y"), hora, materia, assunto, atividade,
-                        f"{horas:g}".replace(".", ","), "Sim" if estudado else "Não", notas])
+        for titulo, status, prioridade, divisao, servidor, prazo, custo, sei, descricao in linhas_completas():
+            w.writerow([titulo, status, prioridade, divisao, servidor, prazo.strftime("%d/%m/%Y"),
+                        f"{custo:.2f}".replace(".", ",") if custo else "", sei, descricao])
 
 
 # ---------------------------------------------------------------- XLSX ----
@@ -80,10 +80,10 @@ def _celula(ref, valor, estilo=0):
 
 
 def gerar_xlsx(caminho):
-    # Estilos: 1 = cabeçalho em negrito, 2 = data DD/MM/AAAA, 3 = hora HH:MM, 4 = número com 1 casa.
+    # Estilos: 1 = cabeçalho em negrito, 2 = data DD/MM/AAAA, 3 = hora HH:MM, 4 = número com 2 casas.
     estilos = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<numFmts count="3"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="hh:mm"/><numFmt numFmtId="166" formatCode="0.0"/></numFmts>
+<numFmts count="3"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="hh:mm"/><numFmt numFmtId="166" formatCode="0.00"/></numFmts>
 <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
 <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
@@ -98,13 +98,12 @@ def gerar_xlsx(caminho):
 </styleSheet>"""
 
     linhas_xml = ['<row r="1">' + "".join(_celula(f"{_col(i)}1", t, 1) for i, t in enumerate(CABECALHO)) + "</row>"]
-    for n, (data, hora, materia, assunto, atividade, horas, estudado, notas) in enumerate(linhas_completas(), start=2):
-        h, m = map(int, hora.split(":"))
-        valores = [((data - dt.date(1899, 12, 30)).days, 2), ((h * 60 + m) / 1440, 3), (materia, 0), (assunto, 0),
-                   (atividade, 0), (horas, 4), (estudado, 0), (notas, 0)]
+    for n, (titulo, status, prioridade, divisao, servidor, prazo, custo, sei, descricao) in enumerate(linhas_completas(), start=2):
+        valores = [(titulo, 0), (status, 0), (prioridade, 0), (divisao, 0), (servidor, 0),
+                   ((prazo - dt.date(1899, 12, 30)).days, 2), (custo or None, 4), (sei, 0), (descricao, 0)]
         linhas_xml.append(f'<row r="{n}">' + "".join(_celula(f"{_col(i)}{n}", v, e) for i, (v, e) in enumerate(valores)) + "</row>")
 
-    larguras = [12, 9, 14, 28, 12, 16, 13, 22]
+    larguras = [38, 30, 28, 40, 24, 14, 14, 22, 50]
     cols = "".join(f'<col min="{i + 1}" max="{i + 1}" width="{w}" customWidth="1"/>' for i, w in enumerate(larguras))
     folha = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
              '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
@@ -127,8 +126,8 @@ def gerar_xlsx(caminho):
 </Relationships>""",
         "xl/workbook.xml": """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<sheets><sheet name="Cronograma" sheetId="1" r:id="rId1"/></sheets>
-<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Cronograma!$A$1:$H$%d</definedName></definedNames>
+<sheets><sheet name="Demandas" sheetId="1" r:id="rId1"/></sheets>
+<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Demandas!$A$1:$I$%d</definedName></definedNames>
 </workbook>""" % (len(LINHAS) + 1),
         "xl/_rels/workbook.xml.rels": """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -147,6 +146,6 @@ def gerar_xlsx(caminho):
 
 
 if __name__ == "__main__":
-    gerar_xlsx(os.path.join(PASTA, "cronograma-estudos.xlsx"))
-    gerar_csv(os.path.join(PASTA, "cronograma-estudos.csv"))
-    print("Gerados: exemplos/cronograma-estudos.xlsx e exemplos/cronograma-estudos.csv")
+    gerar_xlsx(os.path.join(PASTA, "demandas-dgeo.xlsx"))
+    gerar_csv(os.path.join(PASTA, "demandas-dgeo.csv"))
+    print("Gerados: exemplos/demandas-dgeo.xlsx e exemplos/demandas-dgeo.csv")

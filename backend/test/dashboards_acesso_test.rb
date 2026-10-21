@@ -183,12 +183,12 @@ class DashboardsAcessoTest < Minitest::Test
     get "/api/export"
     nomes = JSON.parse(last_response.body)["dashboards"].map { |d| d["nome"] }
     refute_includes nomes, "Segredo da Bia"
-    assert_includes nomes, "Demandas" # o da equipe (setup) continua
+    assert_includes nomes, "Demandas DGEO" # o da equipe (setup) continua
   end
 
   def test_dashboards_do_setup_sao_da_equipe
     como("caio")
-    d = lista.find { |x| x["nome"] == "Demandas" }
+    d = lista.find { |x| x["nome"] == "Demandas DGEO" }
     assert_equal "equipe", d["visibilidade"]
     assert_equal @admin_id, d["dono_id"]
   end

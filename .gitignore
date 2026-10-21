@@ -13,13 +13,9 @@ data/
 # Só os templates padrão e as configs do VS Code são versionados; qualquer
 # outro .json (ex.: um template solto em backend/templates/) fica fora do git.
 *.json
-!/backend/templates/financas-pessoais.json
-!/backend/templates/fluxo-caixa.json
 !/backend/templates/gestao-demandas.json
 !/backend/templates/mapeamento-setor.json
-!/backend/templates/cronograma-estudos.json
 !/backend/templates/anotacoes.json
-!/backend/templates/lote-producao.json
 !/.vscode/*.json
 
 # --- Log local de problemas/bugs ----------------------------------------------
@@ -92,3 +88,4 @@ deploy/logs/
 node_modules/
 /prototipos/next/.next/
 /prototipos/react/dist/
+!/backend/test/fixtures/*.json

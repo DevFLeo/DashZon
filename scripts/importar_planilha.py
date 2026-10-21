@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Importa uma planilha (Excel .xlsx ou .csv) para um módulo do DashZon.
+"""Importa uma planilha (Excel .xlsx ou .csv) para um módulo do Prefeitura DashZ.
 
 Cada linha da planilha vira um registro. A primeira linha é o cabeçalho: cada
 coluna é ligada ao campo do módulo com o mesmo nome ou id (sem diferenciar
@@ -14,8 +14,8 @@ Só usa a biblioteca padrão do Python 3.8+ (o .xlsx é lido como zip + XML).
 Arquivos .xls (Excel antigo) não são lidos: salve como .xlsx ou .csv.
 
 Exemplos:
-  python scripts/importar_planilha.py exemplos/cronograma-estudos.xlsx --modulo cronograma_estudos --usuario dono
-  python scripts/importar_planilha.py exemplos/cronograma-estudos.csv --modulo cronograma_estudos --usuario dono --simular
+  python scripts/importar_planilha.py exemplos/demandas-dgeo.xlsx --modulo demandas --usuario ADMTOTAL
+  python scripts/importar_planilha.py exemplos/demandas-dgeo.csv --modulo demandas --usuario ADMTOTAL --simular
 
 A senha vem de DASHZON_SENHA ou é perguntada (não aparece na tela).
 """
@@ -137,10 +137,18 @@ def ler_csv(caminho):
             break
         except UnicodeDecodeError:
             continue
-    try:
-        dialeto = csv.Sniffer().sniff(texto[:4096], delimiters=";,\t")
-    except csv.Error:
-        dialeto = csv.excel
+    # O separador é o que mais aparece no cabeçalho: o Sniffer sozinho escolhia
+    # "," numa planilha com ";" e valores como "18500,00" (vírgula decimal).
+    cabecalho = texto.split("\n", 1)[0]
+    contagem = {d: cabecalho.count(d) for d in ";,\t"}
+    melhor = max(contagem, key=contagem.get)
+    if contagem[melhor] > 0:
+        dialeto = type("DialetoPlanilha", (csv.excel,), {"delimiter": melhor})
+    else:
+        try:
+            dialeto = csv.Sniffer().sniff(texto[:4096], delimiters=";,\t")
+        except csv.Error:
+            dialeto = csv.excel
     return [[(v if v.strip() != "" else None) for v in linha] for linha in csv.reader(texto.splitlines(), dialeto)]
 
 
@@ -318,7 +326,7 @@ class Cliente:
 def main(argv=None):
     p = argparse.ArgumentParser(description="Importa uma planilha (.xlsx ou .csv) para um módulo do DashZon.")
     p.add_argument("arquivo", help="planilha .xlsx ou .csv (primeira linha = cabeçalho)")
-    p.add_argument("--modulo", required=True, help="identificador do módulo (ex.: cronograma_estudos)")
+    p.add_argument("--modulo", required=True, help="identificador do módulo (ex.: demandas)")
     p.add_argument("--url", default=os.environ.get("DASHZON_URL", "http://127.0.0.1:4567"), help="endereço do DashZon")
     p.add_argument("--usuario", default=os.environ.get("DASHZON_USUARIO"), help="login (ou DASHZON_USUARIO)")
     p.add_argument("--aba", help="nome ou número da aba do .xlsx (padrão: a primeira)")

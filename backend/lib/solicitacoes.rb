@@ -105,7 +105,9 @@ module Solicitacoes
     dados = s["dados"] && JSON.parse(s["dados"])
     case s["acao"]
     when "criar"
-      Database.inserir_registro(m, ModuleSchema.coerce_registro!(m["schema"], dados))
+      # Quem pediu é o autor do registro (a unidade dele vale na cascata).
+      novo = Database.inserir_registro(m, ModuleSchema.coerce_registro!(m["schema"], dados))
+      Database.marcar_autor!(novo, s["solicitante_id"])
     when "alterar"
       raise Erro.new("O registro deste pedido não existe mais", 409) unless Database.registro(m, s["registro_id"])
 

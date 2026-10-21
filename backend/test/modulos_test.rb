@@ -9,12 +9,12 @@ class ModulosTest < Minitest::Test
     post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => true }
     assert_equal 200, last_response.status, last_response.body
     post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => true }
-    assert_equal ["Demandas"], resposta["reaproveitados"]
+    assert_equal ["Gestão de Demandas - DGEO", "Processos SEI"], resposta["reaproveitados"]
 
     get "/api/modulos"
-    assert_equal 1, resposta.count { |m| m["nome"] == "Demandas" }
+    assert_equal 1, resposta.count { |m| m["nome"] == "Gestão de Demandas - DGEO" }
     get "/api/dashboards"
-    assert_equal ["Demandas", "Demandas (2)"], resposta.map { |d| d["nome"] }.select { |n| n.start_with?("Demandas") }
+    assert_equal ["Demandas DGEO", "Demandas DGEO (2)"], resposta.map { |d| d["nome"] }.select { |n| n.start_with?("Demandas") }
   end
 
   def test_template_lote_de_producao
@@ -30,7 +30,7 @@ class ModulosTest < Minitest::Test
   def test_nome_de_modulo_duplicado_recusado
     configurar!
     post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => false }
-    post_json "/api/modulos", { "slug" => "outro", "nome" => "DEMANDAS", "campos" => [{ "id" => "a", "nome" => "A", "tipo" => "texto" }] }
+    post_json "/api/modulos", { "slug" => "outro", "nome" => "GESTÃO DE DEMANDAS - DGEO", "campos" => [{ "id" => "a", "nome" => "A", "tipo" => "texto" }] }
     assert_equal 422, last_response.status
   end
 
