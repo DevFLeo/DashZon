@@ -10,6 +10,32 @@
 - **PROBLEMA:** não está de acordo.
 - **OBS:** comportamento que vale saber, mas não é erro.
 
+## Correções (21/10/2026)
+
+Os 9 problemas da lista do fim foram corrigidos. O mesmo cenário foi testado de novo numa cópia nova do banco real: 42 de 42 verificações deram certo. Depois vieram as duas rodadas de validação com banco zerado e a auditoria de responsividade, sem erros.
+
+| # | Problema | Situação | Como ficou | Commits |
+|---|---|---|---|---|
+| 1 | Visibilidade por equipe | **Corrigido** | Dashboard tem "Só eu", "Equipes escolhidas" ou "Todos". No reteste, Teste 1 vê só o painel da Vermelha, Teste 2 vê Vermelha e Azul, Teste 3 vê só o da Azul, Teste 4 e 5 veem só o do lote. Painéis "Todos" (ex.: Finanças pessoais) continuam visíveis a todos, como escolhido. | `e85ed5b`, `1a777bf` |
+| 2 | Módulos e registros de todos | **Corrigido** | Módulo tem dono e "quem vê" (só o dono, equipes ou todos). O que o admin cria nasce só dele, e "Criar > Lote" abre a escolha de quem vê. Quem vê um dashboard vê os módulos dos cards dele. Os módulos que já existiam ficaram "Todos", para ninguém perder acesso: o admin muda cada um em Painel do adm > "Módulos: quem vê". | `e85ed5b`, `1a777bf`, `1b4bacf` |
+| 3 | Só visualiza, com aprovação | **Corrigido** | Perfil "Visualizador": não cria dashboards nem módulos. O que ele lança, edita ou apaga vira pedido. O dono do módulo (ou um admin) aprova ou nega na tela **Aprovações**, vendo o antes e o depois. No reteste, o Teste 5 pediu e o Teste 4 aprovou um pedido e negou outro. | `e85ed5b`, `f6538f1` |
+| 4 | Login com espaço | **Corrigido** | "teste 1" é aceito (espaços a mais viram um); o campo explica o formato. | `b7a07df` |
+| 5 | Troca obrigatória de senha no 1º acesso | **Corrigido** | O formulário tem "Pedir para trocar esta senha no primeiro acesso". Desmarcada, a pessoa entra direto com `123ZX456`. | `908441e` |
+| 6 | Diário sem alterações | **Corrigido** | O diário registra quem criou, alterou ou excluiu usuários, equipes, dashboards, módulos, regras, templates e pedidos de aprovação, sem senha. O filtro mostra tudo, só alterações ou só acessos. | `bd29a27`, `779b287` |
+| 7 | Lote duplicado | **Corrigido** | Com o lote instalado, "Criar > Lote de produção" abre o dashboard existente. | `5438590` |
+| 8 | Exclusão com exemplos sem aviso | **Corrigido** | A janela avisa "Também usado por ..." e deixa "apagar exemplos" desmarcado. | `1e5fae9` |
+| 9 | Usuário não vê as próprias equipes | **Corrigido** | Configurações > Conta mostra "Suas equipes" (com empresa e CNPJ mascarado). | `16ae400` |
+
+Continuam como observação (não eram problemas da lista):
+
+- **Gráfico de linha com um único mês:** mostra só pontos (E5).
+- **Barras com mais de 8 opções:** o tema tem 8 cores, então da 9ª opção em diante as barras ficam cinza; escolher uma paleta resolve (E6).
+- **Consulta de CNPJ por API:** continua só verificada, como pedido.
+
+O texto abaixo é o relatório original, de antes das correções.
+
+---
+
 ## Resumo
 
 | Parte | Resultado |
