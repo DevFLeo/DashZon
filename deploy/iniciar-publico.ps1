@@ -1,6 +1,6 @@
 ﻿# Sobe o DashZon para acesso pela internet:
 #   DashZon (Ruby) só em 127.0.0.1:4567  <-  Caddy (HTTPS) em 0.0.0.0:2444  <-  internet
-# Uso: powershell -ExecutionPolicy Bypass -File C:\Projetos\DashZon\deploy\iniciar-publico.ps1
+# Uso: powershell -ExecutionPolicy Bypass -File deploy\iniciar-publico.ps1
 #
 # Parâmetros para testes (não precisa usar no dia a dia):
 #   -ArquivoConfig  outro .env;  -PortaInterna  porta do DashZon;  -Banco  outro arquivo .db
@@ -54,7 +54,9 @@ $env:DUCKDNS_DOMINIO = $cfg.Dominio
 $env:DUCKDNS_TOKEN = $cfg.Token
 $env:PORTA_PUBLICA = "$($cfg.Porta)"
 $env:PORTA_INTERNA = "$PortaInterna"
-Start-Process -FilePath $caddy -ArgumentList "run", "--config", $Caddyfile, "--adapter", "caddyfile" -WorkingDirectory $Deploy `
+# Aspas no caminho: o Start-Process do PowerShell 5.1 junta os argumentos sem
+# aspas, e a pasta do projeto tem espaços ("DashZon - Prefeitura DashZ").
+Start-Process -FilePath $caddy -ArgumentList "run", "--config", "`"$Caddyfile`"", "--adapter", "caddyfile" -WorkingDirectory $Deploy `
     -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Logs "caddy-saida.log") -RedirectStandardError (Join-Path $Logs "caddy.log")
 if (-not (Esperar-Porta $cfg.Porta 30)) { throw "O Caddy não subiu. Veja deploy\logs\caddy.log" }
 Write-Host "[ok] Caddy em 0.0.0.0:$($cfg.Porta)"

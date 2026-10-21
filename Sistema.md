@@ -1,6 +1,8 @@
-# DashZon: especificação técnica do sistema
+# Prefeitura DashZ: especificação técnica do sistema
 
-Referência técnica (arquitetura, dados, API, segurança, implantação e regras de desenvolvimento). Comandos de operação: `CLAUDE.md`. Tutorial e tabelas de funções: `docs/DESENVOLVIMENTO.md`. Histórico de mudanças: `Log.md`.
+Referência técnica (arquitetura, dados, API, segurança, implantação e regras de desenvolvimento). Comandos de operação: `CLAUDE.md`. Tutorial: `docs/DESENVOLVIMENTO.md`. Histórico: `Log.md`. Decisões desta versão (estrutura, cascata, função mestre) e riscos: `relatorio-PDZ1.md`.
+
+O Prefeitura DashZ é o DashZon adaptado às secretarias de uma prefeitura: unidades em árvore (secretaria > subsecretaria > departamento > divisão) com permissões em cascata (§7.2) e o painel de produtividade (§7.3). Nomes internos (`DASHZON_*`, `dashzon.db`, `dashzon_engine`) foram mantidos.
 
 ---
 
@@ -32,6 +34,8 @@ Declarações opcionais do módulo (validadas em `ModuleSchema.normalize_modulo!
 | `visao` | `{tipo: "notas", titulo, conteudo, pasta?}` (texto, markdown/texto_longo, texto/seleção) | A tela do módulo vira um caderno de notas (`js/notas.js`) em vez da tabela |
 | `nota` | `{modulo, titulo, pasta?}` | Cada registro ganha o botão "Nota", que abre ou cria no módulo de notas `modulo` a nota de mesmo título (pasta = valor do campo `pasta`). Sem o módulo instalado e ligado, o botão não aparece |
 | `configuracoes` | lista de ids de campo (até 20) | Campos ajustáveis em Configurações > Módulos (opções de seleção e valores padrão), visíveis só com o módulo ligado |
+| `unidade` | id de um campo `selecao` ou `texto` | O valor liga o registro a uma unidade pela sigla (`Unidades.resolver`): permissão em cascata e soma do painel |
+| `produtividade` | `{status (seleção), concluido: [opções], encerrado?: [opções], prazo?: campo data}` | Põe o módulo no Painel do gestor (§7.3) |
 
 ## 2. Stack e versões
 
@@ -56,7 +60,8 @@ backend/
   app.rb                   rotas de módulos, registros, dashboards, widgets, templates, setup; filtros
   config.ru                entrada rackup
   rotas/usuarios.rb        login, conta, admin, links de e-mail, limite de tentativas
-  rotas/equipes.rb         equipes (grupos de usuários, que podem ser empresa) no painel do adm
+  rotas/equipes.rb         estrutura da prefeitura (unidades, membros, gestores, estrutura modelo) no painel do adm
+  rotas/gestao.rb          Minha equipe: o gestor administra pessoas e unidades do seu escopo
   lib/ambiente.rb          Ambiente["VAR", padrao]: variável vazia = não definida
   lib/database.rb          conexão, schema, migração na abertura, registros, jsons
   lib/record_codec.rb      formato compacto de registros.dados
@@ -67,21 +72,25 @@ backend/
   lib/engine_client.rb     ponte com o binário C++
   lib/desempenho.rb        CacheResultados (motor) e CacheEstaticos (cabeçalhos)
   lib/usuarios.rb          contas, senhas, tokens, preferências, ajustes
-  lib/acesso.rb            quem vê e quem altera dashboards e módulos (por requisição)
+  lib/acesso.rb            quem vê e quem altera dashboards, módulos e registros (cascata, por requisição)
+  lib/unidades.rb          árvore de unidades: descendentes, ancestrais, caminho, resolver sigla
+  lib/produtividade.rb     função mestre do Painel do gestor (soma de baixo para cima)
   lib/solicitacoes.rb      pedidos do perfil visualizador (aprovar/negar)
-  lib/equipes.rb           equipes e membros; CNPJ em HMAC + máscara; empresa de teste
+  lib/equipes.rb           unidades (tipo, sigla, pai) e membros (papel); CNPJ em HMAC + máscara
   lib/segredo.rb           chave do servidor (sessão e HMAC)
   lib/documento.rb         CPF/CNPJ: validação, máscara, HMAC
   lib/correio.rb           SMTP opcional
   lib/dados_ficticios.rb   registros fictícios para a prévia de card
-  templates/*.json         7 templates padrão (únicos JSON versionados; cada um liberado no .gitignore)
+  templates/*.json         3 templates padrão: gestao-demandas (Demandas DGEO + Processos SEI), mapeamento-setor, anotacoes
   test/*_test.rb           Minitest + Rack::Test em banco temporário
+  test/fixtures/*.json     templates antigos (finanças, lote, cronograma) só como dados de teste (DASHZON_TEMPLATES_EXTRA)
 engine-cpp/                CMakeLists.txt, src/main.cpp, src/json.hpp
 frontend/                  index.html, css/, js/, vendor/, preview/
 deploy/                    Caddyfile (DuckDNS), Caddyfile.servidor (Docker), scripts PowerShell
-scripts/                   rodar.ps1 (Windows), auditar-responsivo.ps1/.js (responsividade), gerar-previews.js,
+scripts/                   rodar.ps1 (Windows), zerar-teste.ps1, e2e-prefeitura.mjs (ponta a ponta),
+                           auditar-responsivo.ps1/.js (responsividade), gerar-previews.js,
                            importar_planilha.py (+ test_importar_planilha.py)
-exemplos/                  cronograma-estudos.xlsx/.csv (planilha modelo) e gerar_exemplos.py
+exemplos/                  demandas-dgeo.xlsx/.csv (planilha modelo) e gerar_exemplos.py
 prototipos/                experimento: DashZon em React (Vite) e em Next.js, com a mesma API (ver §9.1)
 Dockerfile, docker-compose.yml, .env.example
 data/                      (fora do git) dashzon.db, segredo.key, cópias *.bak
@@ -138,10 +147,12 @@ Docker Compose (`.env`): `DASHZON_DOMINIO` vira `DASHZON_HOSTS` e o domínio do 
 | `registros_exemplo` | `registro_id` PK → registros CASCADE, `modulo_id` → modulos CASCADE | Dados de exemplo que vieram com um template. Marcados na instalação; editar um registro tira a marca. Bancos antigos: na criação da tabela, `marcar_exemplos_antigos!` marca os registros nunca editados criados até 5 s do módulo de template |
 | `eventos_seguranca` | `id`, `quando` INTEGER (epoch), `tipo`, `ip`, `conta` (HMAC do login digitado, 32 hex), `usuario_id`, `detalhe` | Diário de segurança e base da contagem de falhas (§8). Índices por `(ip, quando)`, `(conta, quando)` e `quando`. Guardado por 180 dias |
 | `jsons` | `id`, `tipo` (`template`/`exportacao`), `nome`, `conteudo` (BLOB zlib), `criado_em` | Índice `idx_jsons_tipo` |
-| `equipes` | `id`, `nome`, `descricao`, `empresa` (0/1), `exigir_cnpj` (0/1), `cnpj_hash` (HMAC), `cnpj_mascara`, `teste` (0/1), `criado_em`, `atualizado_em` | Grupo de usuários. Empresa pode exigir CNPJ ou não; CNPJ único (pelo HMAC). `teste` = empresa de teste com CNPJ fictício |
-| `equipe_membros` | `equipe_id` → equipes CASCADE, `usuario_id` → usuarios CASCADE, `criado_em`; PK (equipe, usuário) | Um usuário em nenhuma, uma ou várias equipes. Índice `idx_equipe_membros_usuario` |
+| `equipes` | `id`, `nome`, `descricao`, `empresa` (0/1), `exigir_cnpj` (0/1), `cnpj_hash` (HMAC), `cnpj_mascara`, `teste` (0/1), `criado_em`, `atualizado_em`, `tipo`, `sigla`, `pai_id` | Unidade da prefeitura. `tipo`: secretaria, subsecretaria, departamento, divisao, equipe; `sigla` única sem diferenciar maiúsculas (obrigatória fora de `equipe`); `pai_id` = unidade superior (sem ciclo, filho não acima do pai, até 8 níveis; não exclui com filhas). Nome único entre irmãs. `tipo/sigla/pai_id` por `ALTER TABLE` (`migrar_equipes!`). Empresa/CNPJ mantidos do DashZon |
+| `equipe_membros` | `equipe_id` → equipes CASCADE, `usuario_id` → usuarios CASCADE, `criado_em`, `papel` (`membro`/`gestor`); PK (equipe, usuário) | Um usuário em nenhuma, uma ou várias unidades. Índice `idx_equipe_membros_usuario` |
+| `registro_autores` | `registro_id` PK → registros CASCADE, `usuario_id` | Quem lançou (rota, aprovação ou seed do template). Excluir a conta passa a autoria para quem excluiu |
+| `sessoes_encerradas` | `sid_hash` PK (SHA-256 do id da sessão), `expira` | "Sair" encerra o id da sessão: um cookie antigo que volte (requisição em voo) não vale. Limpa as vencidas a cada logout |
 
-`usuarios`, `tokens`, `ajustes`, `jsons`, `eventos_seguranca`, `equipes`, `equipe_membros`, `registros_exemplo`, `dashboard_equipes`, `modulo_equipes` e `solicitacoes` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
+`usuarios`, `tokens`, `ajustes`, `jsons`, `eventos_seguranca`, `equipes`, `equipe_membros`, `registros_exemplo`, `dashboard_equipes`, `modulo_equipes`, `solicitacoes`, `registro_autores` e `sessoes_encerradas` estão em `EXTRAS_SQL` (`CREATE TABLE IF NOT EXISTS`), criados por `garantir_tabelas!`. Datas fora de `registros` continuam em texto ISO 8601 UTC.
 
 ### 5.3 Formato de `registros.dados` (`RecordCodec`)
 
@@ -192,7 +203,7 @@ Medido: 100 mil registros migram em ~5,6 s, de 19,7 MB para 8,6 MB.
 
 ### 6.1 Protocolo
 
-`EngineClient.run(payload)`: um processo por chamada (`EngineClient.executar`, `Open3.popen3` com entrada, stdout e stderr em threads), JSON pelo stdin, JSON pelo stdout. Se a resposta tiver `error`, se o código de saída não for 0 ou se passar de `DASHZON_ENGINE_TIMEOUT` (o processo é encerrado), levanta `EngineError` (HTTP 500).
+`EngineClient.run(payload)`: um processo por chamada (`EngineClient.executar`, `Open3.popen3` com entrada, stdout e stderr em threads); o binário é chamado como `[caminho, caminho]`, sem linha de comando, para aguentar pasta com espaços, JSON pelo stdin, JSON pelo stdout. Se a resposta tiver `error`, se o código de saída não for 0 ou se passar de `DASHZON_ENGINE_TIMEOUT` (o processo é encerrado), levanta `EngineError` (HTTP 500).
 
 | Comando | Entrada | Saída |
 |---|---|---|
@@ -252,10 +263,13 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | `GET /api/export[?dados=1]`, `GET /api/exportacoes`, `GET/DELETE /api/exportacoes/:id` | Exportação e histórico (guardado em `jsons`) |
 | `GET/POST /api/modulos`, `GET/PUT/DELETE /api/modulos/:slug` | Módulos (o `PUT` preserva slots e reconverte tipos; o `DELETE` remove widgets e registros e compacta) |
 | `GET /api/modulos/:slug/resumo` | KPIs (`multi`, projetado, com cache) |
-| `GET /api/modulos/:slug/registros?q=&f[campo]=&inicio=&limite=` | Busca (`search`), ordenada pela `ordenacao` do módulo (`ModuleSchema.ordenar_registros`) e paginada (`limite` padrão 200, máx. 1000; `count` = total). O cache guarda só a página |
+| `GET /api/modulos/:slug/registros?q=&f[campo]=&inicio=&limite=&ordem=` | Busca (`search`), ordenada pela `ordenacao` do módulo (`ModuleSchema.ordenar_registros`) ou por `ordem=campo:asc|desc` ("Classificar por"; campo, `_criado_em` ou `_atualizado_em`; seleção na ordem das opções, texto sem acento, vazios no fim; `ModuleSchema.ordenar_por`) e paginada (`limite` padrão 200, máx. 1000; `count` = total). O cache guarda só a página |
 | `GET /api/modulos/:slug/registros/:id` | Um registro lido do banco (base do formulário de edição: a lista vem do motor) |
 | `PATCH /api/modulos/:slug/registros/:id` | Altera só os campos enviados; o resto vem do banco, e o registro inteiro passa por `coerce_registro!` (checklist) |
-| `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD validado por `coerce_registro!` |
+| `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD validado por `coerce_registro!`, com a permissão por unidade (§7.2): 403 fora dela. O `POST` grava o autor |
+| `GET /api/produtividade[?modulo=slug]` | Painel do gestor (§7.3): gestores e admin |
+| `POST /api/admin/equipes/modelo` | Estrutura modelo da SEMEC (não duplica siglas) |
+| `GET /api/gestao`, `POST /api/gestao/unidades`, `PUT/DELETE /api/gestao/unidades/:id`, `PUT/DELETE /api/gestao/unidades/:id/membros/:uid` (`papel`), `POST /api/gestao/usuarios`, `POST /api/gestao/usuarios/:id/ativo`, `.../senha-temporaria`, `DELETE /api/gestao/usuarios/:id` | Minha equipe (`rotas/gestao.rb`): só dentro do escopo; unidades só abaixo da que a pessoa gere; contas só de quem está apenas no escopo, nunca admin nem a si mesmo |
 | `GET/POST /api/dashboards`, `GET/PUT/DELETE /api/dashboards/:id` | Dashboards **por usuário**: a lista traz os seus e os da equipe (com `dono_nome`, `fixo`, `editavel`); o privado de outra pessoa responde 404; `PUT` parcial (`nome`, `fixo`, `visibilidade`; `dono_id` só admin); alterar exige ser o dono ou admin num da equipe (403). O `GET :id` traz os widgets |
 | `GET /api/dashboards/:id/exemplos`, `DELETE /api/dashboards/:id?exemplos=1`, `DELETE /api/modulos/:slug/exemplos` | Dados de exemplo: quantos os módulos do dashboard ainda têm; excluir o dashboard levando só esses registros; apagar os exemplos de um módulo. `/api/modulos` e `GET /api/modulos/:slug` trazem `exemplos` |
 | `POST /api/dashboards/:id/widgets`, `PUT/DELETE /api/widgets/:id`, `PUT /api/widgets/:id/layout` | Widgets (o `layout` altera só x/y/w/h) |
@@ -283,6 +297,8 @@ Regras num só lugar, um objeto por requisição (helper `acesso` no `app.rb`):
 - `modulo!(slug)` responde 404 para módulo que a pessoa não vê; `modulo_editavel!` responde 403. A exportação leva só o visível.
 - **Perfil `visualizador`** (`Usuarios::PERFIS`): não cria dashboards, módulos nem instala templates (403). `POST/PUT/PATCH/DELETE` de registro valida os dados e responde **202** com `{pendente, mensagem}`, sem gravar: vira um pedido em `solicitacoes`. Decide o dono do módulo (se ativo e não visualizador) ou um admin: `POST /api/solicitacoes/:id/aprovar|negar`, que revalida e aplica na hora. No navegador: tela Aprovações (`js/aprovacoes.js`, `#/aprovacoes`) com o antes e o depois de cada campo; link no menu com o número de pedidos; notas só leitura para o visualizador.
 
+Com as unidades (§7.2), "membros" acima quer dizer **alcance** e "admin" inclui o **gestor em cascata** de uma das unidades escolhidas (ver a tabela abaixo).
+
 ### 7.1 Dashboards: dono, equipe e layout fixo
 
 - Cada dashboard tem **dono** (quem criou) e **visibilidade**: `privado` (só o dono vê, nem os administradores) ou `equipe` (todos veem). Novo nasce `privado`; o setup cria os do template como `equipe`; instalar um template depois cria os dele como `privado` de quem instalou (ou `equipe`, se pedido).
@@ -291,6 +307,25 @@ Regras num só lugar, um objeto por requisição (helper `acesso` no `app.rb`):
 - **Fixo:** `PUT /api/widgets/:id/layout` responde 409 enquanto o dashboard está fixado; no navegador, `GridStack.setStatic` trava arrastar/redimensionar (a grade e o layout salvo não mudam, REGRA §12.1).
 - A exportação leva só os dashboards que a pessoa vê.
 - `scripts/verificar-dashboards.js` confere isso num servidor de verdade com uma conta comum (credenciais por variável de ambiente; só cria e apaga um dashboard de teste dela).
+
+### 7.2 Unidades e permissões em cascata (Prefeitura DashZ)
+
+`Acesso` (um por requisição) lê a árvore uma vez:
+
+| Termo | Definição |
+|---|---|
+| `escopo` | Unidades onde a pessoa é gestora e todas abaixo (admin: todas) |
+| `escopo_abaixo` | O escopo sem as próprias unidades de topo (o gestor edita/exclui as de dentro) |
+| `alcance` | Unidades de que é membro, as acima delas e o escopo |
+
+- **Ver** (visibilidade `equipes`): alguma unidade escolhida no alcance. **Alterar** módulo/dashboard `equipes`: dono, admin ou gestor de alguma unidade escolhida (em cascata). Privado continua só do dono. Compartilhar: com unidades do alcance.
+- **Registro**: unidade = `Unidades.resolver(valor do campo unidade)`; sem campo ou sem match, as unidades de quem lançou (`registro_autores`); sem autor (antigo), qualquer um que vê o módulo. Editar: admin, quem altera o módulo, autor, gestor (escopo) ou membro da unidade. Excluir: os mesmos, menos o membro. Criar/trocar a unidade: só para unidade do escopo ou de que é membro. `GET /api/modulos/:slug` traz `opcoes_unidade` (opções permitidas no formulário; nil = todas).
+- Visualizador: continua no fluxo de aprovação (§7.0), antes dessas checagens.
+- `/api/status` traz `usuario.gestor` (gere alguma unidade ou é admin): mostra Painel do gestor e Minha equipe.
+
+### 7.3 Painel do gestor (função mestre)
+
+`lib/produtividade.rb`. Módulos visíveis com `unidade` e `produtividade`. Por módulo, duas chamadas `multi` ao motor (com `CacheResultados`): (1) por valor da unidade × status e por prazo × status geral; (2) uma por valor, por prazo × status. O resto (sem valor) = geral − soma dos valores. Cada valor vira unidade pela sigla; o total de uma unidade é o direto + o das filhas. Indicadores: `total`, `concluidos`, `encerrados`, `andamento`, `atrasados` (prazo < hoje), `vencem_7` (hoje..hoje+7), `sem_prazo`, `taxa` ((concluídos+encerrados)/total). Resposta recortada no escopo; o admin recebe também `sem_unidade` com os valores não reconhecidos.
 
 ## 8. Autenticação e segurança
 
@@ -338,7 +373,20 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 - **Recolher** (só acima de 800px): botão ao lado da marca; a barra vira uma coluna de 64px com o cubo e siglas de duas letras (`.nav-sigla`). Fica no `localStorage`; ao mudar, dispara `resize` para a grade e os gráficos se ajustarem.
 - **Botão direito num dashboard** (no menu ou na tela dele), tecla de menu ou toque longo (550 ms): menu "Fixar" / "Fixado" (`role=menuitemcheckbox`), o mesmo `fixo` do botão "Fixar layout" / "Fixado" do painel, que continua lá. `App.marcarFixo` mantém os dois e o alfinete do menu em sincronia. Quem não pode alterar vê o item desligado. Em campos, links fora do menu ou com texto selecionado fica o menu do navegador. Depois do toque longo, o `mousedown`/`click` de compatibilidade são engolidos (senão fechariam o menu e abririam o link).
 
-**Painel do adm:** botão "Criar" com Usuário, Equipe (pode ser empresa; CNPJ obrigatório ou não), Lote de produção (instala o template) e Empresa de teste. Tabela de equipes (CNPJ mascarado, membros) e coluna "Equipes" na de usuários ("Nenhuma" quando não está em nenhuma). O formulário do usuário e o da equipe marcam a relação nos dois sentidos.
+**Painel do adm:** botão "Criar" com Usuário, Unidade e Estrutura modelo (SEMEC). Tabela da estrutura em árvore (tipo, sigla, gestores, membros; "+ Dentro" sugere o tipo de baixo) e coluna "Unidades" na de usuários. O formulário do usuário e o da unidade escolhem o papel (— / Membro / Gestor) nos dois sentidos.
+
+**Telas da prefeitura** (`js/gestao.js`, `js/quadro.js`, `js/expandir.js`):
+
+| Tela | O que faz |
+|---|---|
+| Painel do gestor (`#/produtividade`) | KPIs do topo do escopo, tabela em árvore com os indicadores (§7.3), CSV (`;`, UTF-8 com BOM), impressão, regras de cálculo |
+| Minha equipe (`#/equipe`) | Unidades do escopo com pessoas e papel, + Pessoa (senha temporária), + Existente, + Dentro, editar/excluir as de baixo; contas do alcance |
+| Módulo: Classificar por | `?ordem=`; escolha por módulo no `localStorage` |
+| Módulo: Quadro | Colunas = opções do status (`produtividade.status` ou 1ª seleção); filtro de departamento pelo campo `unidade`; arrastar (HTML5) ou setas fazem `PATCH` do campo; 403 volta o cartão |
+| Módulo: Agenda | Registros por dia do campo de data, janelas -15/+15, -30, +30, -30/+30 |
+| Expansão de card | Clique em barra/série, fatia, linha da tabela, dia do calendário ou o botão do cabeçalho: lista os registros (busca com o filtro do card + a categoria), resumo pelo campo de unidade com próximo prazo, último prazo e atrasados |
+| Calendário com período | Botões Ano (padrão de antes) / -15/+15 / -30 / +30 / -30/+30; com período, uma faixa de dias em volta de hoje; escolha por card no `localStorage` |
+| Anotações | Compartilhar e Excluir caderno (para quem altera o módulo, inclusive o gestor em cascata) |
 
 **Tipos de card** (`dashboards.js`, um só despacho `desenhar()` para o dashboard e a prévia):
 
@@ -348,7 +396,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 | `bar`, `line` | o de sempre | `renderGrafico` |
 | `table` | o de sempre | `renderTabela` |
 | `pie` | exige `agrupar_por` | `renderPizza`: rosca, número de categorias no centro (plugin do Chart.js), legenda à direita ou embaixo. Sem paleta, uma cor do tema por fatia |
-| `calendario` | `agrupar_por` = campo de data, `formato_grupo` nulo (um valor por dia) | `renderCalendario`: um quadradinho por dia, 4 níveis de intensidade, semanas que cabem na largura, dias ativos e sequências; redesenha em `resize`/`resizestop` |
+| `calendario` | `agrupar_por` = campo de data, `formato_grupo` nulo (um valor por dia) | `renderCalendario`: um quadradinho por dia, 4 níveis de intensidade, semanas que cabem na largura, dias ativos e sequências; redesenha em `resize`/`resizestop`. A pedido: período em volta de hoje (`renderFaixa`) e dias clicáveis (expansão) |
 
 **Cores do card** (editor > passo "Cores"; `config.paleta`, `config.cores` {categoria: "#rrggbb"}, `config.cor`): 9 paletas nomeadas (`Util.PALETAS`), cor por categoria ou série com `<input type=color>`, e "Surpreenda-me" (`Util.paletaSurpresa`: matizes pelo ângulo de ouro, com um nome). `Util.corDe` = escolhida > paleta > identidade de sempre (`corSerie`); `Util.corUnica` para número, linha e calendário. Sem cores escolhidas, o desenho é idêntico ao de antes. O servidor valida (`normalize_aparencia!`) e não usa isso na consulta.
 
@@ -382,7 +430,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 - **Markdown** (`js/markdown.js`, sem biblioteca): o texto é escapado antes da marcação, então HTML da nota nunca é interpretado; links só com `http(s)`, `mailto` ou endereço relativo. A auditoria isenta da medida de alvo de toque os links dentro do Markdown (exceção "inline" da WCAG 2.5.8).
 - **Boot:** `GET /api/status` decide entre setup, login (ou "crie seu usuário") e o app; troca de senha obrigatória antes de qualquer outra tela.
 - **`Api`:** `fetch` + JSON. Um 401 fora de `/api/login` e `/api/usuarios/primeiro` volta para `/`.
-- **Temas:** sistema, claro, suave e escuro, por tokens CSS (`--series-*`, `--text-*`). Modo privacidade pela classe `sensivel`.
+- **Temas:** sistema, claro, suave, escuro e floresta dia/tarde/noite (`data-theme` = `forest-day`, `forest-dusk`, `forest-night`), por tokens CSS (`--series-*`, `--text-*`). O botão gira dentro da família (claro > suave > escuro; floresta dia > tarde > noite). Modo privacidade pela classe `sensivel`.
 - **Fonte:** preferência da conta `fonte` (`inter` padrão, `sistema`, `nunito`, `atkinson`; validada por `Usuarios::FONTES`).
   - `js/fonte.js` põe `data-fonte` no `<html>` (que troca `--font-sans`) e guarda a escolha no `localStorage`, para a tela de login já abrir com ela.
   - O Chart.js desenha em `<canvas>` e não herda o CSS: `Fonte.aplicar` define `Chart.defaults.font.family` e redesenha os gráficos depois que o arquivo da fonte carrega.
@@ -431,7 +479,8 @@ Experimento, fora do frontend oficial (que continua sem build e sem CDN, §12.6)
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 197 testes (com `equipes`, `dashboards_acesso`, `cores`, `cards_estudo`, `exemplos`, `acesso`); os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`, `equipes`, `dashboards_acesso`, `cores`, `cards_estudo`, `exemplos`, `acesso` e `prefeitura` (árvore, cascata, gestão, registros por unidade, caderno, produtividade, classificar por, sessão encerrada, temas, duas árvores de teste). São 207 testes; os do motor dão `skip` se o binário não existir. Os templates antigos usados por alguns testes vêm de `test/fixtures/` (`DASHZON_TEMPLATES_EXTRA`, definido no `test_helper.rb`).
+- **Ponta a ponta automatizado:** `node scripts/e2e-prefeitura.mjs --porta <instância zerada>` (Chrome/Edge headless pelo DevTools, sem dependências): 73 checagens com admin, Larissa, Marvin, Eduardo, Hayrine e as árvores de teste 1 e 2; prints em `log/e2e/`. `scripts/zerar-teste.ps1` zera a instância de teste (recusa `dashzon.db`).
 - **Importador (Python):** `python -m unittest discover -s scripts -p "test_*.py"` (13 testes: conversão por tipo, leitura de `.xlsx`/`.csv` e as planilhas de `exemplos/`).
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:
@@ -507,6 +556,6 @@ Melhorias em **como o usuário alimenta** os dashboards são permitidas, desde q
 ### 12.7 Testes, git e documentação
 
 - Funcionalidade nova no backend vem com teste. Nunca testar contra `data/dashzon.db`. Sintaxe: `ruby -c`, `node --check frontend/js/*.js`.
-- Branches: `desenvolvimento` (trabalho), `main` (estável), `producao` (servidor). Push só quando pedido.
+- Branches: `desenvolvimento` (trabalho), `main` (estável), `producao` (servidor); `desenvolvimento-ideiamarvin` = Prefeitura DashZ (a partir de `desenvolvimento-empresa`). Push só quando pedido.
 - Commits em pt-BR, um por parte pronta (`feat(área)`, `fix(área)`, `test`, `docs`), com o README por último.
 - Manter `docs/DESENVOLVIMENTO.md`, `Sistema.md` e `Log.md` em dia. Comentários explicam o porquê.

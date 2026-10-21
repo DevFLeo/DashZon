@@ -1,4 +1,6 @@
-# DashZon: instruções para o assistente
+# Prefeitura DashZ: instruções para o assistente
+
+Sistema da prefeitura (derivado do DashZon): unidades em árvore com permissões em cascata e painel do gestor. Administrador: login `ADMTOTAL`. Decisões e riscos: `relatorio-PDZ1.md`.
 
 Gaste o mínimo. Para **instalar, rodar, subir, parar ou atualizar**, use os comandos abaixo: não explore o repositório, não leia outros arquivos, não rode testes e não abra o navegador. Responda com uma linha (ex.: `No ar: http://127.0.0.1:4567`).
 Para **mudar código**, leia antes o `Sistema.md` (arquitetura e regras completas).
@@ -69,7 +71,8 @@ A saída do `rodar.ps1` já traz o fim do log. Se precisar, leia só a cauda de 
 
 Leia o `Sistema.md` (seção "Regras de desenvolvimento"). O essencial:
 
-- validação dupla antes de commitar: `cd backend; bundle exec rake test` + teste no navegador numa instância separada, duas rodadas, banco zerado;
+- validação dupla antes de commitar: `cd backend; bundle exec rake test` + `node scripts/e2e-prefeitura.mjs --porta <instância de teste zerada>` (ou teste manual), duas rodadas, banco zerado (`scripts/zerar-teste.ps1`);
+- regras de quem vê e altera (cascata por unidade): só em `backend/lib/acesso.rb` e `backend/rotas/gestao.rb`, com teste em `backend/test/prefeitura_test.rb`;
 - mexeu na interface: `scripts/auditar-responsivo.ps1 -Porta <instância zerada>` até 0 erros (instruções no topo do script);
 - registre o que fez em `Log.md` (quando, o quê, por quê) e os problemas em `desenvolvimento.md` (fora do git);
-- trabalhe na branch `desenvolvimento`.
+- trabalhe na branch `desenvolvimento-ideiamarvin` (Prefeitura DashZ).

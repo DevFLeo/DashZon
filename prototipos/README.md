@@ -1,65 +1,32 @@
-# Protótipos: DashZon em React e em Next.js
+# Protótipos em React e Next.js (experimento)
 
-Teste de como o DashZon ficaria com React (Vite) e com Next.js. **É um experimento:** o sistema de verdade continua em `frontend/` (sem build), e nada aqui muda o backend. Os dois protótipos usam a mesma API Ruby, por um proxy.
+Teste de como a interface ficaria com React (Vite) e com Next.js. **Fora do sistema:** o Prefeitura DashZ de verdade continua em `frontend/` (sem build), e nada aqui muda o backend. Os protótipos ainda mostram a marca e as telas do DashZon original e não têm as telas novas da prefeitura (estrutura, Minha equipe, Painel do gestor, quadro, agenda).
 
-## Prints
-
-As mesmas telas nas três versões estão em `prints/`. Os prefixos são `atual-`, `react-` e `next-`, e as telas são:
-
-| Tela | Arquivo |
+| Tem | Não tem |
 |---|---|
-| Login | `*-login.png` |
-| Dashboard Estudos (calendário, meta, pizza, barras, linha, tabela) | `*-estudos.png` |
-| Dashboard Finanças pessoais | `*-financas.png` |
-| Finanças no tema claro | `*-financas-claro.png` |
-| Módulo (lista de registros) | `*-modulo.png` |
-| Celular (390 px) | `*-celular.png` |
+| Login, barra lateral, tema claro/escuro | Arrastar e redimensionar cards |
+| Dashboard com número, meta, barras, linha, pizza, tabela, calendário (só leitura) | Criar ou editar cards, módulos e registros |
+| Lista de registros de um módulo | Painel do adm, configurações, notas, aprovações, telas do gestor |
 
-## O que tem e o que não tem
+## Rodar
 
-| Tem | Não tem (é só uma vitrine) |
-|---|---|
-| Login, barra lateral com o cubo 3D, tema claro/escuro | Arrastar e redimensionar cards |
-| Dashboard com os cards: número, meta, barras, linha, pizza, tabela, calendário | Criar e editar cards, módulos e registros |
-| Grade de 12 colunas com as posições salvas | Painel do adm, configurações, notas, aprovações |
-| Lista de registros de um módulo | |
+Use sempre a instância de **teste** do backend (nunca o banco real):
+
+```powershell
+$env:DASHZON_DB_PATH = "$PWD\data\teste-prototipo.db"; $env:PORT = "4571"; cd backend; ruby -rbundler/setup app.rb   # outro terminal
+cd prototipos; npm install
+npm run react    # http://localhost:5173 (só localhost)
+npm run next     # http://localhost:3000
+```
+
+`DASHZON_API` muda o endereço do backend (padrão `http://127.0.0.1:4571`). Os dois proxies trocam o `Origin` pelo do backend (o servidor recusa escrita de outra origem) e repassam o cookie de sessão.
 
 ## Estrutura
 
 ```
 prototipos/
-  ui/       @dashzon/ui: telas, cards, lógica e CSS compartilhados pelos dois
-  react/    casca React (Vite): rotas por #hash, proxy do Vite
-  next/     casca Next.js (App Router): rotas de arquivo e proxy próprio
-  prints/   as imagens de comparação
+  ui/      componentes e lógica compartilhados (cópia da lógica de frontend/js/dashboards.js)
+  react/   Vite + React 19
+  next/    Next.js 15 (App Router)
+  prints/  comparação das telas (versão DashZon)
 ```
-
-Os dois apps usam os **mesmos componentes** (`ui/`). O que muda entre eles é só o que cada tecnologia faz de diferente.
-
-| | React (Vite) | Next.js |
-|---|---|---|
-| Rotas | `#/d/1`, `#/m/slug` (uma página só, como o atual) | `/d/1`, `/m/slug`, `/entrar` (um arquivo por rota em `app/`) |
-| API | proxy do servidor de desenvolvimento (`vite.config.js`) | route handler `app/api/[...caminho]/route.js` (funciona também em produção) |
-| Produção | arquivos estáticos (`dist/`), servidos por qualquer servidor | um processo Node (`next start`) ou exportação estática |
-| Tamanho (1ª carga, gzip) | ~126 KB de JS | ~174 KB de JS |
-| Boa escolha se | quer só trocar o frontend, mantendo o Ruby | quer páginas renderizadas no servidor, SEO ou juntar parte do backend no Node |
-
-## Como rodar
-
-Precisa de Node 20+ e de uma instância do DashZon rodando. O padrão é a de **teste** na porta 4571; nunca aponte para o banco real sem querer.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/rodar.ps1 -Porta 4571 -Banco data\prototipo.db   # instância de teste
-cd prototipos
-npm install
-npm run react     # http://localhost:5173
-npm run next      # http://localhost:3000
-```
-
-Para usar outra instância: `$env:DASHZON_API = "http://127.0.0.1:4567"` antes de rodar.
-
-## Observações
-
-- A lógica dos cards (`ui/logica.js`) copia a do `frontend/js/dashboards.js`, que continua sendo a referência (regra do `CLAUDE.md`). Se um dia migrar, ela deve sair de um lugar só.
-- O backend recusa escrita com `Origin` de outro site. Os dois proxies trocam a origem pela do backend, e a sessão (cookie) funciona igual.
-- Sem emojis (regra do projeto); ícones e cubo em CSS/SVG.

@@ -1,5 +1,5 @@
 ﻿# Tira o DashZon do ar (Caddy e o servidor Ruby).
-# Uso: powershell -ExecutionPolicy Bypass -File C:\Projetos\DashZon\deploy\parar-publico.ps1
+# Uso: powershell -ExecutionPolicy Bypass -File deploy\parar-publico.ps1
 param([string]$ArquivoConfig, [int]$PortaInterna = 4567)
 
 . (Join-Path $PSScriptRoot "_comum.ps1")

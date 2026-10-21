@@ -1,215 +1,102 @@
-# Servidor do DashZon: passo a passo
+# Prefeitura DashZ: como colocar no ar
 
-Como colocar o DashZon para rodar e deixar funcionando: neste PC com Windows, com Docker (em qualquer máquina) ou num servidor na internet com domínio próprio.
+Passo a passo para quem vai instalar e manter o sistema: neste PC com Windows, com Docker (qualquer máquina) ou num servidor na internet com domínio.
 
-| Onde vai rodar | Caminho | Seção |
-|---|---|---|
-| Qualquer lugar, pelo Claude Code | diga **"rode o projeto"** | [Para quem vai ativar o servidor](#para-quem-vai-ativar-o-servidor) |
-| Este PC (Windows), sem Docker | `scripts\rodar.ps1` | [Opção 1](#opção-1-este-pc-com-windows-sem-docker) |
-| Qualquer máquina com Docker | `docker compose up -d --build` | [Opção 2](#opção-2-docker) |
-| Servidor na internet com domínio (VPS) | Docker + Caddy (HTTPS) | [Opção 3](#opção-3-servidor-na-internet-com-domínio-próprio) |
-| Em casa, pelo DuckDNS (porta 2444) | scripts de `deploy/` | [Opção 4](#opção-4-em-casa-pelo-duckdns) |
+| Onde vai rodar | Caminho |
+|---|---|
+| Pelo Claude Code | diga **"rode o projeto"** |
+| Este PC (Windows), sem Docker | `scripts\rodar.ps1` ([Opção 1](#opção-1-windows-sem-docker)) |
+| Qualquer máquina com Docker | `docker compose up -d --build` ([Opção 2](#opção-2-docker)) |
+| Servidor na internet com domínio | Docker + Caddy, HTTPS ([Opção 3](#opção-3-servidor-com-domínio-e-https)) |
+| PC de casa, pelo DuckDNS (porta 2444) | [docs/PUBLICAR-DUCKDNS.md](docs/PUBLICAR-DUCKDNS.md) |
 
----
+## Primeiro acesso: o ADMTOTAL
 
-## Para quem vai ativar o servidor
+No primeiro acesso aparece o assistente. Quem faz o cadastro vira o **administrador**: use o login **`ADMTOTAL`**, uma senha forte e os três modelos (Demandas e Processos SEI, Mapeamento de dados, Anotações). Depois:
 
-Abra o **Claude Code** na pasta do projeto e diga:
+1. **Painel do adm > Criar > Estrutura modelo (SEMEC)** cria SEMEC / SUPLAN e SURÇAM / DGEO, DIPLAD e DIPEI / DCAD, DTAD e DASI, sem pessoas. Ou crie as suas unidades em **Criar > Unidade**.
+2. **Criar > Usuário** para cada pessoa, marcando em cada unidade se ela é **membro** ou **gestor**. O gestor administra a unidade e tudo abaixo (veja o README).
+3. Crie **um segundo administrador**: se o ADMTOTAL esquecer a senha, o outro gera uma temporária.
 
-> **rode o projeto**
+## Opção 1: Windows, sem Docker
 
-O assistente segue as instruções do `CLAUDE.md`: roda um único script, que instala só o que falta (gems do Ruby, motor C++), sobe o servidor e responde com o endereço. Se já estiver no ar, ele só avisa. Não precisa explicar mais nada.
-
-Outros pedidos que funcionam do mesmo jeito: **"pare o projeto"** e **"reinicie o projeto"**.
-
-Sem o assistente, os comandos são estes (PowerShell, na pasta do projeto):
+Pré-requisitos (uma vez, depois abra um terminal novo):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1              # sobe (ou avisa que já está no ar)
+winget install RubyInstallerTeam.Ruby.3.4
+winget install Kitware.CMake
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+Na pasta do projeto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1              # sobe (instala só o que falta)
 powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1 -Reiniciar   # para e sobe de novo
 powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1 -Parar       # para
 ```
 
-Depois é só abrir **http://127.0.0.1:4567**. No primeiro acesso aparece o assistente de configuração: quem fizer o cadastro vira o **administrador**.
-
----
-
-## Opção 1: este PC com Windows, sem Docker
-
-### Pré-requisitos (uma vez)
-
-No PowerShell:
-
-```powershell
-winget install RubyInstallerTeam.Ruby.3.4     # Ruby
-winget install Kitware.CMake                  # para compilar o motor C++
-winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
-```
-
-Feche e abra o terminal depois de instalar (para o PATH atualizar).
-
-### Rodar
-
-```powershell
-cd C:\Projetos\DashZon
-powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1
-```
-
-Na primeira vez ele instala as gems e compila o motor (1 a 2 minutos). Nas próximas, sobe em uns 2 segundos. A saída normal é uma linha só:
-
-```
-DashZon no ar: http://127.0.0.1:4567
-```
-
-- Os dados ficam em `data\dashzon.db` e a chave do servidor em `data\segredo.key` (**não apague**: ela derruba as sessões e o sistema deixa de reconhecer CPF/CNPJ repetidos).
-- Os registros de funcionamento ficam em `log\dashzon.log`.
-- O servidor roda sem janela. Para parar: `scripts\rodar.ps1 -Parar`.
-
----
+Abra **http://127.0.0.1:4567**. Dados em `data\dashzon.db`, chave do servidor em `data\segredo.key` (**não apague**: derruba as sessões e o sistema deixa de reconhecer CPF/CNPJ repetidos). Log em `log\dashzon.log`.
 
 ## Opção 2: Docker
 
-Serve para qualquer máquina (Windows, Linux, Mac) e é o jeito mais simples num servidor: não precisa instalar Ruby nem compilador. A imagem já vem com o motor C++ compilado, roda sem usuário root e se reinicia sozinha se cair ou se a máquina religar.
-
-### 2.1 Instalar o Docker
-
-**Windows** (PowerShell como administrador):
-
-```powershell
-wsl --install                         # se o WSL 2 ainda não estiver instalado (pede reiniciar)
-winget install Docker.DockerDesktop
-```
-
-Abra o **Docker Desktop** uma vez e espere aparecer "Engine running". Em Configurações → General, marque "Start Docker Desktop when you sign in" para ele subir junto com o Windows.
-
-**Linux** (Ubuntu/Debian):
+Instale o Docker (Windows: `winget install Docker.DockerDesktop`; Linux: `curl -fsSL https://get.docker.com | sudo sh`). Na pasta do projeto:
 
 ```bash
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER        # para usar docker sem sudo (saia e entre de novo)
+docker compose up -d --build     # 2 a 3 min na primeira vez
+docker compose ps                # deve mostrar "healthy"
 ```
-
-Conferir: `docker --version` e `docker compose version`.
-
-### 2.2 Subir
-
-Na pasta do projeto:
-
-```bash
-docker compose up -d --build
-```
-
-A primeira vez leva uns 2 a 3 minutos (monta a imagem). Depois:
-
-```bash
-docker compose ps          # deve aparecer "healthy"
-```
-
-Abra **http://127.0.0.1:4567**. Por segurança, a porta só responde na própria máquina; para acessar de fora, use a Opção 3 ou a 4.
-
-Para usar outra porta local: crie um `.env` na raiz com `DASHZON_PORTA=8080` (veja o `.env.example`).
-
-### 2.3 Dia a dia
 
 | Quero... | Comando |
 |---|---|
-| Ver se está rodando | `docker compose ps` |
-| Ver os registros (logs) | `docker compose logs -f dashzon` |
-| Parar | `docker compose stop` |
-| Subir de novo | `docker compose start` |
-| Atualizar para a versão nova do código | `git pull` e `docker compose up -d --build` (os dados continuam) |
+| Ver os logs | `docker compose logs --tail 30 dashzon` |
+| Parar / subir | `docker compose stop` / `docker compose start` |
+| Atualizar o código | `git pull && docker compose up -d --build` (os dados ficam) |
 
-Os dados (banco + chave do servidor) ficam no volume **`dashzon_dashzon-dados`**. Eles continuam lá quando você para, atualiza ou recria o container. **Nunca rode `docker compose down -v`** (o `-v` apaga o volume, e com ele todos os dados).
+Os dados ficam no volume `dashzon_dashzon-dados`. **Nunca rode `docker compose down -v`** (apaga o volume).
 
-**Primeira partida depois de uma atualização que mudou o formato do banco** (a que trouxe o banco compacto, versão 3): o DashZon converte o banco sozinho antes de aceitar acessos. Antes disso ele grava uma cópia ao lado (`dashzon.db.v2-AAAAMMDDHHMMSS.bak`, dentro do volume). Leva alguns segundos (cerca de 6 s para 100 mil registros), e o `docker compose ps` pode mostrar `starting` até terminar. Acompanhe com `docker compose logs --tail 20 dashzon`: aparece "Banco migrado da versão 2 para a 3". O arquivo de cópia pode ser apagado depois que você conferir que está tudo certo.
-
-### 2.4 Backup e restauração
-
-Rode na pasta onde quer guardar o arquivo. Os comandos são iguais no PowerShell e no bash.
-
-**Fazer backup** (gera `dashzon-backup.tgz`):
+**Backup** (gera `dashzon-backup.tgz` na pasta atual; troque o caminho do projeto):
 
 ```bash
-docker compose -f C:/Projetos/DashZon/docker-compose.yml stop dashzon
+docker compose -f "CAMINHO/docker-compose.yml" stop dashzon
 docker run --rm -v "dashzon_dashzon-dados:/dados" -v "${PWD}:/backup" alpine tar czf /backup/dashzon-backup.tgz -C /dados .
-docker compose -f C:/Projetos/DashZon/docker-compose.yml start dashzon
+docker compose -f "CAMINHO/docker-compose.yml" start dashzon
 ```
 
-**Restaurar** um backup (substitui tudo o que está no volume):
+**Restaurar**: o mesmo, com `sh -c "find /dados -mindepth 1 -delete && tar xzf /backup/dashzon-backup.tgz -C /dados && chown -R 1000:1000 /dados"` no lugar do `tar czf`. O backup leva o banco e a chave juntos. O "Backup com dados (JSON)" da tela não leva contas nem senhas.
 
-```bash
-docker compose -f C:/Projetos/DashZon/docker-compose.yml stop dashzon
-docker run --rm -v "dashzon_dashzon-dados:/dados" -v "${PWD}:/backup" alpine sh -c "find /dados -mindepth 1 -delete && tar xzf /backup/dashzon-backup.tgz -C /dados && chown -R 1000:1000 /dados"
-docker compose -f C:/Projetos/DashZon/docker-compose.yml start dashzon
-```
+## Opção 3: servidor com domínio e HTTPS
 
-(No Linux, troque `C:/Projetos/DashZon` pelo caminho do projeto no servidor.)
-
-O backup leva o banco **e** a chave do servidor juntos: restaurado, tudo volta a funcionar, inclusive os logins. Guarde o arquivo em outro lugar (outro disco, nuvem). Um backup feito numa versão antiga também pode ser restaurado numa versão nova: o banco é convertido na partida, como acima.
-
-Também dá para exportar pelo próprio DashZon, em "Backup com dados (JSON)", mas esse arquivo não leva as contas de usuário nem as senhas.
-
----
-
-## Opção 3: servidor na internet com domínio próprio
-
-Para um servidor (VPS) com Linux, IP público e um domínio seu (ex.: `painel.suaempresa.com.br`). O Caddy tira o certificado HTTPS sozinho (Let's Encrypt).
-
-1. **Instale o Docker** no servidor (2.1, parte Linux) e copie o projeto (`git clone`).
-2. **DNS:** no painel do seu domínio, crie um registro **A** apontando `painel.suaempresa.com.br` para o IP do servidor. Espere propagar (confira com `ping painel.suaempresa.com.br`).
-3. **Firewall:** libere as portas **80 e 443** (TCP) no servidor e no painel da hospedagem. Não abra a 4567.
-4. **Configuração:** copie o modelo e preencha:
-
-```bash
-cp .env.example .env
-nano .env
-```
+1. Docker no servidor (Linux) e o projeto clonado.
+2. **DNS**: registro **A** do domínio (ex.: `painel.prefeitura.gov.br`) para o IP do servidor.
+3. **Firewall**: portas **80 e 443** abertas. Nunca a 4567.
+4. `cp .env.example .env` e preencha:
 
 ```ini
-DASHZON_DOMINIO=painel.suaempresa.com.br
+DASHZON_DOMINIO=painel.prefeitura.gov.br
 DASHZON_COOKIE_SEGURO=1
-DASHZON_URL_PUBLICA=https://painel.suaempresa.com.br
+DASHZON_URL_PUBLICA=https://painel.prefeitura.gov.br
 ```
 
-5. **Suba com o Caddy** (perfil `https`):
+5. `docker compose --profile https up -d --build`. O Caddy tira o certificado sozinho. **Faça o primeiro acesso (ADMTOTAL) logo em seguida**: antes do setup, quem abrir primeiro cria o administrador. (Para fazer o setup antes de publicar, suba sem o perfil `https` e use um túnel: `ssh -L 4567:127.0.0.1:4567 usuario@servidor`.)
 
-```bash
-docker compose --profile https up -d --build
-docker compose --profile https ps
-```
+E-mail (opcional): variáveis `DASHZON_SMTP_*` no `.env`. Sem elas, o administrador confirma os e-mails à mão e entrega os links de senha.
 
-6. Abra **https://painel.suaempresa.com.br**. O certificado leva de alguns segundos a 1 minuto na primeira vez (`docker compose logs -f caddy` mostra quando sai). **Faça o primeiro acesso logo em seguida:** até o setup ser concluído, quem abrir o endereço primeiro cria o administrador. (Para fazer o setup antes de publicar, suba sem o perfil `https` e abra pelo túnel `ssh -L 4567:127.0.0.1:4567 usuario@servidor`, em http://127.0.0.1:4567.)
+## Antes de liberar para as secretarias
 
-Para atualizar: `git pull` e `docker compose --profile https up -d --build`.
-
-**E-mail (opcional):** para mandar os links de confirmação de e-mail e de "esqueci a senha" por e-mail, preencha as variáveis `DASHZON_SMTP_*` no `.env` (no Gmail, use uma "senha de app") e rode o `up` de novo. Sem isso, o administrador confirma os e-mails à mão e manda os links de senha por outro canal.
-
----
-
-## Opção 4: em casa, pelo DuckDNS
-
-Para acessar de fora usando o PC de casa com um endereço grátis (`SEUNOME.duckdns.org:2444`), sem abrir as portas 80/443: siga o tutorial **[docs/PUBLICAR-DUCKDNS.md](docs/PUBLICAR-DUCKDNS.md)**.
-
----
-
-## Antes de liberar para outras pessoas
-
-- [ ] Senha forte no administrador e **pelo menos dois administradores**.
-- [ ] Contas criadas no **Painel do adm** (cada pessoa com o seu login; nada de senha compartilhada).
-- [ ] Na internet, só com **HTTPS** (Opção 3 ou 4). Nunca exponha a porta 4567.
-- [ ] Um backup feito e **testado** (restaurado em algum lugar) antes do primeiro uso real.
+- [ ] ADMTOTAL com senha forte e **um segundo administrador**.
+- [ ] Estrutura criada e cada pessoa na sua unidade, com o papel certo (membro/gestor).
+- [ ] Na internet, só com **HTTPS** (Opção 3 ou DuckDNS).
+- [ ] Um backup feito **e testado** antes do uso real.
 
 ## Problemas comuns
 
 | Sintoma | O que fazer |
 |---|---|
-| `rodar.ps1` diz "Ruby não encontrado" | Instale o Ruby (Opção 1) e abra um terminal novo |
-| `rodar.ps1` diz "CMake não encontrado" ou a compilação do motor falha | Instale o CMake e o Build Tools (Opção 1); o erro completo está em `log\motor.log` |
-| "O servidor não respondeu" | Veja o fim de `log\dashzon.log`; a porta 4567 pode estar ocupada (use `-Porta 4568`) |
-| `docker: command not found` / "Cannot connect to the Docker daemon" | Docker não instalado ou o Docker Desktop fechado: abra e espere "Engine running" |
-| Container "unhealthy" ou reiniciando | `docker compose logs dashzon` mostra o erro |
-| `Host not permitted` | Acessou por um endereço que não está em `DASHZON_DOMINIO` (Opção 3) |
-| O certificado HTTPS não sai (Opção 3) | Confira o DNS (registro A) e se as portas 80 e 443 estão abertas; `docker compose logs caddy` |
-| Todo mundo caiu para a tela de login de uma vez | A chave do servidor foi trocada ou apagada (`segredo.key`); restaure do backup |
-| Esqueci a senha do único administrador | Veja "Esqueci a senha do administrador" em `docs/DESENVOLVIMENTO.md` |
-| Depois de atualizar, tudo dá erro 500 e o log fala em "migrar o banco" | A conversão para o formato compacto falhou e **nada foi alterado**. O log traz a causa e o caminho da cópia (`dashzon.db.v2-....bak`). Volte ao código anterior (`git checkout` da versão antiga e `docker compose up -d --build`), que lê o mesmo banco, e avise o motivo |
+| Ruby ou CMake não encontrado | Instale (Opção 1) e abra um terminal novo |
+| "O servidor não respondeu" | Fim de `log\dashzon.log`; porta ocupada: `-Porta 4568` |
+| Toda consulta dá 500 com "Permission denied" no motor | Corrigido nesta versão (caminho com espaços). Se voltar, compile de novo: `cmake --build engine-cpp/build --config Release` |
+| `Host not permitted` | Domínio fora de `DASHZON_DOMINIO` / `DASHZON_HOSTS` |
+| 429 "Muitas tentativas" | Bloqueio de 15 min; outro admin desbloqueia em Painel do adm > Segurança |
+| "Você só pode lançar registros da sua unidade" | É a regra: a pessoa não está na unidade escolhida nem gere uma acima dela. Ajuste em Painel do adm ou Minha equipe |
+| Esqueceu a senha do único admin | Comando em `CLAUDE.md` ("Se falhar") |

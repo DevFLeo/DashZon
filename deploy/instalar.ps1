@@ -4,7 +4,7 @@
 #   3. libera a porta pública no Firewall do Windows;
 #   4. agenda a atualização do IP no DuckDNS a cada 5 minutos.
 # Uso: clique com o botão direito no PowerShell > "Executar como administrador", e:
-#   powershell -ExecutionPolicy Bypass -File C:\Projetos\DashZon\deploy\instalar.ps1
+#   powershell -ExecutionPolicy Bypass -File deploy\instalar.ps1
 param([string]$ArquivoConfig, [switch]$SemFirewall, [switch]$SemAgendamento)
 
 . (Join-Path $PSScriptRoot "_comum.ps1")
