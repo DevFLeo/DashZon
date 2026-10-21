@@ -29,7 +29,10 @@ module Usuarios
   SENHA_MINIMA = 8
   SENHA_MAXIMA = 200
   ITERACOES = 100_000 # não mudar: as senhas já gravadas usam este valor
-  LOGIN_RE = /\A[a-zA-Z0-9._-]{3,40}\z/
+  # 3 a 40 caracteres: letras, números, ponto, hífen, _ e espaço simples entre
+  # as partes ("teste 1"). Espaços repetidos viram um só (ver normalizar_login).
+  LOGIN_RE = /\A(?=.{3,40}\z)[a-zA-Z0-9._-]+(?: [a-zA-Z0-9._-]+)*\z/
+  LOGIN_ERRO = "Login deve ter de 3 a 40 caracteres: letras sem acento, números, ponto, hífen, _ ou espaço (ex.: teste 1)".freeze
   EMAIL_RE = /\A[^@\s]+@[^@\s]+\.[^@\s]{2,}\z/
   PERFIS = %w[admin usuario].freeze
   CARGOS_SUGERIDOS = ["Sócio", "Líder de produção", "Funcionário"].freeze
@@ -88,9 +91,14 @@ module Usuarios
     Database.row("SELECT * FROM usuarios WHERE id = ?", [id.to_i])
   end
 
+  # Pontas cortadas e espaços repetidos viram um só: "  teste   1 " = "teste 1".
+  def normalizar_login(texto)
+    texto.to_s.strip.gsub(/\s+/, " ")
+  end
+
   def por_login_ou_email(texto)
     tabelas!
-    t = texto.to_s.strip
+    t = normalizar_login(texto)
     return nil if t.empty?
 
     Database.row("SELECT * FROM usuarios WHERE login = ? COLLATE NOCASE OR (email IS NOT NULL AND email = ? COLLATE NOCASE)
@@ -270,8 +278,8 @@ module Usuarios
     aj = ajustes
     out = {}
 
-    login = d.key?("login") ? d["login"].to_s.strip : atual&.dig("login").to_s
-    raise Erro, "Login deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou _" unless login.match?(LOGIN_RE)
+    login = d.key?("login") ? normalizar_login(d["login"]) : atual&.dig("login").to_s
+    raise Erro, LOGIN_ERRO unless login.match?(LOGIN_RE)
     if (dono = Database.row("SELECT id FROM usuarios WHERE login = ? COLLATE NOCASE", [login])) && dono["id"] != atual&.dig("id")
       raise Erro, "Já existe um usuário com o login '#{login}'"
     end

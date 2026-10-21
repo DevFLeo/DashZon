@@ -804,8 +804,8 @@
       </div>
       <div class="field">
         <label for="u-login" class="obrigatorio">Login</label>
-        <input id="u-login" type="text" maxlength="40" autocomplete="off" required pattern="[a-zA-Z0-9._\-]{3,40}"
-               title="3 a 40 caracteres: letras, números, ponto, hífen ou _">
+        <input id="u-login" type="text" maxlength="40" autocomplete="off" required minlength="3" aria-describedby="u-login-ajuda">
+        <div class="ajuda" id="u-login-ajuda">Letras sem acento, números, ponto, hífen, _ ou espaço (ex.: teste 1).</div>
       </div>
     </div>
     <div class="field-row">

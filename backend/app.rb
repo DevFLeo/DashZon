@@ -312,9 +312,9 @@ post "/api/setup" do
 
   # Confere login e senha ANTES de criar o banco: um erro aqui não pode deixar
   # um banco pela metade. (O resto do cadastro é validado por Usuarios.criar!.)
-  login = d["usuario"].to_s.strip
+  login = Usuarios.normalizar_login(d["usuario"])
   senha = d["senha"].to_s
-  halt json({ error: "Login deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou _" }, 422) unless login.match?(Usuarios::LOGIN_RE)
+  halt json({ error: Usuarios::LOGIN_ERRO }, 422) unless login.match?(Usuarios::LOGIN_RE)
   Usuarios.validar_senha!(senha, login: login)
   moeda = (d["moeda"] || "BRL").to_s
   halt json({ error: "Moeda inválida" }, 422) unless MOEDAS.include?(moeda)

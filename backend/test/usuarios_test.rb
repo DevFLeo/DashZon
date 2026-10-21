@@ -12,6 +12,19 @@ class UsuariosTest < Minitest::Test
 
   # --- setup e login ---------------------------------------------------------
 
+  # Relatório 21/10: "teste 1" (com espaço) era recusado sem explicação.
+  def test_login_com_espaco
+    configurar!
+    post_json "/api/admin/usuarios", { "login" => "  teste   1 ", "nome" => "Teste 1", "senha" => "123ZX456", "deve_trocar_senha" => false }
+    assert_equal 201, last_response.status, last_response.body
+    assert_equal "teste 1", resposta["usuario"]["login"]
+    post_json "/api/admin/usuarios", { "login" => "Teste 1", "nome" => "Outro", "senha" => "123ZX456" }
+    assert_equal 422, last_response.status, "mesmo login (sem diferenciar maiúsculas)"
+    post_json "/api/admin/usuarios", { "login" => "té 1", "nome" => "X", "senha" => "123ZX456" }
+    assert_match(/espaço/, resposta["error"], "a mensagem diz o que é aceito")
+    assert_equal 200, entrar("teste  1", "123ZX456").status
+  end
+
   def test_setup_cria_admin_e_ja_entra
     configurar!
     get "/api/status"
