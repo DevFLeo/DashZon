@@ -42,7 +42,13 @@ module EngineClient
   # contagem do tempo).
   # `comando`: caminho do binário, ou [binário, argumentos...].
   def self.executar(comando, entrada, tempo_maximo: TEMPO_MAXIMO)
-    Open3.popen3(*Array(comando)) do |stdin, stdout, stderr, processo|
+    argv = Array(comando).dup
+    # [binário, binário]: o Ruby executa o arquivo direto, sem passar pela linha
+    # de comando. Com uma string só, no Windows, um caminho com espaços
+    # ("C:/Projetos/DashZon - Prefeitura DashZ/...") era quebrado nos espaços e o
+    # Ruby tentava executar "C:/Projetos/DashZon" (EACCES, ou outro programa).
+    argv[0] = [argv[0], argv[0]] if argv[0].is_a?(String)
+    Open3.popen3(*argv) do |stdin, stdout, stderr, processo|
       [stdin, stdout, stderr].each(&:binmode)
       leitor_out = Thread.new { stdout.read }
       leitor_err = Thread.new { stderr.read }
