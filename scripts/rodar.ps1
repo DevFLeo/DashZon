@@ -2,6 +2,7 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1            sobe (ou diz que já está no ar)
 #   powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1 -Reiniciar  para e sobe de novo
 #   powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1 -Parar      para
+#   ... -Endereco 127.0.0.2   escuta em outro endereço local (padrão: DASHZON_HOST ou 127.0.0.1)
 #
 # Pensado para gastar pouco (tempo e tokens de quem roda pelo assistente): cada
 # etapa é pulada se já estiver pronta, e a saída normal é UMA linha. Só em caso
@@ -10,7 +11,8 @@ param(
     [int]$Porta = 4567,
     [switch]$Reiniciar,
     [switch]$Parar,
-    [string]$Banco   # outro arquivo .db (testes); padrão: data\dashzon.db
+    [string]$Banco,  # outro arquivo .db (testes); padrão: data\dashzon.db
+    [string]$Endereco = $(if ($env:DASHZON_HOST) { $env:DASHZON_HOST } else { "127.0.0.1" })
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,7 +20,7 @@ $Raiz = Split-Path $PSScriptRoot -Parent
 $Backend = Join-Path $Raiz "backend"
 $Logs = Join-Path $Raiz "log"
 New-Item -ItemType Directory -Force $Logs | Out-Null
-$url = "http://127.0.0.1:$Porta"
+$url = "http://${Endereco}:$Porta"
 
 function Falhar([string]$msg, [string]$log) {
     Write-Host "ERRO: $msg" -ForegroundColor Red
@@ -102,6 +104,7 @@ if ($Banco) {
     $env:DASHZON_DB_PATH = $Banco
 }
 $env:PORT = "$Porta"
+$env:DASHZON_HOST = $Endereco
 $erros = Join-Path $Logs "dashzon.log"
 Start-Process -FilePath $ruby -ArgumentList "-rbundler/setup", "app.rb" -WorkingDirectory $Backend -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $Logs "dashzon-saida.log") -RedirectStandardError $erros | Out-Null

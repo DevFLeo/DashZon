@@ -6,6 +6,14 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimentoUI-UX` · Endereço local no `rodar.ps1`
+
+**O que:** `scripts/rodar.ps1` ganhou `-Endereco` (padrão: `DASHZON_HOST` ou `127.0.0.1`). O script passa o endereço ao servidor (`DASHZON_HOST`, que o `app.rb` já lia) e confere o `/api/status` nele, em vez do `127.0.0.1` fixo.
+
+**Por quê:** pedido de rodar o DashZon em `http://127.0.0.2:4567`. O padrão não mudou, porque o Caddy do modo DuckDNS aponta para `127.0.0.1:4567`.
+
+---
+
 ## 2026-10-21 · `desenvolvimentoUI-UX` · Calendário dos protótipos
 
 **O que:** o card de calendário do React e do Next foi refeito a partir do oficial: semanas que cabem na largura, meses, dias da semana, legenda e sequências, com os mesmos números. Por cima disso, pensando em usabilidade, acessibilidade, desejabilidade e utilidade:

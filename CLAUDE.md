@@ -7,7 +7,7 @@ Para **mudar código**, leia antes o `Sistema.md` (arquitetura e regras completa
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/rodar.ps1              # instala só o que falta (gems, motor C++) e sobe
-powershell -ExecutionPolicy Bypass -File scripts/rodar.ps1 -Reiniciar   # -Parar | -Porta 4568 | -Banco outro.db
+powershell -ExecutionPolicy Bypass -File scripts/rodar.ps1 -Reiniciar   # -Parar | -Porta 4568 | -Banco outro.db | -Endereco 127.0.0.2
 ```
 
 Se o script disser que falta algo: `winget install RubyInstallerTeam.Ruby.3.4`; `winget install Kitware.CMake` + Visual Studio Build Tools (C++). Abra um terminal novo e rode de novo.
