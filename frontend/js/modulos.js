@@ -175,6 +175,7 @@ const Modulos = (() => {
     cx.disabled = true;
     try {
       const novo = await Api.patch(`/api/modulos/${atual.slug}/registros/${id}`, { [cx.dataset.campo]: cx.checked });
+      if (novo?.pendente) { cx.checked = !cx.checked; Util.aviso(novo.mensagem); await App.recarregarNav(); return; }
       const i = registros.findIndex((r) => r.id === id);
       if (i >= 0) registros[i] = { ...registros[i], ...novo };
       await carregarResumo();
@@ -249,9 +250,11 @@ const Modulos = (() => {
     try {
       const dados = coletar();
       const slug = formModulo.slug;
-      if (editandoId) await Api.put(`/api/modulos/${slug}/registros/${editandoId}`, dados);
-      else await Api.post(`/api/modulos/${slug}/registros`, dados);
+      const r = editandoId ? await Api.put(`/api/modulos/${slug}/registros/${editandoId}`, dados)
+        : await Api.post(`/api/modulos/${slug}/registros`, dados);
       Util.fecharModal("modal-registro");
+      // Perfil visualizador: virou um pedido de aprovação (nada foi gravado ainda).
+      if (r?.pendente) { Util.aviso(r.mensagem); await App.recarregarNav(); return; }
       Util.aviso(editandoId ? "Registro atualizado" : `Lançado em ${formModulo.nome}`);
       await aoSalvar();
     } catch (e) {
@@ -261,7 +264,8 @@ const Modulos = (() => {
 
   async function excluirRegistro(id) {
     if (!confirm("Excluir este registro?")) return;
-    await Api.del(`/api/modulos/${atual.slug}/registros/${id}`);
+    const r = await Api.del(`/api/modulos/${atual.slug}/registros/${id}`);
+    if (r?.pendente) { Util.aviso(r.mensagem); await App.recarregarNav(); return; }
     await recarregar();
   }
 

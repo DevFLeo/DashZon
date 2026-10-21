@@ -31,8 +31,22 @@ const App = (() => {
   }
 
   async function recarregarNav() {
-    [modulos, dashboards] = await Promise.all([Api.get("/api/modulos"), Api.get("/api/dashboards")]);
+    let contagem;
+    [modulos, dashboards, contagem] = await Promise.all([Api.get("/api/modulos"), Api.get("/api/dashboards"),
+      Api.get("/api/solicitacoes/contagem").catch(() => null)]);
     renderNav();
+    mostrarAprovacoes(contagem);
+  }
+
+  // Link "Aprovações" no rodapé do menu: com o número de pedidos para decidir
+  // (ou os seus esperando), e sempre à vista para quem é visualizador.
+  function mostrarAprovacoes(c) {
+    if (!c) return;
+    const n = c.decidir || c.minhas_pendentes;
+    $("link-aprovacoes").hidden = !(c.decidir || c.minhas_pendentes || usuario?.perfil === "visualizador");
+    $("aprovacoes-n").hidden = !n;
+    $("aprovacoes-n").textContent = n;
+    $("link-aprovacoes").title = c.decidir ? `${c.decidir} pedido(s) esperando você` : c.minhas_pendentes ? `${c.minhas_pendentes} pedido(s) seu(s) aguardando` : "";
   }
 
   function renderNav() {
@@ -58,6 +72,7 @@ const App = (() => {
           ${alca}<span class="nav-sigla" aria-hidden="true">${esc(sigla(m.nome))}</span><span class="nav-texto">${esc(m.nome)}</span><span class="count">${m.total}</span></a>`).join("")
       : `<div class="nav-empty">${modulos.length ? '<a href="#/config/modulos">Todos desligados: ligue em Configurações</a>' : "Nenhum módulo"}</div>`;
     $("link-config").classList.toggle("active", rota.tipo === "config");
+    $("link-aprovacoes").classList.toggle("active", rota.tipo === "aprovacoes");
   }
 
   // Layout fixado/liberado (pelo botão do dashboard ou pelo botão direito no menu).
@@ -120,6 +135,9 @@ const App = (() => {
       } else if (tipo === "config") {
         mostrar("view-config");
         await Config.abrir(id);
+      } else if (tipo === "aprovacoes") {
+        mostrar("view-aprovacoes");
+        await Aprovacoes.abrir();
       } else if (tipo === "admin" && usuario?.admin) {
         mostrar("view-admin");
         await Admin.abrir(usuario.id);
@@ -213,6 +231,8 @@ const App = (() => {
     usuario = u;
     $("usuario-nome").textContent = u.nome || u.login;
     $("link-admin").hidden = !u.admin;
+    // Visualizador: some o que cria ou altera estrutura (o servidor também barra).
+    document.body.classList.toggle("perfil-visualizador", u.perfil === "visualizador");
   }
 
   async function iniciarApp() {
@@ -248,6 +268,7 @@ const App = (() => {
     Conta.init(status);
     Admin.init();
     Compartilhar.init();
+    Aprovacoes.init();
     Menu.init();
 
     await recarregarNav();

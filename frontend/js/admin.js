@@ -234,7 +234,7 @@ const Admin = (() => {
       return `<tr>
         <td><strong>${esc(u.nome || u.login)}</strong>${eu ? ' <span class="hint">(você)</span>' : ""}<div class="hint">${esc(u.login)}</div></td>
         <td>${esc(u.cargo) || '<span class="hint">—</span>'}</td>
-        <td>${u.admin ? '<span class="chip chip-entrada">Administrador</span>' : "Usuário"}</td>
+        <td>${u.admin ? '<span class="chip chip-entrada">Administrador</span>' : u.perfil === "visualizador" ? '<span class="chip">Visualizador</span>' : "Usuário"}</td>
         <td>${email}</td>
         <td>${u.documento ? `<span class="nowrap">${esc(u.documento_tipo.toUpperCase())} ${esc(u.documento)}</span>` : '<span class="hint">—</span>'}</td>
         <td>${u.equipes?.length ? u.equipes.map((e) => `<span class="chip${e.teste ? " chip-teste" : ""}">${esc(e.nome)}</span>`).join(" ") : '<span class="hint">Nenhuma</span>'}</td>

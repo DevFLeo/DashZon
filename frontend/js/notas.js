@@ -136,6 +136,10 @@ const Notas = (() => {
     $("nota-pasta").value = pastaDe(n);
     $("nota-editor").value = conteudoDe(n);
     status("salvo");
+    // Visualizador: só lê (cada tecla viraria um pedido de aprovação).
+    const soLer = App.usuario()?.perfil === "visualizador";
+    ["nota-titulo", "nota-pasta", "nota-editor"].forEach((id) => { $(id).readOnly = soLer; });
+    if (soLer) $("nota-status").textContent = "Somente leitura";
     aplicarModo(modo());
     renderPrevia();
     document.querySelectorAll("#notas-arvore .nota-item").forEach((a) => a.classList.toggle("active", Number(a.dataset.id) === id));
@@ -170,6 +174,7 @@ const Notas = (() => {
 
   // As edições são gravadas sozinhas, 700 ms depois da última tecla (só os campos que mudaram).
   function agendar(campo, valor) {
+    if (App.usuario()?.perfil === "visualizador") return;
     if (!pendente || pendente.id !== atualId) pendente = { id: atualId, mudancas: {} };
     pendente.mudancas[campo] = valor;
     const n = nota(atualId);

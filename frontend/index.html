@@ -172,6 +172,7 @@
       <button class="btn btn-ghost btn-sm" id="btn-privacidade" aria-pressed="false">Ocultar valores</button>
       <a class="btn btn-ghost btn-sm" href="/api/export">Exportar configuração (JSON)</a>
       <a class="btn btn-ghost btn-sm" href="/api/export?dados=1">Backup com dados (JSON)</a>
+      <a class="btn btn-ghost btn-sm link-aprovacoes" id="link-aprovacoes" href="#/aprovacoes" hidden>Aprovações <span class="badge" id="aprovacoes-n" hidden></span></a>
       <a class="btn btn-ghost btn-sm" id="link-config" href="#/config">Configurações</a>
       <a class="btn btn-ghost btn-sm link-admin" id="link-admin" href="#/admin" hidden>Painel do adm</a>
       <div class="usuario-atual">
@@ -522,6 +523,20 @@
       </section>
     </section>
 
+    <!-- Aprovações: pedidos do perfil visualizador (js/aprovacoes.js) -->
+    <section class="view" id="view-aprovacoes">
+      <header class="page-header">
+        <div>
+          <h1>Aprovações</h1>
+          <p class="hint">Quem tem o perfil de visualização não altera registros direto: cada criação, alteração ou exclusão vira um pedido que o dono do módulo (ou um administrador) aprova ou nega.</p>
+        </div>
+      </header>
+      <h2 class="admin-titulo">Para você decidir</h2>
+      <div id="apr-pendentes"></div>
+      <h2 class="admin-titulo">Seus pedidos</h2>
+      <div id="apr-minhas"></div>
+    </section>
+
     <section class="view" id="view-vazio">
       <div class="empty-state">
         <h2>Nenhum módulo instalado</h2>
@@ -836,6 +851,7 @@
         <select id="u-perfil">
           <option value="usuario">Usuário (usa o sistema)</option>
           <option value="admin">Administrador (usa e acessa este painel)</option>
+          <option value="visualizador">Visualizador (só vê; o que mudar vai para aprovação)</option>
         </select>
       </div>
     </div>
@@ -971,6 +987,7 @@
 <script src="/js/notas.js"></script>
 <script src="/js/dashboards.js"></script>
 <script src="/js/compartilhar.js"></script>
+<script src="/js/aprovacoes.js"></script>
 <script src="/js/menu.js"></script>
 <script src="/js/responsivo.js"></script>
 <script src="/js/app.js"></script>

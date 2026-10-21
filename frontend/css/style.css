@@ -741,6 +741,22 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 
 
 .exd-aviso { color: var(--status-warning); font-size: max(11px, calc(12px * var(--fs))); }
+/* Aprovações (perfil visualizador) */
+.pedido { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-1); padding: 12px 14px; margin-bottom: 10px; display: grid; gap: 8px; }
+.pedido-topo { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pedido-dif td:nth-child(3) { font-weight: 600; }
+.pedido-pendente { color: var(--status-warning); }
+.pedido-aprovada { color: var(--status-good); }
+.pedido-negada { color: var(--status-critical); }
+.link-aprovacoes { display: flex; align-items: center; gap: 6px; }
+.badge {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--accent-ink);
+  font-size: max(11px, calc(11px * var(--fs))); font-weight: 700; display: inline-grid; place-items: center;
+}
+/* Perfil visualizador: o que cria ou muda estrutura some (o servidor também barra). */
+.perfil-visualizador #btn-novo-dashboard, .perfil-visualizador [data-acao="novo-dashboard"], .perfil-visualizador #btn-add-modulo,
+.perfil-visualizador #btn-apagar-exemplos, .perfil-visualizador #notas-nova, .perfil-visualizador #notas-vazia-nova,
+.perfil-visualizador #notas-btn-importar, .perfil-visualizador #notas-btn-importar-pasta, .perfil-visualizador #nota-excluir { display: none !important; }
 .comp-equipes { margin: 0 0 10px 30px; }
 .comp-equipes.desligada { opacity: .55; }
 .conta-equipes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 12px; }
