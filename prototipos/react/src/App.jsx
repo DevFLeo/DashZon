@@ -36,7 +36,7 @@ export function App() {
   return (
     <Moldura sessao={sessao} ativo={ativo} Link={LinkHash} tecnologia="Protótipo React (Vite)"
       hrefDashboard={(d) => `#/d/${d}`} hrefModulo={(m) => `#/m/${encodeURIComponent(m)}`} hrefConfig="#/config"
-      tema={tema} trocarTema={trocarTema} onSair={async () => { await Api.post("/api/logout"); recarregar(); }}>
+      tema={tema} trocarTema={trocarTema} escolhaTema={escolhaTema} escolherTema={escolherTema} onSair={async () => { await Api.post("/api/logout"); recarregar(); }}>
       {tela}
     </Moldura>
   );

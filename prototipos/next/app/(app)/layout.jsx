@@ -29,7 +29,7 @@ export default function LayoutApp({ children }) {
     <Contexto.Provider value={{ sessao, tema, recarregar, escolhaTema, escolherTema }}>
       <Moldura sessao={sessao} ativo={ativoDe(caminho)} Link={Link} tecnologia="Protótipo Next.js"
         hrefDashboard={(d) => `/d/${d}`} hrefModulo={(m) => `/m/${encodeURIComponent(m)}`} hrefConfig="/config"
-        tema={tema} trocarTema={trocarTema}
+        tema={tema} trocarTema={trocarTema} escolhaTema={escolhaTema} escolherTema={escolherTema}
         onSair={async () => { await Api.post("/api/logout"); recarregar(); }}>
         {children}
       </Moldura>

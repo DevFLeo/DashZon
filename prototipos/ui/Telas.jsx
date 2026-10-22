@@ -3,9 +3,10 @@
 // React usa #hash; Next usa as rotas de arquivo (app/d/[id], app/m/[slug]).
 // Por isso os links chegam prontos em `hrefDashboard`/`hrefModulo` e o
 // componente de link (`Link`) é o de cada um.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Avisos, Icone, avisar } from "./Base.jsx";
 import { Card } from "./Card.jsx";
+import { SeletorTemas } from "./SeletorTemas.jsx";
 import { Api } from "./logica.js";
 import { PROXIMO, temaEfetivo, temaPorId } from "./temas.js";
 
@@ -156,7 +157,7 @@ function Secao({ id, titulo, fechadas, alternar, children }) {
   );
 }
 
-export function Moldura({ sessao, ativo, Link, hrefDashboard, hrefModulo, hrefConfig, tema, trocarTema, onSair, tecnologia, children }) {
+export function Moldura({ sessao, ativo, Link, hrefDashboard, hrefModulo, hrefConfig, tema, trocarTema, escolhaTema, escolherTema, onSair, tecnologia, children }) {
   const [gaveta, setGaveta] = useState(false);
   const [recolhida, setRecolhida] = useLocal("dashzon.prototipo.recolhida", false);
   const [fechadas, setFechadas] = useLocal("dashzon.prototipo.secoes", []);
@@ -178,8 +179,26 @@ export function Moldura({ sessao, ativo, Link, hrefDashboard, hrefModulo, hrefCo
   // para o próximo da família, como no oficial.
   const atual = temaPorId(tema);
   const proximo = temaPorId(PROXIMO[tema]);
+  // Segurar o botão (meio segundo), botão direito ou seta para baixo abre o
+  // seletor rápido com o mascote; o clique que vem ao soltar não troca o tema.
+  const [seletor, setSeletor] = useState(null); // o botão que abriu
+  const segurar = useRef({ timer: null, ignorar: false });
+  const cancelarSegurar = () => clearTimeout(segurar.current.timer);
+  const fecharSeletor = useCallback((devolverFoco) => setSeletor((b) => { if (devolverFoco) b?.focus(); return null; }), []);
   const botaoTema = (
-    <button className="btn-icone" onClick={trocarTema} aria-label={`Tema ${atual?.nome}. Mudar para ${proximo?.nome}`} title={`Tema ${atual?.nome} (clique para ${proximo?.nome})`}>
+    <button className="btn-icone" aria-haspopup="dialog" aria-expanded={!!seletor}
+      aria-label={`Tema ${atual?.nome}. Mudar para ${proximo?.nome}. Segure ou use a seta para baixo para ver todos`}
+      title={`Tema ${atual?.nome} (clique para ${proximo?.nome}; segure para ver todos)`}
+      onClick={() => { if (segurar.current.ignorar) { segurar.current.ignorar = false; return; } trocarTema(); }}
+      onPointerDown={(ev) => {
+        if (ev.button !== 0) return;
+        const alvo = ev.currentTarget;
+        cancelarSegurar();
+        segurar.current.timer = setTimeout(() => { segurar.current.ignorar = true; setSeletor(alvo); }, 500);
+      }}
+      onPointerUp={cancelarSegurar} onPointerLeave={cancelarSegurar} onPointerCancel={cancelarSegurar}
+      onContextMenu={(ev) => { ev.preventDefault(); cancelarSegurar(); setSeletor(ev.currentTarget); }}
+      onKeyDown={(ev) => { if (ev.key === "ArrowDown" || ev.key === "ContextMenu") { ev.preventDefault(); setSeletor(ev.currentTarget); } }}>
       <Icone nome={{ dia: "sol", tarde: "tarde", noite: "lua" }[atual?.fase] || "sol"} />
     </button>
   );
@@ -229,6 +248,7 @@ export function Moldura({ sessao, ativo, Link, hrefDashboard, hrefModulo, hrefCo
         </div>
       </aside>
       <main className="conteudo">{children}</main>
+      {seletor && <SeletorTemas ancora={seletor} escolha={escolhaTema} onEscolher={escolherTema} onFechar={fecharSeletor} />}
       <Avisos />
     </div>
   );
