@@ -18,12 +18,14 @@ As mesmas telas nas três versões estão em `prints/`. Os prefixos são `atual-
 | Módulo no celular, registros em cartões (só React e Next) | `react-celular-modulo.png`, `next-celular-modulo.png` |
 | Menu em gaveta no celular (só React e Next) | `react-celular-menu.png`, `next-celular-menu.png` |
 | Calendário no celular, com a dica do dia (só React e Next) | `react-celular-calendario.png`, `next-celular-calendario.png` |
+| Configurações: temas e módulos no menu (só React e Next) | `react-configuracoes.png`, `next-configuracoes.png`, `*-celular-configuracoes.png` |
 
 ## O que tem e o que não tem
 
 | Tem | Ainda não tem |
 |---|---|
-| Login, barra lateral com o cubo 3D, tema claro/escuro (segue o sistema até a pessoa escolher) | Arrastar e redimensionar cards |
+| Login, barra lateral com o cubo 3D | Arrastar e redimensionar cards |
+| Configurações: todos os temas do oficial (inclusive Floresta dia, tarde e noite) e módulos no menu, salvos na conta | O resto das configurações (conta, senha, fonte, tamanho do texto) |
 | Menu com seções que abrem e fecham, barra recolhida com siglas, ordem e módulos ocultos da conta | Criar e editar cards e a estrutura dos módulos |
 | Dashboard com os cards: número, meta, barras, linha, pizza, tabela, calendário (com meses, dica, teclado e resumo do período), na grade de 12 colunas | Painel do adm, configurações, notas (aparecem como tabela), aprovações |
 | Módulo: resumo, busca, filtros, checklist, "Carregar mais", criar, editar e excluir registro | |
@@ -41,6 +43,8 @@ prototipos/
     Registros.jsx  tela do módulo e formulário de registro
     Card.jsx       os cards do dashboard
     Base.jsx       ícones SVG, avisos, janela e confirmação
+    Configuracoes.jsx  tema e módulos no menu (preferências da conta)
+    temas.js       os temas do DashZon e a ordem do botão do topo
     logica.js      API e lógica dos cards (cópia da do oficial)
     estilo.css     tokens do DashZon e o responsivo
   react/    casca React (Vite): rotas por #hash, proxy do Vite
@@ -56,7 +60,7 @@ Os dois apps usam os **mesmos componentes** (`ui/`). O que muda entre eles é s�
 | Rotas | `#/d/1`, `#/m/slug` (uma página só, como o atual) | `/d/1`, `/m/slug`, `/entrar` (um arquivo por rota em `app/`; a moldura é um layout que fica montado) |
 | API | proxy do servidor de desenvolvimento (`vite.config.js`) | route handler `app/api/[...caminho]/route.js` (funciona também em produção) |
 | Produção | arquivos estáticos (`dist/`), servidos por qualquer servidor | um processo Node (`next start`) ou exportação estática |
-| Tamanho (1ª carga, gzip) | ~133 KB de JS | ~180 KB de JS |
+| Tamanho (1ª carga, gzip) | ~135 KB de JS | ~182 KB de JS |
 | Boa escolha se | quer só trocar o frontend, mantendo o Ruby | quer páginas renderizadas no servidor, SEO ou juntar parte do backend no Node |
 
 ## Como rodar
