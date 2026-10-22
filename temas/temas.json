@@ -306,6 +306,43 @@
         "series-7": "#a7b7c6",
         "series-8": "#ef8a7a"
       }
+    },
+    {
+      "id": "primavera",
+      "nome": "Primavera",
+      "grupo": "Estações",
+      "desc": "Flores, folhas novas e lilás",
+      "fase": "dia",
+      "escuro": false,
+      "atributo": "primavera",
+      "tokens": {
+        "surface-1": "#fffdfd",
+        "page-plane": "#fbf3f6",
+        "text-primary": "#2b1f28",
+        "text-secondary": "#5a4654",
+        "text-muted": "#75606f",
+        "gridline": "#f0e0e7",
+        "baseline": "#dcc2cf",
+        "border": "rgba(43, 31, 40, 0.10)",
+        "border-strong": "rgba(43, 31, 40, 0.18)",
+        "hover": "rgba(194, 69, 122, 0.06)",
+        "accent": "#b83e72",
+        "accent-ink": "#ffffff",
+        "status-good": "#3f8f5f",
+        "status-warning": "#d9a326",
+        "status-serious": "#d0703f",
+        "status-critical": "#c23b3b",
+        "success-text": "#2f7049",
+        "critical-text": "#a83232",
+        "series-1": "#c2457a",
+        "series-2": "#3f8f5f",
+        "series-3": "#a8700f",
+        "series-4": "#4f6fc4",
+        "series-5": "#9a5bc4",
+        "series-6": "#23898a",
+        "series-7": "#c4623a",
+        "series-8": "#c23b3b"
+      }
     }
   ]
 }
