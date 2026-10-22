@@ -507,7 +507,8 @@ after "/api/*" do
   next if tipo == "pedido_criado" && response.status != 202
   next unless response.status.between?(200, 299)
 
-  detalhe = [@auditoria_alvo, resumo_da_auditoria(@corpo_auditoria)].reject { |s| s.to_s.empty? }.join(" · ")
+  # @auditoria_extra: o que a rota fez além do pedido (ex.: módulos excluídos junto).
+  detalhe = [@auditoria_alvo, resumo_da_auditoria(@corpo_auditoria), @auditoria_extra].reject { |s| s.to_s.empty? }.join(" · ")
   Seguranca.registrar!(tipo, ip: request.ip, usuario_id: usuario_atual["id"], detalhe: detalhe)
 rescue StandardError => e
   warn "[DashZon] diário de alterações: #{e.class}: #{e.message}" # o diário nunca derruba a resposta
@@ -914,22 +915,70 @@ def exemplos_do_dashboard(dash)
   end
 end
 
+# Módulos com cards neste dashboard e se eles saem junto quando ele é
+# excluído "com os módulos": só sai o que a pessoa pode alterar e que nenhum
+# outro dashboard usa (senão os cards de outra pessoa sumiriam). `registros`
+# e `exemplos` deixam a tela avisar quando há dados cadastrados por alguém.
+# Módulos que um template instalou junto com este dashboard, mesmo sem card
+# nele (ex.: "Orçamento mensal" do Finanças pessoais). A instalação grava os
+# dois com o mesmo horário e o mesmo dono; para não confundir com outro
+# template instalado no mesmo segundo, o template do módulo também precisa
+# declarar um dashboard com este nome (sem o " (2)").
+def modulos_que_vieram_com(dash)
+  base = dash["nome"].to_s.sub(/\s\(\d+\)\z/, "").strip.downcase
+  Database.rows("SELECT slug, template_origem FROM modulos WHERE criado_em = ? AND dono_id IS ? AND COALESCE(template_origem, '') <> ''",
+                [dash["criado_em"], dash["dono_id"]]).select do |m|
+    tpl = TemplateRegistry.find(m["template_origem"])
+    tpl && Array(tpl["dashboards"]).any? { |d| (d.is_a?(Hash) ? d["nome"] : d).to_s.strip.downcase == base }
+  end.map { |m| m["slug"] }
+end
+
+def modulos_do_dashboard(dash)
+  slugs = Database.rows("SELECT DISTINCT modulo_slug FROM widgets WHERE dashboard_id = ?", [dash["id"]]).map { |r| r["modulo_slug"] }
+  slugs |= modulos_que_vieram_com(dash)
+  exemplos = Database.exemplos_por_modulo
+  slugs.filter_map do |s|
+    m = Database.modulo(s)
+    next unless m
+
+    outros = Database.row("SELECT COUNT(DISTINCT dashboard_id) AS n FROM widgets WHERE modulo_slug = ? AND dashboard_id <> ?",
+                          [s, dash["id"]])["n"].to_i
+    motivo = if !acesso.modulo_editavel?(m) then "é de outra pessoa"
+             elsif outros.positive? then "também é usado por outro dashboard"
+             end
+    { "id" => m["id"], "slug" => m["slug"], "nome" => m["nome"],
+      "registros" => Database.row("SELECT COUNT(*) AS n FROM registros WHERE modulo_id = ?", [m["id"]])["n"].to_i,
+      "exemplos" => exemplos[m["id"]].to_i, "removivel" => motivo.nil?, "motivo" => motivo }
+  end
+end
+
 get "/api/dashboards/:id/exemplos" do
   dash = dashboard_editavel!(params[:id])
   mods = exemplos_do_dashboard(dash)
-  json total: mods.sum { |m| m["exemplos"] }, modulos: mods.map { |m| m.except("id") }
+  json total: mods.sum { |m| m["exemplos"] }, modulos: mods.map { |m| m.except("id") },
+       modulos_do_dashboard: modulos_do_dashboard(dash).map { |m| m.except("id") }
 end
 
 # ?exemplos=1: apaga também os registros de exemplo dos módulos que o
 # dashboard usa (os dados de verdade e os módulos ficam).
+# ?modulos=1: exclui também os módulos do dashboard, com os registros, mas só
+# os que modulos_do_dashboard marca como removíveis; os outros ficam.
 delete "/api/dashboards/:id" do
   dash = dashboard_editavel!(params[:id])
   apagados = 0
+  removidos = params[:modulos] == "1" ? modulos_do_dashboard(dash).select { |m| m["removivel"] } : []
   Database.transaction do
     exemplos_do_dashboard(dash).each { |m| apagados += Database.apagar_exemplos!(m["id"]) } if params[:exemplos] == "1"
+    removidos.each do |m|
+      Database.execute("DELETE FROM widgets WHERE modulo_slug = ?", [m["slug"]])
+      Database.execute("DELETE FROM registros WHERE modulo_id = ?", [m["id"]])
+      Database.execute("DELETE FROM modulos WHERE id = ?", [m["id"]])
+    end
     Database.execute("DELETE FROM dashboards WHERE id = ?", [dash["id"]])
   end
-  json ok: true, exemplos_apagados: apagados
+  Database.compactar! if removidos.any? # devolve ao disco o espaço dos registros apagados
+  @auditoria_extra = "com os módulos: #{removidos.map { |m| m['nome'] }.join(', ')}" if removidos.any?
+  json ok: true, exemplos_apagados: apagados, modulos_apagados: removidos.map { |m| m["nome"] }
 end
 
 # --------------------------------------------------------------- widgets ---

@@ -161,6 +161,86 @@ class AcessoTest < Minitest::Test
     assert_equal ["Demandas (2)"], modulos_de("leonardo")
   end
 
+  # Excluir o dashboard "com os módulos": saem os módulos dele, com os registros.
+  def test_excluir_dashboard_com_os_modulos
+    configurar!
+    post_json "/api/templates/instalar", { "template_id" => "financas-pessoais", "com_exemplos" => true, "visibilidade" => "privado" }
+    dash = resposta["dashboards"].first
+    get "/api/dashboards/#{dash}/exemplos"
+    mods = resposta["modulos_do_dashboard"]
+    assert_equal ["Contas e cartões", "Lançamentos", "Orçamento mensal"], mods.map { |m| m["nome"] }.sort
+    assert(mods.all? { |m| m["removivel"] && m["registros"] == m["exemplos"] })
+
+    delete "/api/dashboards/#{dash}?modulos=1"
+    assert_equal 200, last_response.status, last_response.body
+    assert_equal 3, resposta["modulos_apagados"].size
+    get "/api/modulos"
+    assert_empty resposta
+    assert_equal 0, Database.row("SELECT COUNT(*) AS n FROM registros")["n"]
+    get "/api/admin/seguranca"
+    assert(resposta["eventos"].any? { |e| e["detalhe"].to_s.include?("com os módulos: ") })
+  end
+
+  # O setup instala vários templates no mesmo segundo: excluir um dashboard
+  # com os módulos não leva os módulos de outro template.
+  def test_excluir_dashboard_do_setup_nao_leva_modulos_de_outro_template
+    post_json "/api/setup", { "usuario" => "dono", "senha" => "senha-forte-1", "templates" => %w[financas-pessoais cronograma-estudos anotacoes] }
+    assert_equal 200, last_response.status, last_response.body
+    get "/api/dashboards"
+    financas = resposta.find { |d| d["nome"] == "Finanças pessoais" }["id"]
+    delete "/api/dashboards/#{financas}?modulos=1"
+    assert_equal ["Contas e cartões", "Lançamentos", "Orçamento mensal"], resposta["modulos_apagados"].sort
+    get "/api/modulos"
+    assert_equal ["Anotações", "Cronograma de estudos"], resposta.map { |m| m["nome"] }.sort
+  end
+
+  # Sem ?modulos=1 continua como antes: os módulos ficam.
+  def test_excluir_dashboard_sem_a_opcao_mantem_os_modulos
+    configurar!
+    post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => true, "visibilidade" => "privado" }
+    delete "/api/dashboards/#{resposta['dashboards'].first}"
+    assert_equal 200, last_response.status
+    assert_empty resposta["modulos_apagados"]
+    get "/api/modulos"
+    assert_equal ["Demandas"], resposta.map { |m| m["nome"] }
+  end
+
+  # Módulo usado por outro dashboard, ou de outra pessoa, fica.
+  def test_excluir_dashboard_com_os_modulos_mantem_os_compartilhados
+    configurar!
+    usuario!("leonardo")
+    post_json "/api/templates/instalar", { "template_id" => "gestao-demandas", "com_exemplos" => true, "visibilidade" => "equipe" }
+    de_todos = resposta["dashboards"].first
+    # Um segundo dashboard (do dono) com um card no mesmo módulo.
+    post_json "/api/dashboards", { "nome" => "Outro", "visibilidade" => "privado" }
+    outro = resposta["id"]
+    post_json "/api/dashboards/#{outro}/widgets", { "titulo" => "Total", "tipo" => "kpi", "modulo" => "demandas", "config" => { "agregacao" => "contagem" } }
+    assert_equal 201, last_response.status, last_response.body
+
+    get "/api/dashboards/#{outro}/exemplos"
+    m = resposta["modulos_do_dashboard"].first
+    refute m["removivel"]
+    assert_equal "também é usado por outro dashboard", m["motivo"]
+    delete "/api/dashboards/#{outro}?modulos=1"
+    assert_empty resposta["modulos_apagados"]
+    get "/api/dashboards/#{de_todos}"
+    assert_equal 200, last_response.status
+    refute_empty resposta["widgets"], "o outro dashboard continua com os cards"
+
+    # O leonardo usa o módulo do dono (de todos) num dashboard dele: não pode excluí-lo.
+    como("leonardo") do
+      post_json "/api/dashboards", { "nome" => "Meu", "visibilidade" => "privado" }
+      meu = resposta["id"]
+      post_json "/api/dashboards/#{meu}/widgets", { "titulo" => "Total", "tipo" => "kpi", "modulo" => "demandas", "config" => { "agregacao" => "contagem" } }
+      get "/api/dashboards/#{meu}/exemplos"
+      assert_equal "é de outra pessoa", resposta["modulos_do_dashboard"].first["motivo"]
+      delete "/api/dashboards/#{meu}?modulos=1"
+      assert_empty resposta["modulos_apagados"]
+    end
+    get "/api/modulos"
+    assert_equal ["Demandas"], resposta.map { |m| m["nome"] }
+  end
+
   def test_modulos_que_ja_existiam_continuam_de_todos
     configurar!
     post_json "/api/templates/instalar", { "template_id" => "lote-producao", "com_exemplos" => false }
