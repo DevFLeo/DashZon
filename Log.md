@@ -6,6 +6,24 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-22 · `desenvolvimentoUI-UX` · Configurações nos protótipos (temas e menu)
+
+**O que:**
+- Tela de **Configurações** no React (`#/config`) e no Next (`/config`), com link no pé da barra lateral:
+  - **Tema** em cartões com prévia das cores: seguir o sistema, claro, suave, escuro e Floresta dia, tarde e noite;
+  - **Módulos no menu**: ligar e desligar, só para a própria pessoa.
+- As duas escolhas ficam nas preferências da conta (`PUT /api/eu/preferencias`), as mesmas do oficial: o que se escolhe num vale no outro.
+- `useTema` segue a conta (antes do login, o navegador), acompanha o sistema na escolha "sistema", e o botão do topo gira dentro da família com o ícone da fase (sol, pôr do sol, lua), como no oficial.
+- Ao trocar de tela a página volta ao topo; no celular, os temas ficam dois por linha.
+
+**Validação:** roteiro dos protótipos com 24 passos por app (três novos: tema Floresta salvo na conta e o botão girando na família; tirar e devolver um módulo do menu; Configurações no celular, abrindo no topo), duas rodadas com banco zerado, 48/48; build do React e do Next; sem emojis.
+
+**Problema no caminho:** servidores dos protótipos de ontem ainda ocupavam as portas 3000 e 5173, e o Next novo não subia. Foram encerrados e reiniciados antes dos testes (`desenvolvimento.md`).
+
+**Por quê:** continuidade dos protótipos; com os temas Floresta no oficial, os protótipos passam a ter os mesmos temas e a mesma preferência da conta.
+
+---
+
 ## 2026-10-21 · `desenvolvimentoUI-UX` · Motor C++ em Release por padrão (de volta)
 
 **O que:** reaplicado (`cherry-pick -x`) o `c8ac28f` de 07/10, que tinha saído da `main` no force push de 21/10: sem tipo de build, o `engine-cpp/CMakeLists.txt` usa Release.
