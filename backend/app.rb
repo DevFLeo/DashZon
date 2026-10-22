@@ -465,6 +465,9 @@ AUDITORIA = [
   ["DELETE", %r{\A/api/admin/equipes/(\d+)\z}, "equipe_excluida", :equipe],
   ["PUT", %r{\A/api/admin/equipes/(\d+)/membros\z}, "equipe_membros", :equipe],
   ["POST", %r{\A/api/admin/equipes/modelo\z}, "estrutura_modelo", nil],
+  ["POST", %r{\A/api/admin/equipes/arvore\z}, "arvore_criada", nil],
+  ["POST", %r{\A/api/gestao/arvore\z}, "arvore_criada", nil],
+  ["PUT", %r{\A/api/modulos/([^/]+)/unidades\z}, "modulo_unidades", :modulo],
   # Gestores, dentro do escopo deles (rotas/gestao.rb).
   ["POST", %r{\A/api/gestao/unidades\z}, "unidade_criada", nil],
   ["PUT", %r{\A/api/gestao/unidades/(\d+)\z}, "unidade_alterada", :equipe],
@@ -707,6 +710,38 @@ put "/api/modulos/:slug/compartilhar" do
     gravar_equipes_do_modulo!(m["id"], ids)
   end
   json ok: true
+end
+
+# Opções do campo de unidade a partir de uma estrutura (ex.: a árvore da
+# SEMAGRIC): "SIGLA - Nome" de cada unidade da raiz para baixo, na ordem da
+# árvore. Opções antigas que ainda estão em registros ficam no fim (um registro
+# nunca fica com valor inválido). `nome`: renomeia o módulo junto (opcional).
+put "/api/modulos/:slug/unidades" do
+  atual = modulo_editavel!(params[:slug])
+  d = body_json
+  campo_id = atual["schema"]["unidade"]
+  campo = atual["schema"]["campos"].find { |c| c["id"] == campo_id }
+  halt json({ error: "Este módulo não tem campo de unidade de seleção (chave 'unidade' na estrutura)" }, 422) unless campo && campo["tipo"] == "selecao"
+
+  raiz = Equipes.por_id!(d["raiz_id"])
+  halt json({ error: "Use uma unidade do seu alcance" }, 403) unless acesso.admin? || acesso.alcance.include?(raiz["id"])
+
+  dentro = Unidades.descendentes(raiz["id"], acesso.filhos)
+  novas = Equipes.em_arvore(acesso.unidades.map { |u| u.merge("teste" => 0) }).map(&:first).select { |u| dentro.include?(u["id"]) }
+                 .map { |u| u["sigla"].to_s.empty? ? u["nome"] : "#{u['sigla']} - #{u['nome']}" }.map { |o| o[0, ModuleSchema::OPCAO_MAX] }
+  em_uso = Database.registros(atual, campos: [campo_id], meta: false).map { |r| r[campo_id] }.compact.uniq
+  opcoes = (novas + (em_uso - novas)).uniq
+  halt json({ error: "Estrutura grande demais para um campo (máximo #{ModuleSchema::OPCOES_MAX} opções)" }, 422) if opcoes.size > ModuleSchema::OPCOES_MAX
+
+  defn = atual.slice("nome", "descricao", "icone").merge(atual["schema"].except("slots"))
+  defn["campos"] = defn["campos"].map { |c| c["id"] == campo_id ? c.merge("opcoes" => opcoes).tap { |x| x.delete("padrao") unless opcoes.include?(x["padrao"]) } : c }
+  defn["nome"] = d["nome"].to_s.strip unless d["nome"].to_s.strip.empty?
+  m = ModuleSchema.normalize_modulo!(defn.merge("slug" => atual["slug"]), atual["schema"])
+  if Database.modulo_por_nome(m["nome"], exceto_id: atual["id"])
+    halt json({ error: "Já existe outro módulo chamado '#{m['nome']}'" }, 422)
+  end
+  Database.execute("UPDATE modulos SET nome = ?, schema = ? WHERE id = ?", [m["nome"], JSON.generate(ModuleSchema.schema_de(m)), atual["id"]])
+  json Database.modulo(atual["slug"]).merge("opcoes_mantidas" => em_uso - novas)
 end
 
 # Apaga só os registros de exemplo do módulo (os que vieram com o template).

@@ -29,14 +29,14 @@ GAB = "DGEO - Gabinete do Diretor"
 
 # (título, status, prioridade, divisão, servidor, dia do prazo a partir do INÍCIO, custo, nº SEI, descrição)
 LINHAS = [
-    ("Atualizar cadastro de escolas no mapa", "Em Análise", "Alta", DCAD, "Hayrine (Gerente DCAD)", 3, 0, "6016.2026/0001001-1", "Conferir endereços e coordenadas das unidades escolares."),
-    ("Base de matrículas georreferenciada", "Aguardando Triagem", "Média", DTAD, "Edu (Gerente DTAD)", 10, 0, "", "Cruzar matrículas com setores censitários."),
-    ("Ofício da SEMSA sobre área de risco", "Análise Externa (Outras Secretarias)", "Urgente (Prazo Legal / Judicial)", DASI, "Davi (Gerente DASI)", 1, 0, "6016.2026/0001002-0", "Responder ofício com mapa das escolas em área de risco."),
-    ("Licença de software de geoprocessamento", "Em Análise", "Alta", DTAD, "Edu (Gerente DTAD)", 20, 18500.0, "6016.2026/0001003-8", "Renovação anual das licenças."),
-    ("Relatório anual de cobertura escolar", "Deferido / Concluído", "Média", GAB, "Marvin (Diretor DGEO)", -5, 0, "", "Entregue à SUPLAN."),
+    ("Atualizar cadastro de escolas no mapa", "Em Análise", "Alta", DCAD, "Gerente da DCAD", 3, 0, "6016.2026/0001001-1", "Conferir endereços e coordenadas das unidades escolares."),
+    ("Base de matrículas georreferenciada", "Aguardando Triagem", "Média", DTAD, "Gerente da DTAD", 10, 0, "", "Cruzar matrículas com setores censitários."),
+    ("Ofício da SEMSA sobre área de risco", "Análise Externa (Outras Secretarias)", "Urgente (Prazo Legal / Judicial)", DASI, "Gerente da DASI", 1, 0, "6016.2026/0001002-0", "Responder ofício com mapa das escolas em área de risco."),
+    ("Licença de software de geoprocessamento", "Em Análise", "Alta", DTAD, "Gerente da DTAD", 20, 18500.0, "6016.2026/0001003-8", "Renovação anual das licenças."),
+    ("Relatório anual de cobertura escolar", "Deferido / Concluído", "Média", GAB, "Diretor(a) do DGEO", -5, 0, "", "Entregue à SUPLAN."),
     ("Pedido de mapa para audiência pública", "Indeferido / Arquivado", "Baixa", DASI, "Técnico Designado", -12, 0, "", "Pedido duplicado; arquivado."),
     ("Correção de limites de bairros", "Aguardando Triagem", "Baixa", DCAD, "Técnico Designado", 30, 0, "", "Divergência entre bases municipais."),
-    ("Demanda judicial: transporte escolar", "Em Análise", "Urgente (Prazo Legal / Judicial)", GAB, "Marvin (Diretor DGEO)", -1, 0, "6016.2026/0001004-6", "Prazo judicial para informar rotas."),
+    ("Demanda judicial: transporte escolar", "Em Análise", "Urgente (Prazo Legal / Judicial)", GAB, "Diretor(a) do DGEO", -1, 0, "6016.2026/0001004-6", "Prazo judicial para informar rotas."),
 ]
 
 

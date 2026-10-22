@@ -22,14 +22,14 @@ CAMPOS = [  # mesmo schema do módulo "demandas" (template gestao-demandas)
      "opcoes": ["DCAD - Divisão de Cadastro (Dados)", "DTAD - Divisão de Tecnologia e Dados",
                 "DASI - Divisão de Articulação com Secretarias", "DGEO - Gabinete do Diretor"]},
     {"id": "servidor_responsavel", "nome": "Servidor Responsável", "tipo": "selecao",
-     "opcoes": ["Marvin (Diretor DGEO)", "Hayrine (Gerente DCAD)", "Edu (Gerente DTAD)", "Davi (Gerente DASI)", "Técnico Designado"]},
+     "opcoes": ["Diretor(a) do DGEO", "Gerente da DCAD", "Gerente da DTAD", "Gerente da DASI", "Técnico Designado"]},
     {"id": "data_limite", "nome": "Prazo Legal (Vencimento)", "tipo": "data"},
     {"id": "orcamento_estimado", "nome": "Dotação / Custo Estimado", "tipo": "moeda"},
     {"id": "processo_sei", "nome": "Nº Processo SEI", "tipo": "texto"},
     {"id": "descricao_demanda", "nome": "Descrição do Pedido / Justificativa", "tipo": "texto_longo", "obrigatorio": True},
 ]
 PRIMEIRA = {"titulo_processo": "Atualizar cadastro de escolas no mapa", "status_tramitacao": "Em Análise", "prioridade": "Alta",
-            "divisao_responsavel": "DCAD - Divisão de Cadastro (Dados)", "servidor_responsavel": "Hayrine (Gerente DCAD)",
+            "divisao_responsavel": "DCAD - Divisão de Cadastro (Dados)", "servidor_responsavel": "Gerente da DCAD",
             "data_limite": "2026-10-15", "processo_sei": "6016.2026/0001001-1",
             "descricao_demanda": "Conferir endereços e coordenadas das unidades escolares."}
 

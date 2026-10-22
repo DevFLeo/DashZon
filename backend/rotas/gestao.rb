@@ -69,6 +69,15 @@ post "/api/gestao/unidades" do
   json Equipes.todas.find { |e| e["id"] == id }, 201
 end
 
+# Várias unidades de uma vez, em texto, dentro de uma unidade do escopo. Só
+# reaproveita siglas que a pessoa gere.
+post "/api/gestao/arvore" do
+  d = body_json
+  pai = unidade_no_escopo!(d["pai_id"])
+  r = Equipes.criar_arvore!(d["texto"], dentro_de: pai["id"], pode_reusar: ->(u) { acesso.gere?(u["id"]) })
+  json r, 201
+end
+
 put "/api/gestao/unidades/:id" do
   u = unidade_no_escopo!(params[:id])
   halt json({ error: "A unidade que você gere só é alterada por quem gere a de cima (ou um administrador)" }, 403) unless acesso.escopo_abaixo.include?(u["id"])

@@ -283,6 +283,7 @@ const App = (() => {
     Expandir.init();
     Quadro.init();
     Gestao.init();
+    Estrutura.init();
     Menu.init();
 
     await recarregarNav();

@@ -285,6 +285,150 @@ module Equipes
     criadas
   end
 
+  # --- árvore em texto ----------------------------------------------------------
+  #
+  # Uma estrutura inteira de uma vez (Painel do adm > Criar > Nova estrutura, ou
+  # o gestor em Minha equipe), escrita como texto: uma unidade por linha, o
+  # recuo diz quem fica dentro de quem.
+  #
+  #   SEMAGRIC - Secretaria Municipal de Agricultura
+  #     SUPROD - Subsecretaria de Produção
+  #       DAGRO - Departamento de Agronegócio | departamento
+  #         DIVAP - Divisão de Apoio ao Produtor
+  #
+  # - "SIGLA - Nome" (também aceita "–" ou "—"); uma palavra só vale como sigla e nome.
+  # - Tipo opcional depois de "|". Sem ele: a de cima vira secretaria e cada
+  #   nível desce um (subsecretaria, departamento, divisão; divisão dentro de divisão).
+  # - Recuo com espaços ou tab; "-", "*" ou "•" no começo são ignorados.
+  # - Linhas vazias e começadas por "#" são ignoradas.
+  # - Sigla que já existe é REAPROVEITADA (não muda de nome nem de lugar): dá
+  #   para acrescentar unidades dentro de uma estrutura que já existe.
+  # Tudo numa transação: um erro em qualquer linha não cria nada.
+  ARVORE_MAX_LINHAS = 300
+  ARVORE_MAX_TEXTO = 50_000
+  TIPOS_POR_NOME = { "secretaria" => "secretaria", "subsecretaria" => "subsecretaria", "departamento" => "departamento",
+                     "divisao" => "divisao", "equipe" => "equipe" }.freeze
+
+  def sem_acento(texto)
+    texto.to_s.unicode_normalize(:nfd).gsub(/\p{Mn}/, "").downcase.strip
+  end
+
+  # Texto -> [{linha, sigla, nome, tipo (ou nil), pai (índice na lista ou nil)}].
+  def ler_arvore(texto)
+    texto = texto.to_s
+    raise Erro, "Escreva a estrutura (uma unidade por linha)" if texto.strip.empty?
+    raise Erro, "Texto grande demais (máximo #{ARVORE_MAX_TEXTO} caracteres)" if texto.length > ARVORE_MAX_TEXTO
+
+    nos = []
+    pilha = [] # [[recuo, índice]]
+    texto.gsub("\r\n", "\n").split("\n").each_with_index do |bruta, i|
+      linha = i + 1
+      next if bruta.strip.empty? || bruta.strip.start_with?("#")
+
+      recuo = bruta[/\A[ \t]*/].gsub("\t", "    ").length
+      conteudo = bruta.strip.sub(/\A[-*•]\s+/, "")
+      conteudo, tipo_txt = conteudo.split("|", 2).map(&:strip)
+      tipo = nil
+      if tipo_txt && !tipo_txt.empty?
+        tipo = TIPOS_POR_NOME[sem_acento(tipo_txt)] ||
+               raise(Erro, "Linha #{linha}: tipo '#{tipo_txt}' inválido (use secretaria, subsecretaria, departamento, divisão ou equipe)")
+      end
+      sigla, nome = conteudo.split(/\s+[-–—]\s+/, 2).map(&:strip)
+      if nome.nil? || nome.empty?
+        raise Erro, "Linha #{linha}: escreva 'SIGLA - Nome' (ex.: SEMAGRIC - Secretaria de Agricultura)" if sigla.to_s.include?(" ")
+
+        nome = sigla
+      end
+      raise Erro, "Linha #{linha}: falta a sigla" if sigla.to_s.empty?
+
+      pilha.pop while pilha.any? && pilha.last[0] >= recuo
+      nos << { "linha" => linha, "sigla" => sigla.upcase, "nome" => nome, "tipo" => tipo, "pai" => pilha.last&.dig(1) }
+      pilha << [recuo, nos.size - 1]
+      raise Erro, "No máximo #{ARVORE_MAX_LINHAS} unidades de uma vez" if nos.size > ARVORE_MAX_LINHAS
+    end
+    raise Erro, "Escreva a estrutura (uma unidade por linha)" if nos.empty?
+
+    vistas = {}
+    nos.each do |n|
+      if (antes = vistas[n["sigla"]])
+        raise Erro, "Linha #{n['linha']}: a sigla #{n['sigla']} já apareceu na linha #{antes}"
+      end
+
+      vistas[n["sigla"]] = n["linha"]
+    end
+    nos
+  end
+
+  # `dentro_de`: unidade onde ficam as linhas sem recuo (gestor criando dentro
+  # da sua). `pode_reusar`: lambda(unidade) que diz se uma sigla existente pode
+  # ser usada (o gestor só reaproveita unidades do seu escopo).
+  def criar_arvore!(texto, dentro_de: nil, pode_reusar: nil)
+    tabelas!
+    nos = ler_arvore(texto)
+    base = dentro_de && por_id!(dentro_de)
+    ids = []
+    criadas = 0
+    reaproveitadas = []
+    Database.transaction do
+      existentes = Database.rows("SELECT id, sigla, tipo, pai_id FROM equipes WHERE sigla IS NOT NULL").to_h { |e| [e["sigla"].upcase, e] }
+      tipos = []
+      nos.each_with_index do |n, i|
+        pai_id = n["pai"] ? ids[n["pai"]] : base&.dig("id")
+        tipo_pai = n["pai"] ? tipos[n["pai"]] : base&.dig("tipo")
+        if (ja = existentes[n["sigla"]])
+          if pode_reusar && !pode_reusar.call(ja)
+            raise Erro, "Linha #{n['linha']}: a sigla #{n['sigla']} já existe fora do seu alcance de gestão"
+          end
+
+          ids[i] = ja["id"]
+          tipos[i] = ja["tipo"]
+          reaproveitadas << n["sigla"]
+          next
+        end
+
+        tipo = n["tipo"] || (tipo_pai ? Unidades::ABAIXO[tipo_pai] : "secretaria")
+        begin
+          ids[i] = criar!({ "sigla" => n["sigla"], "nome" => n["nome"], "tipo" => tipo, "pai_id" => pai_id })
+        rescue Erro => e
+          raise Erro, "Linha #{n['linha']} (#{n['sigla']}): #{e.message}"
+        end
+        tipos[i] = tipo
+        existentes[n["sigla"]] = { "id" => ids[i], "sigla" => n["sigla"], "tipo" => tipo }
+        criadas += 1
+      end
+    end
+    { "criadas" => criadas, "reaproveitadas" => reaproveitadas, "raizes" => nos.each_index.select { |i| nos[i]["pai"].nil? }.map { |i| ids[i] }.uniq }
+  end
+
+  # A estrutura (ou uma parte dela) no mesmo formato de texto, para copiar e
+  # usar de base numa nova (ex.: copiar a SEMEC e trocar as siglas).
+  def texto_da_arvore(raiz_id = nil)
+    tabelas!
+    linhas = em_arvore(Database.rows("SELECT * FROM equipes ORDER BY lower(COALESCE(sigla, nome))"))
+    if raiz_id
+      lista = Unidades.todas
+      dentro = Unidades.descendentes(raiz_id.to_i, Unidades.filhos(lista))
+      linhas = linhas.select { |e, _| dentro.include?(e["id"]) }
+    end
+    base = linhas.map { |_, n| n }.min || 0
+    linhas.map { |e, n| "#{'  ' * (n - base)}#{e['sigla'] || e['nome']} - #{e['nome']} | #{Unidades::NOMES_TIPO[e['tipo'] || 'equipe'].downcase}" }.join("\n")
+  end
+
+  # Em ordem de árvore (cada unidade logo depois da de cima): o recuo só
+  # funciona assim. A lista MODELO está por nível, não por árvore.
+  def modelo_texto
+    filhos = MODELO.group_by { |_, _, _, pai| pai }
+    linhas = []
+    visitar = lambda do |pai, nivel|
+      (filhos[pai] || []).each do |sigla, nome, tipo, _|
+        linhas << "#{'  ' * nivel}#{sigla} - #{nome} | #{Unidades::NOMES_TIPO[tipo].downcase}"
+        visitar.call(sigla, nivel + 1)
+      end
+    end
+    visitar.call(nil, 0)
+    linhas.join("\n")
+  end
+
   def atualizar!(id, d)
     atual = por_id!(id)
     v = validar!(d, atual: atual)
@@ -297,16 +441,25 @@ module Equipes
     por_id(atual["id"])
   end
 
-  # Unidade com unidades dentro não é excluída: o que está abaixo ficaria solto
-  # (e as permissões em cascata mudariam sem ninguém perceber).
-  def excluir!(id)
+  # Unidade com unidades dentro só é excluída com `cascata` (a árvore inteira
+  # de uma vez, pedido explícito): sem isso o que está abaixo ficaria solto e as
+  # permissões em cascata mudariam sem ninguém perceber. Devolve quantas saíram.
+  def excluir!(id, cascata: false)
     e = por_id!(id)
     filhas = Database.rows("SELECT nome FROM equipes WHERE pai_id = ?", [e["id"]])
-    unless filhas.empty?
+    if !filhas.empty? && !cascata
       raise Erro, "Antes, exclua ou mova as unidades de dentro de '#{e['nome']}': #{filhas.map { |f| f['nome'] }.first(5).join(', ')}"
     end
 
-    Database.execute("DELETE FROM equipes WHERE id = ?", [e["id"]]) # membros saem em cascata
+    lista = Unidades.todas
+    todas = cascata ? Unidades.descendentes(e["id"], Unidades.filhos(lista)).to_a : [e["id"]]
+    # As de baixo primeiro (mais longe da raiz), para nunca sobrar filha sem pai.
+    por_id = lista.to_h { |u| [u["id"], u] }
+    todas.sort_by! { |u| -Unidades.ancestrais(u, por_id).size }
+    Database.transaction do
+      todas.each { |u| Database.execute("DELETE FROM equipes WHERE id = ?", [u]) } # membros e compartilhamentos saem em cascata
+    end
+    todas.size
   end
 
   # Define exatamente quem está na unidade. `gestores`: ids (entre os membros,

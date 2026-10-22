@@ -6,6 +6,18 @@ Como registrar: uma entrada por entrega, com data, branch, commits, o que mudou 
 
 ---
 
+## 2026-10-21 · `desenvolvimento-ideiamarvin` · Estruturas livres e sem nomes de pessoas
+
+**O que:**
+- **Nova estrutura (árvore):** a secretaria inteira escrita como lista com recuo, com prévia; começa em branco, do modelo SEMEC ou copiando uma existente; o gestor cria várias dentro da sua. Excluir a árvore inteira de uma vez.
+- **Unidades do campo:** as opções do campo de unidade de um módulo vêm da estrutura escolhida (ex.: SEMAGRIC), com renomear o módulo junto.
+- **Sem nomes de pessoas:** os nomes do exemplo saíram de templates, exemplos, testes e documentos (trocados por cargos); no banco real, os 5 registros de exemplo com nomes também.
+- Testes: 212 no Ruby (5 novos), ponta a ponta com a Nova estrutura e as Unidades do campo.
+
+**Por quê:** pedido para tirar os nomes usados no exemplo e poder nomear a árvore que veio da SEMEC ou criar outra (SEMAGRIC) com os próprios dados.
+
+---
+
 ## 2026-10-21 · `desenvolvimento-ideiamarvin` · Calendário com zoom, sistema sem módulos
 
 **O que:**

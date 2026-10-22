@@ -30,6 +30,9 @@ module Unidades
   # e divisão dentro de divisão são aceitos. "equipe" é livre: pode ficar em
   # qualquer lugar (grupo de trabalho).
   NIVEL = { "secretaria" => 1, "subsecretaria" => 2, "departamento" => 3, "divisao" => 4 }.freeze
+  # Tipo sugerido para uma unidade nova dentro de outra.
+  ABAIXO = { "secretaria" => "subsecretaria", "subsecretaria" => "departamento", "departamento" => "divisao",
+             "divisao" => "divisao", "equipe" => "equipe" }.freeze
   PAPEIS = %w[membro gestor].freeze
   PROFUNDIDADE_MAX = 8
 

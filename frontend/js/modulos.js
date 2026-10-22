@@ -379,6 +379,9 @@ const Modulos = (() => {
   // só para o dono ou um admin.
   function mostrarPermissoes() {
     ["btn-estrutura", "btn-excluir-modulo", "btn-compartilhar-modulo"].forEach((id) => { $(id).hidden = !atual.editavel; });
+    // "Unidades do campo": só em módulo com campo de unidade de seleção (js/estrutura.js).
+    const campoUnidade = campos().find((c) => c.id === atual.schema.unidade);
+    $("btn-unidades-campo").hidden = !(atual.editavel && campoUnidade?.tipo === "selecao");
     const quem = Compartilhar.descrever(atual.visibilidade === "todos" ? "equipe" : atual.visibilidade, atual.equipes);
     const meu = atual.dono_id === App.usuario()?.id;
     $("mod-selo").innerHTML = `${Util.icone(atual.visibilidade === "privado" ? "cadeado" : "equipe")} ${esc(quem)}${meu || !atual.dono_nome ? "" : ` · de ${esc(atual.dono_nome)}`}`;
@@ -495,6 +498,10 @@ const Modulos = (() => {
       } catch (e) { erroEstrutura(e.message); }
     });
     $("btn-excluir-modulo").addEventListener("click", excluirModulo);
+    $("btn-unidades-campo").addEventListener("click", () => Estrutura.abrirUnidadesCampo(atual, async () => {
+      await App.recarregarNav();
+      await abrir(atual.slug);
+    }).catch((e) => Util.aviso(e.message, "erro")));
     $("btn-apagar-exemplos").addEventListener("click", apagarExemplos);
     $("btn-compartilhar-modulo").addEventListener("click", compartilharModulo);
     $("mod-busca").addEventListener("input", Util.debounce((e) => {

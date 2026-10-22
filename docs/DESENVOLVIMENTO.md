@@ -30,9 +30,13 @@ Registros (`Acesso#registro_editavel?`):
 | Membro da unidade do registro | sim | não | na unidade |
 | Outros | não (403) | não (403) | não (403) |
 
-Exemplo do pedido: Larissa, gestora da SUPLAN e da SURÇAM, administra tudo abaixo das duas; Marvin, gestor do DGEO, administra DGEO, DCAD, DTAD e DASI; Eduardo, gestor do DTAD, só o DTAD. Isso vale para pessoas (Minha equipe), registros, módulos e dashboards compartilhados com unidades (incluindo excluir um caderno de anotações).
+Exemplo: a gestora da SUPLAN e da SURÇAM administra tudo abaixo das duas; o gestor do DGEO administra DGEO, DCAD, DTAD e DASI; o gerente (gestor) do DTAD, só o DTAD. Isso vale para pessoas (Minha equipe), registros, módulos e dashboards compartilhados com unidades (incluindo excluir um caderno de anotações).
 
 Para mudar a regra, mexa só em `backend/lib/acesso.rb` e rode `test/prefeitura_test.rb`.
+
+**Estrutura em texto** (`Equipes.criar_arvore!`, `POST /api/admin/equipes/arvore`, `POST /api/gestao/arvore`; tela em `js/estrutura.js`): uma unidade por linha, `SIGLA - Nome`, recuo = dentro, `| tipo` opcional (sem ele, o tipo desce um nível a cada recuo: secretaria, subsecretaria, departamento, divisão). Sigla existente é reaproveitada (não renomeia nem move). Tudo numa transação; o erro diz a linha. `GET /api/admin/equipes/texto[?raiz=id]` devolve o modelo SEMEC ou uma estrutura existente nesse formato (base para copiar). `DELETE /api/admin/equipes/:id?cascata=1` exclui a árvore inteira.
+
+**Unidades do campo** (`PUT /api/modulos/:slug/unidades` com `raiz_id` e `nome` opcional): troca as opções do campo declarado em `unidade` por "SIGLA - Nome" das unidades da estrutura escolhida; opções que estão em registros ficam no fim.
 
 ## 3. Formato do template
 

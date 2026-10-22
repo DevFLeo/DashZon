@@ -26,6 +26,7 @@ O que foi definido, como foi definido, como alterar, como foi testado, onde deu 
 | 6.2 | Trello por departamento | **Quadro** na tela do módulo (filtro de departamento, arrastar ou setas) |
 | 7 | Expansão da dashboard | Clicar em barra, fatia, linha ou dia; botão de expandir em todo card |
 | 8 | Testes, entidades de teste 2 de cada, relatório, rodar com ADMTOTAL | Seções 4 a 6 |
+| depois | Tirar os nomes de pessoas do exemplo; nomear a árvore ou criar outra (ex.: SEMAGRIC) com os próprios dados | Nomes trocados por cargos em todo o projeto (seção 10); **Nova estrutura (árvore)** e **Unidades do campo** (seção 10) |
 
 ## 2. O JSON das demandas: o que foi acrescentado
 
@@ -35,7 +36,7 @@ O card "Demandas DASI (Outras Secretarias)" (resumo e dashboard) foi renomeado p
 
 | Acréscimo | Por quê |
 |---|---|
-| `"unidade": "divisao_responsavel"` | Liga a demanda à unidade pela sigla do começo da opção ("DTAD - Divisão de Tecnologia e Dados" -> DTAD). É isso que faz o Eduardo editar só o DTAD e que alimenta a soma do painel |
+| `"unidade": "divisao_responsavel"` | Liga a demanda à unidade pela sigla do começo da opção ("DTAD - Divisão de Tecnologia e Dados" -> DTAD). É isso que faz o gerente do DTAD editar só o DTAD e que alimenta a soma do painel |
 | `"produtividade": {...}` | Diz ao painel o que é concluído (`Deferido / Concluído`), o que é encerrado sem conclusão (`Indeferido / Arquivado`) e qual é o prazo (`data_limite`) |
 | campo `processo_sei` ("Nº Processo SEI", fora da tabela) | Liga a demanda ao processo no SEI! |
 | `configuracoes` | Ajustar opções (divisões, servidores, status, prioridade) em Configurações > Módulos sem editar JSON |
@@ -63,7 +64,7 @@ O card "Demandas DASI (Outras Secretarias)" (resumo e dashboard) foi renomeado p
 | Sem prazo | Em andamento sem data |
 | Conclusão | (concluídos + encerrados) / total |
 
-**Quem vê:** administradores (todas as unidades, e uma linha "Sem unidade reconhecida" com os valores que não bateram com nenhuma sigla) e gestores (só o escopo: o Eduardo vê só o DTAD; a Larissa, SUPLAN e SURÇAM e o que há dentro). Membro comum não vê o painel.
+**Quem vê:** administradores (todas as unidades, e uma linha "Sem unidade reconhecida" com os valores que não bateram com nenhuma sigla) e gestores (só o escopo: o gerente do DTAD vê só o DTAD; a gestora da SUPLAN e da SURÇAM, as duas e o que há dentro). Membro comum não vê o painel.
 
 **Como alterar:**
 
@@ -94,13 +95,13 @@ Para mudar: `backend/lib/acesso.rb` (registros e módulos) e `backend/rotas/gest
 | Ponta a ponta no navegador (`scripts/e2e-prefeitura.mjs`) | **73 checagens, 0 falhas, duas rodadas com o banco zerado**, sem erro de JavaScript |
 | Responsividade (`scripts/auditar-responsivo.ps1`, 7 larguras) | **151 auditorias, 0 erros**, 8 avisos (7 antigos: rótulos "seg/qua/sex" do calendário com 10px) |
 
-**Entidades de teste (2 de cada)** criadas e cruzadas no teste de ponta a ponta e no `prefeitura_test.rb`: `secretariasteste1/2` (SECTESTE1/2), `subsecretariateste1/2`, `departamentoteste1/2`, `divisaoteste1/2`, e os usuários `usuariosecretariateste1/2`, `usuariosubsecretariateste1/2`, `usuariodepartamentoteste1/2` (gestores) e `usuariodivisaoteste1/2` (membros), além de Larissa, Marvin, Eduardo, Hayrine e Davi na estrutura SEMEC. Resultado da interação:
+**Entidades de teste (2 de cada)** criadas e cruzadas no teste de ponta a ponta e no `prefeitura_test.rb`: `secretariasteste1/2` (SECTESTE1/2), `subsecretariateste1/2`, `departamentoteste1/2`, `divisaoteste1/2`, e os usuários `usuariosecretariateste1/2`, `usuariosubsecretariateste1/2`, `usuariodepartamentoteste1/2` (gestores) e `usuariodivisaoteste1/2` (membros), além de uma conta para cada papel na estrutura SEMEC (gestora da SUPLAN, gestor do DGEO, gerente do DTAD, gestor da DASI, membro da DCAD). Resultado da interação:
 
 - a divisão 1 lança na divisão 1 e recebe 403 na divisão 2; a divisão 2 não altera a 1;
 - o gestor do departamento 1 altera a divisão 1 (cascata) e não a 2; o painel dele mostra só DEPTESTE1 e DIVTESTE1;
 - a secretaria 1 soma 1 registro (atrasado) e não enxerga a árvore 2; a secretaria 2 soma 1 concluído (100%);
-- Marvin cria pessoa no DCAD pela tela e recebe 403 na SURÇAM; Larissa vê SUPLAN, SURÇAM e tudo abaixo (sem a SEMEC) e desativa a pessoa criada pelo Marvin; Eduardo vê só o DTAD e não lança no DCAD; Hayrine só tem o DCAD no formulário e não exclui demanda de outra pessoa;
-- o Marvin exclui pela tela o caderno de anotações que o Eduardo criou e compartilhou com o DTAD.
+- o gestor do DGEO cria pessoa no DCAD pela tela e recebe 403 na SURÇAM; a gestora da SUPLAN vê SUPLAN, SURÇAM e tudo abaixo (sem a SEMEC) e desativa a pessoa criada pelo gestor do DGEO; o gerente do DTAD vê só o DTAD e não lança no DCAD; o membro da DCAD só tem o DCAD no formulário e não exclui demanda de outra pessoa;
+- o gestor do DGEO exclui pela tela o caderno de anotações que o gerente do DTAD criou e compartilhou com o DTAD.
 
 Prints das duas rodadas em `log/e2e/` e da auditoria em `log/responsivo/` (fora do git).
 
@@ -144,3 +145,16 @@ Prints das duas rodadas em `log/e2e/` e da auditoria em `log/responsivo/` (fora 
 2. Data de conclusão nas demandas, para "tempo médio de atendimento" no painel.
 3. Gestor aprovando os pedidos dos visualizadores da sua unidade.
 4. Atualizar os protótipos React/Next com as telas da prefeitura, se forem seguir.
+
+## 10. Segunda rodada: sem nomes de pessoas e estruturas livres
+
+- **Nomes do exemplo retirados** de templates, dados de exemplo, planilhas, testes e documentos. No lugar, cargos: "Diretor(a) do DGEO", "Gerente da DCAD", "Gerente da DTAD", "Gerente da DASI", "Técnico Designado". Os 5 registros de exemplo do banco real que traziam nomes (Inventário de dados) foram trocados do mesmo jeito e continuam marcados como exemplo. O nome da branch (`desenvolvimento-ideiamarvin`, escolhido no pedido) e o histórico do git continuam iguais.
+- **Nova estrutura (árvore)**, em Painel do adm > Criar: a estrutura inteira escrita como lista (uma unidade por linha, `SIGLA - Nome`, recuo = dentro, `| tipo` opcional), com prévia ao lado. Começa em branco, do modelo SEMEC ou copiando uma estrutura existente (para trocar siglas e nomes e criar outra, como a SEMAGRIC). Sigla que já existe é reaproveitada, então serve também para acrescentar unidades dentro de uma estrutura. Tudo ou nada: um erro aponta a linha e não cria nada. O gestor tem o mesmo recurso dentro da sua unidade (Minha equipe > + Várias unidades).
+- **Renomear uma estrutura**: Editar na unidade (sigla e nome). **Excluir a estrutura inteira**: Excluir na unidade de cima (pede confirmação com a lista do que está dentro; as pessoas continuam com as contas).
+- **Unidades do campo**, na tela do módulo (para quem altera o módulo): as opções do campo de unidade passam a ser as unidades da estrutura escolhida, e o módulo pode ser renomeado junto (ex.: "Processos SEI da SEMAGRIC"). Opções que já estão em registros ficam no fim, para nenhum registro ficar inválido.
+
+**Testes desta rodada:** 212 no Ruby (5 novos: árvore em texto, erros com a linha, exclusão em cascata, gestor criando várias, unidades do campo); ponta a ponta com 80 checagens em duas rodadas com o banco zerado (0 falhas); responsividade com 165 telas, 0 erros. O teste pegou um erro meu: o texto do modelo SEMEC saía fora da ordem da árvore e o recuo colocava o DGEO dentro da SURÇAM; corrigido e coberto por teste.
+
+**Como alterar:** formato e regras do texto em `Equipes.ler_arvore` / `criar_arvore!` (`backend/lib/equipes.rb`); tipo sugerido por nível em `Unidades::ABAIXO`; opções do campo em `put "/api/modulos/:slug/unidades"` (`backend/app.rb`).
+
+**Riscos:** uma sigla digitada igual a uma existente é reaproveitada e não criada (a prévia avisa em cinza); copiar uma estrutura sem trocar as siglas não cria nada novo (a prévia mostra "já existe"). Excluir a estrutura de cima apaga tudo o que está dentro: as pessoas ficam sem essas unidades e os módulos compartilhados só com elas deixam de aparecer para quem não é dono nem admin.

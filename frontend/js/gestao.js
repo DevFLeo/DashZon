@@ -341,6 +341,12 @@ const Gestao = (() => {
     $("prod-imprimir").addEventListener("click", () => window.print());
     $("eqp-nova-pessoa").addEventListener("click", () => abrirPessoa(dados?.unidades[0]?.id));
     $("eqp-nova-unidade").addEventListener("click", () => abrirUnidade(null, dados?.unidades.find((u) => dados.minhas_gestoes.includes(u.id)) || dados?.unidades[0]));
+    // Várias de uma vez, em texto, dentro da unidade que a pessoa gere (a de cima).
+    $("eqp-nova-arvore").addEventListener("click", () => {
+      const pai = dados?.unidades.find((u) => dados.minhas_gestoes.includes(u.id)) || dados?.unidades[0];
+      if (!pai) return;
+      Estrutura.abrirArvore({ lista: dados.unidades, pai, depois: abrirEquipe });
+    });
     $("form-gestao-pessoa").addEventListener("submit", salvarPessoa);
     $("form-gestao-membro").addEventListener("submit", salvarExistente);
     // Abrindo o modal pelo Painel do adm, o formulário volta a ser do adm.

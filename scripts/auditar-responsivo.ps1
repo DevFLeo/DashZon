@@ -175,6 +175,15 @@ try {
             Auditar 'admin' $vp
             [void](Js "document.getElementById('btn-nova-equipe').click(); 0"); [void](Esperar "document.getElementById('modal-equipe').classList.contains('open')")
             Auditar 'modal-unidade' $vp; [void](Js $fecharModais)
+            [void](Js "document.getElementById('btn-nova-arvore').click(); 0"); [void](Esperar "document.getElementById('modal-arvore').classList.contains('open')")
+            [void](Js "((s) => { s.value = 'modelo'; s.dispatchEvent(new Event('change')); })(document.getElementById('arvore-base')); 0"); [void](Esperar "document.querySelectorAll('#arvore-previa li').length > 0")
+            Auditar 'modal-arvore' $vp; [void](Js $fecharModais)
+        }
+        if (Quer 'unidadescampo') {
+            [void](Js "location.hash = '#/m/demandas'; 0"); [void](Esperar "document.getElementById('mod-titulo').textContent.length > 0 && !document.getElementById('btn-unidades-campo').hidden")
+            [void](Js "document.getElementById('btn-unidades-campo').click(); 0"); [void](Esperar "document.getElementById('modal-unidades-campo').classList.contains('open') && document.querySelectorAll('#uc-raiz option').length > 1")
+            [void](Js "((s) => { s.value = s.options[1].value; s.dispatchEvent(new Event('change')); })(document.getElementById('uc-raiz')); 0")
+            Auditar 'modal-unidades-campo' $vp; [void](Js $fecharModais)
         }
         if (Quer 'produtividade') {
             [void](Js "location.hash = '#/produtividade'; 0"); [void](Esperar "!!document.querySelector('#prod-tabela table')"); Start-Sleep -Milliseconds 300

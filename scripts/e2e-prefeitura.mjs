@@ -5,9 +5,9 @@
 //   powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1 -Porta 4580 -Banco data\teste-pdz.db
 //   node scripts\e2e-prefeitura.mjs --porta 4580 [--chrome caminho\chrome.exe]
 //
-// Percorre: setup pela tela, estrutura (unidade pela tela + estrutura modelo),
+// Percorre: setup pela tela, estrutura (modelo SEMEC e SEMAGRIC pela Nova estrutura, unidade pela tela),
 // as entidades de teste (2 secretarias, 2 subsecretarias, 2 departamentos, 2
-// divisões e os usuários de cada nível), Larissa/Marvin/Eduardo/Hayrine, e
+// divisões e os usuários de cada nível), gestora da SUPLAN/gestor do DGEO/gerente do DTAD/membro da DCAD, e
 // confere com cada um: links do gestor, Minha equipe, Painel do gestor,
 // lançamento por unidade, 403 fora da unidade, quadro, agenda, classificar
 // por, expansão do card, períodos do calendário, temas floresta e excluir
@@ -76,7 +76,13 @@ async function main() {
       if (m.method === "Runtime.exceptionThrown") errosConsole.push(m.params.exceptionDetails?.exception?.description || m.params.exceptionDetails?.text);
       if (m.method === "Runtime.consoleAPICalled" && m.params.type === "error") errosConsole.push(m.params.args.map((a) => a.value ?? a.description).join(" "));
     };
-    const cdp = (method, params = {}) => new Promise((r) => { const id = ++seq; pend.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
+    // Tempo máximo por chamada: o roteiro falha com a mensagem em vez de esperar para sempre.
+    const cdp = (method, params = {}, ms = 45_000) => new Promise((r, j) => {
+      const id = ++seq;
+      const t = setTimeout(() => { pend.delete(id); j(new Error(`DevTools não respondeu a ${method} em ${ms / 1000} s`)); }, ms);
+      pend.set(id, (m) => { clearTimeout(t); r(m); });
+      ws.send(JSON.stringify({ id, method, params }));
+    });
     await cdp("Page.enable");
     await cdp("Runtime.enable");
 
@@ -137,8 +143,22 @@ async function main() {
     // ---------------------------------------------- estrutura e pessoas ----
     await js("window.confirm = () => true; 0");
     await ir("#/admin", "document.getElementById('view-admin').classList.contains('active')");
-    await js("document.getElementById('btn-criar').click(); document.getElementById('btn-estrutura-modelo').click(); 0");
-    checar("estrutura modelo pelo menu Criar", await ate("document.querySelectorAll('#admin-equipes .tabela-unidades tbody tr').length >= 9", 10));
+    await js("document.getElementById('btn-criar').click(); document.getElementById('btn-nova-arvore').click(); 0");
+    await ate("document.getElementById('modal-arvore').classList.contains('open')");
+    await js("((s) => { s.value = 'modelo'; s.dispatchEvent(new Event('change')); })(document.getElementById('arvore-base')); 0");
+    checar("nova estrutura: o modelo SEMEC vira texto editável com prévia", await ate("document.getElementById('arvore-texto').value.startsWith('SEMEC - ') && document.querySelectorAll('#arvore-previa li').length === 9"));
+    await print("03a-nova-estrutura-modelo");
+    await js("document.getElementById('arvore-criar').click(); 0");
+    checar("estrutura SEMEC criada pela tela", await ate("document.querySelectorAll('#admin-equipes .tabela-unidades tbody tr').length >= 9", 10));
+    // Outra árvore, digitada: SEMAGRIC.
+    await js("document.getElementById('btn-criar').click(); document.getElementById('btn-nova-arvore').click(); 0");
+    await ate("document.getElementById('modal-arvore').classList.contains('open')");
+    await js(`((t) => { t.value = ${JSON.stringify("SEMAGRIC - Secretaria Municipal de Agricultura\n  SUPROD - Subsecretaria de Produção\n    DAGRO - Departamento de Agronegócio\n      DIVAP - Divisão de Apoio ao Produtor\n  SUFIS - Subsecretaria de Fiscalização")}; t.dispatchEvent(new Event('input')); })(document.getElementById('arvore-texto')); 0`);
+    const tiposPrevia = await js("[...document.querySelectorAll('#arvore-previa li .chip-tipo')].map(c => c.textContent).join(',')");
+    checar("prévia da SEMAGRIC com os tipos pelo nível", tiposPrevia === "Secretaria,Subsecretaria,Departamento,Divisão,Subsecretaria", tiposPrevia);
+    await print("03b-nova-estrutura-semagric");
+    await js("document.getElementById('arvore-criar').click(); 0");
+    checar("SEMAGRIC criada (5 unidades)", await ate("[...document.querySelectorAll('#admin-equipes tbody tr')].some(t => t.textContent.includes('DIVAP'))", 10));
     // Uma unidade pela tela: "+ Dentro" na DIPLAD.
     await js(`(() => { const tr = [...document.querySelectorAll('#admin-equipes tbody tr')].find(t => t.textContent.includes('DIPLAD')); tr.querySelector('[data-eq-filha]').click(); return 0; })()`);
     await ate("document.getElementById('modal-equipe').classList.contains('open')");
@@ -161,8 +181,8 @@ async function main() {
       checar(`árvore de teste ${n} criada`, [sec, sub, dep, div].every((r) => r.status === 201), [sec, sub, dep, div].map((r) => r.status).join(","));
     }
     const pessoas = [
-      ["larissa", { gestor_de: [ids.SUPLAN, ids["SURÇAM"]] }], ["marvin", { gestor_de: [ids.DGEO] }],
-      ["eduardo", { gestor_de: [ids.DTAD] }], ["hayrine", { equipes: [ids.DCAD] }], ["davi", { gestor_de: [ids.DASI] }],
+      ["gestora.suplan", { gestor_de: [ids.SUPLAN, ids["SURÇAM"]] }], ["gestor.dgeo", { gestor_de: [ids.DGEO] }],
+      ["gerente.dtad", { gestor_de: [ids.DTAD] }], ["membro.dcad", { equipes: [ids.DCAD] }], ["gestor.dasi", { gestor_de: [ids.DASI] }],
       ["usuariosecretariateste1", { gestor_de: [ids.SECTESTE1] }], ["usuariosecretariateste2", { gestor_de: [ids.SECTESTE2] }],
       ["usuariosubsecretariateste1", { gestor_de: [ids.SUBTESTE1] }], ["usuariosubsecretariateste2", { gestor_de: [ids.SUBTESTE2] }],
       ["usuariodepartamentoteste1", { gestor_de: [ids.DEPTESTE1] }], ["usuariodepartamentoteste2", { gestor_de: [ids.DEPTESTE2] }],
@@ -269,6 +289,21 @@ async function main() {
     await periodo("padrao");
     checar("calendário volta ao Ano (sem zoom)", await ate(`!!document.querySelector('[gs-id="${cal}"] .cal-grade') && !document.querySelector('[gs-id="${cal}"] .cal-zoom')`));
 
+    // ----------------------------------------- unidades do campo ----
+    // Espera a tela ser a do Processos SEI (o botão pode estar visível do módulo anterior).
+    await ir("#/m/processos_sei", "document.getElementById('mod-titulo').textContent === 'Processos SEI' && !document.getElementById('btn-unidades-campo').hidden");
+    await js("document.getElementById('btn-unidades-campo').click(); 0");
+    await ate("document.getElementById('modal-unidades-campo').classList.contains('open') && document.querySelectorAll('#uc-raiz option').length > 2");
+    await js("((s) => { s.value = [...s.options].find(o => o.textContent === 'SEMAGRIC').value; s.dispatchEvent(new Event('change')); })(document.getElementById('uc-raiz')); document.getElementById('uc-nome').value = 'Processos SEI da SEMAGRIC'; 0");
+    checar("unidades do campo: prévia com as 5 da SEMAGRIC", await ate("document.querySelectorAll('#uc-previa li').length === 5"));
+    await print("13a-unidades-do-campo");
+    await js("document.querySelector('#form-unidades-campo [type=submit]').click(); 0");
+    checar("módulo renomeado e com as unidades da SEMAGRIC", await ate("document.getElementById('mod-titulo').textContent === 'Processos SEI da SEMAGRIC' && App.modulo('processos_sei').schema.campos.find(c => c.id === 'unidade_responsavel').opcoes[0] === 'SEMAGRIC - Secretaria Municipal de Agricultura'", 10));
+    // Excluir a SEMAGRIC inteira (com o que está dentro) pelo Painel do adm.
+    await ir("#/admin", "[...document.querySelectorAll('#admin-equipes tbody tr')].some(t => t.textContent.includes('SEMAGRIC'))");
+    await js("window.confirm = () => true; [...document.querySelectorAll('#admin-equipes tbody tr')].find(t => t.querySelector('strong')?.textContent === 'SEMAGRIC').querySelector('[data-eq-excluir]').click(); 0");
+    checar("excluir a árvore SEMAGRIC inteira de uma vez", await ate("![...document.querySelectorAll('#admin-equipes tbody tr')].some(t => /SEMAGRIC|SUPROD|DIVAP/.test(t.textContent))", 10));
+
     // ------------------------------------------------------------ temas ----
     for (const [tema, attr] of [["floresta_dia", "forest-day"], ["floresta_tarde", "forest-dusk"], ["floresta_noite", "forest-night"]]) {
       await js(`Tema.aplicar('${tema}'); 0`);
@@ -281,80 +316,80 @@ async function main() {
     await js("Tema.aplicar('claro'); 0");
 
     // ------------------------------------------ perfis em cascata ----
-    // Hayrine (membro DCAD): sem links de gestor; só lança no DCAD; não edita o DTAD.
-    checar("login hayrine", (await entrar("hayrine")) === 200);
+    // membro da DCAD (membro DCAD): sem links de gestor; só lança no DCAD; não edita o DTAD.
+    checar("login membro.dcad", (await entrar("membro.dcad")) === 200);
     checar("membro comum não vê links do gestor", await js("document.getElementById('link-produtividade').hidden && document.getElementById('link-equipe').hidden"));
     await ir("#/m/demandas", "!!document.querySelector('#mod-tabela tbody tr')");
     await js("document.getElementById('btn-novo-registro').click(); 0");
     await ate("document.getElementById('modal-registro').classList.contains('open')");
-    const opsHay = await js("[...document.querySelectorAll('#r-divisao_responsavel option')].map(o => o.value).filter(Boolean)");
-    checar("formulário da Hayrine só oferece o DCAD", JSON.stringify(opsHay) === JSON.stringify(["DCAD - Divisão de Cadastro (Dados)"]), opsHay.join(","));
-    await print("15-hayrine-form");
+    const opsMembro = await js("[...document.querySelectorAll('#r-divisao_responsavel option')].map(o => o.value).filter(Boolean)");
+    checar("formulário da membro da DCAD só oferece o DCAD", JSON.stringify(opsMembro) === JSON.stringify(["DCAD - Divisão de Cadastro (Dados)"]), opsMembro.join(","));
+    await print("15-membro-dcad-form");
     await js("document.querySelectorAll('.modal-overlay.open').forEach(o => o.classList.remove('open')); 0");
     const regs = (await api("GET", "/api/modulos/demandas/registros?limite=100")).corpo.result;
     const dtad = regs.find((r) => r.divisao_responsavel.startsWith("DTAD"));
     const dcad = regs.find((r) => r.divisao_responsavel.startsWith("DCAD"));
-    checar("Hayrine não altera demanda do DTAD (403)", (await api("PATCH", `/api/modulos/demandas/registros/${dtad.id}`, { prioridade: "Baixa" })).status === 403);
-    checar("Hayrine altera demanda do DCAD", (await api("PATCH", `/api/modulos/demandas/registros/${dcad.id}`, { prioridade: "Alta" })).status === 200);
-    checar("Hayrine não exclui demanda do DCAD de outra pessoa (403)", (await api("DELETE", `/api/modulos/demandas/registros/${dcad.id}`)).status === 403);
+    checar("membro da DCAD não altera demanda do DTAD (403)", (await api("PATCH", `/api/modulos/demandas/registros/${dtad.id}`, { prioridade: "Baixa" })).status === 403);
+    checar("membro da DCAD altera demanda do DCAD", (await api("PATCH", `/api/modulos/demandas/registros/${dcad.id}`, { prioridade: "Alta" })).status === 200);
+    checar("membro da DCAD não exclui demanda do DCAD de outra pessoa (403)", (await api("DELETE", `/api/modulos/demandas/registros/${dcad.id}`)).status === 403);
     // Pela tela: excluir mostra a mensagem do servidor.
     await js(`(() => { const b = document.querySelector('#mod-tabela [data-excluir="${dtad.id}"]'); if (b) b.click(); return 0; })()`);
     checar("tela mostra o aviso de unidade ao excluir", await ate("/outra unidade/.test(document.getElementById('toast').textContent)"), await js("document.getElementById('toast').textContent"));
 
-    // Eduardo (gestor DTAD): Minha equipe só DTAD; painel só DTAD; não lança no DCAD.
-    checar("login eduardo", (await entrar("eduardo")) === 200);
+    // gerente do DTAD (gestor DTAD): Minha equipe só DTAD; painel só DTAD; não lança no DCAD.
+    checar("login gerente.dtad", (await entrar("gerente.dtad")) === 200);
     await ir("#/equipe", "!!document.querySelector('#eqp-unidades table')");
-    const unEdu = await js("[...document.querySelectorAll('#eqp-unidades tbody tr strong')].map(s => s.textContent)");
-    checar("Minha equipe do Eduardo = só DTAD", JSON.stringify(unEdu) === '["DTAD"]', unEdu.join(","));
-    await print("16-minha-equipe-eduardo");
+    const unDtad = await js("[...document.querySelectorAll('#eqp-unidades tbody tr strong')].map(s => s.textContent)");
+    checar("Minha equipe do gerente do DTAD = só DTAD", JSON.stringify(unDtad) === '["DTAD"]', unDtad.join(","));
+    await print("16-minha-equipe-gerente-dtad");
     await ir("#/produtividade", "!!document.querySelector('#prod-tabela table')");
-    const unProdEdu = await js("[...document.querySelectorAll('#prod-tabela tbody tr strong')].map(s => s.textContent)");
-    checar("painel do Eduardo = só DTAD", JSON.stringify(unProdEdu) === '["DTAD"]', unProdEdu.join(","));
-    checar("Eduardo não lança no DCAD", (await api("POST", "/api/modulos/demandas/registros", { titulo_processo: "x", status_tramitacao: "Em Análise", prioridade: "Média", divisao_responsavel: "DCAD - Divisão de Cadastro (Dados)", descricao_demanda: "x" })).status === 403);
-    const novaEdu = await api("POST", "/api/modulos/demandas/registros", { titulo_processo: "Demanda do Edu", status_tramitacao: "Em Análise", prioridade: "Média", divisao_responsavel: "DTAD - Divisão de Tecnologia e Dados", data_limite: new Date().toISOString().slice(0, 10), descricao_demanda: "x" });
-    checar("Eduardo lança no DTAD", novaEdu.status === 201);
-    checar("Eduardo exclui demanda do DTAD (gestor)", (await api("DELETE", `/api/modulos/demandas/registros/${dtad.id}`)).status === 200);
-    // Caderno de anotações criado pelo Eduardo (uma "aba" nova), compartilhado com o DTAD.
+    const unProdDtad = await js("[...document.querySelectorAll('#prod-tabela tbody tr strong')].map(s => s.textContent)");
+    checar("painel do gerente do DTAD = só DTAD", JSON.stringify(unProdDtad) === '["DTAD"]', unProdDtad.join(","));
+    checar("gerente do DTAD não lança no DCAD", (await api("POST", "/api/modulos/demandas/registros", { titulo_processo: "x", status_tramitacao: "Em Análise", prioridade: "Média", divisao_responsavel: "DCAD - Divisão de Cadastro (Dados)", descricao_demanda: "x" })).status === 403);
+    const novaDtad = await api("POST", "/api/modulos/demandas/registros", { titulo_processo: "Demanda do DTAD", status_tramitacao: "Em Análise", prioridade: "Média", divisao_responsavel: "DTAD - Divisão de Tecnologia e Dados", data_limite: new Date().toISOString().slice(0, 10), descricao_demanda: "x" });
+    checar("gerente do DTAD lança no DTAD", novaDtad.status === 201);
+    checar("gerente do DTAD exclui demanda do DTAD (gestor)", (await api("DELETE", `/api/modulos/demandas/registros/${dtad.id}`)).status === 200);
+    // Caderno de anotações criado pelo gerente do DTAD (uma "aba" nova), compartilhado com o DTAD.
     const slugNotas = "notas_dtad";
     const novoCaderno = await api("POST", "/api/modulos", { slug: slugNotas, nome: "Notas do DTAD", visao: { tipo: "notas", titulo: "titulo", conteudo: "conteudo", pasta: "pasta" },
       campos: [{ id: "titulo", nome: "Título", tipo: "texto", obrigatorio: true }, { id: "pasta", nome: "Pasta", tipo: "texto" }, { id: "conteudo", nome: "Conteúdo", tipo: "markdown" }] });
-    checar("Eduardo cria um caderno de anotações", novoCaderno.status === 201, JSON.stringify(novoCaderno.corpo));
+    checar("gerente do DTAD cria um caderno de anotações", novoCaderno.status === 201, JSON.stringify(novoCaderno.corpo));
     await api("POST", `/api/modulos/${slugNotas}/registros`, { titulo: "Pauta da semana", conteudo: "- [ ] revisar camadas" });
     const comp = await api("PUT", `/api/modulos/${slugNotas}/compartilhar`, { visibilidade: "equipes", equipes: [ids.DTAD] });
-    checar("Eduardo compartilha o caderno com o DTAD", comp.status === 200, `${slugNotas} ${comp.status}`);
+    checar("gerente do DTAD compartilha o caderno com o DTAD", comp.status === 200, `${slugNotas} ${comp.status}`);
 
-    // Marvin (gestor DGEO): vê DGEO/DCAD/DTAD/DASI; exclui o caderno do Eduardo pela tela.
-    checar("login marvin", (await entrar("marvin")) === 200);
+    // gestor do DGEO (gestor DGEO): vê DGEO/DCAD/DTAD/DASI; exclui o caderno do gerente do DTAD pela tela.
+    checar("login gestor.dgeo", (await entrar("gestor.dgeo")) === 200);
     await ir("#/equipe", "!!document.querySelector('#eqp-unidades table')");
-    const unMarvin = await js("[...document.querySelectorAll('#eqp-unidades tbody tr strong')].map(s => s.textContent).sort()");
-    checar("Minha equipe do Marvin = DGEO, DCAD, DTAD, DASI", JSON.stringify(unMarvin) === JSON.stringify(["DASI", "DCAD", "DGEO", "DTAD"]), unMarvin.join(","));
-    await print("17-minha-equipe-marvin");
+    const unDgeo = await js("[...document.querySelectorAll('#eqp-unidades tbody tr strong')].map(s => s.textContent).sort()");
+    checar("Minha equipe do gestor do DGEO = DGEO, DCAD, DTAD, DASI", JSON.stringify(unDgeo) === JSON.stringify(["DASI", "DCAD", "DGEO", "DTAD"]), unDgeo.join(","));
+    await print("17-minha-equipe-gestor-dgeo");
     await ir(`#/m/${slugNotas}`, "document.getElementById('view-notas').classList.contains('active')");
-    checar("Marvin vê 'Excluir caderno' no caderno do DTAD", await ate("!document.getElementById('notas-excluir-caderno').hidden"));
-    await print("18-notas-marvin");
+    checar("gestor do DGEO vê 'Excluir caderno' no caderno do DTAD", await ate("!document.getElementById('notas-excluir-caderno').hidden"));
+    await print("18-notas-gestor-dgeo");
     await js("window.confirm = () => true; document.getElementById('notas-excluir-caderno').click(); 0");
-    checar("Marvin exclui o caderno do DTAD (cascata)", await ate(`!App.modulos().some(m => m.slug === ${JSON.stringify(slugNotas)})`, 10));
-    // Marvin cria uma pessoa no DCAD pela tela.
+    checar("gestor do DGEO exclui o caderno do DTAD (cascata)", await ate(`!App.modulos().some(m => m.slug === ${JSON.stringify(slugNotas)})`, 10));
+    // gestor do DGEO cria uma pessoa no DCAD pela tela.
     await ir("#/equipe", "!!document.querySelector('#eqp-unidades table')");
     await js(`[...document.querySelectorAll('#eqp-unidades tbody tr')].find(t => t.querySelector('strong')?.textContent === 'DCAD').querySelector('[data-pessoa-nova]').click(); 0`);
     await ate("document.getElementById('modal-gestao-pessoa').classList.contains('open')");
     await js("document.getElementById('gp-nome').value = 'Técnica DCAD'; document.getElementById('gp-login').value = 'tecnica.dcad'; document.querySelector('#form-gestao-pessoa [type=submit]').click(); 0");
-    checar("Marvin cria pessoa no DCAD pela tela (senha temporária)", await ate("document.getElementById('modal-segredo').classList.contains('open') && document.getElementById('segredo-valor').textContent.length >= 8"));
+    checar("gestor do DGEO cria pessoa no DCAD pela tela (senha temporária)", await ate("document.getElementById('modal-segredo').classList.contains('open') && document.getElementById('segredo-valor').textContent.length >= 8"));
     await js("document.querySelectorAll('.modal-overlay.open').forEach(o => o.classList.remove('open')); 0");
-    checar("Marvin não cria pessoa na SURÇAM (403)", (await api("POST", "/api/gestao/usuarios", { nome: "X", login: "x.surcam", unidade_id: ids["SURÇAM"] })).status === 403);
+    checar("gestor do DGEO não cria pessoa na SURÇAM (403)", (await api("POST", "/api/gestao/usuarios", { nome: "X", login: "x.surcam", unidade_id: ids["SURÇAM"] })).status === 403);
 
-    // Larissa (gestora SUPLAN e SURÇAM): todas as de baixo; desativa a técnica criada.
-    checar("login larissa", (await entrar("larissa")) === 200);
+    // gestora da SUPLAN (gestora SUPLAN e SURÇAM): todas as de baixo; desativa a técnica criada.
+    checar("login gestora.suplan", (await entrar("gestora.suplan")) === 200);
     await ir("#/equipe", "!!document.querySelector('#eqp-unidades table')");
-    const unLar = await js("[...document.querySelectorAll('#eqp-unidades tbody tr strong')].map(s => s.textContent)");
-    checar("Minha equipe da Larissa tem SUPLAN, SURÇAM e tudo abaixo (sem SEMEC)", unLar.includes("SUPLAN") && unLar.includes("SURÇAM") && unLar.includes("DTAD") && unLar.includes("DIPLAD1") && !unLar.includes("SEMEC"), unLar.join(","));
-    await print("19-minha-equipe-larissa");
+    const unSuplan = await js("[...document.querySelectorAll('#eqp-unidades tbody tr strong')].map(s => s.textContent)");
+    checar("Minha equipe da gestora da SUPLAN tem SUPLAN, SURÇAM e tudo abaixo (sem SEMEC)", unSuplan.includes("SUPLAN") && unSuplan.includes("SURÇAM") && unSuplan.includes("DTAD") && unSuplan.includes("DIPLAD1") && !unSuplan.includes("SEMEC"), unSuplan.join(","));
+    await print("19-minha-equipe-gestora-suplan");
     const tec = (await api("GET", "/api/gestao")).corpo.pessoas.find((p) => p.login === "tecnica.dcad");
-    checar("Larissa desativa a técnica do DCAD", (await api("POST", `/api/gestao/usuarios/${tec.id}/ativo`, { ativo: false })).status === 200);
+    checar("gestora da SUPLAN desativa a técnica do DCAD", (await api("POST", `/api/gestao/usuarios/${tec.id}/ativo`, { ativo: false })).status === 200);
     await ir("#/produtividade", "!!document.querySelector('#prod-tabela table')");
-    await print("20-painel-larissa");
-    const unProdLar = await js("[...document.querySelectorAll('#prod-tabela tbody tr strong')].map(s => s.textContent)");
-    checar("painel da Larissa começa na SUPLAN e na SURÇAM", unProdLar[0] === "SUPLAN" && unProdLar.includes("SURÇAM") && !unProdLar.includes("SEMEC"), unProdLar.join(","));
+    await print("20-painel-gestora-suplan");
+    const unProdSuplan = await js("[...document.querySelectorAll('#prod-tabela tbody tr strong')].map(s => s.textContent)");
+    checar("painel da gestora da SUPLAN começa na SUPLAN e na SURÇAM", unProdSuplan[0] === "SUPLAN" && unProdSuplan.includes("SURÇAM") && !unProdSuplan.includes("SEMEC"), unProdSuplan.join(","));
 
     // Duas de cada: cada árvore de teste só enxerga e altera a sua.
     checar("login usuariodivisaoteste1", (await entrar("usuariodivisaoteste1")) === 200);
@@ -383,7 +418,7 @@ async function main() {
     await print("21-painel-secretaria2");
 
     // --------------------------------------------------------- celular ----
-    checar("login marvin (celular)", (await entrar("marvin")) === 200);
+    checar("login gestor.dgeo (celular)", (await entrar("gestor.dgeo")) === 200);
     await tamanho(390, 844);
     await ir("#/produtividade", "!!document.querySelector('#prod-tabela table')");
     await esperar(300);

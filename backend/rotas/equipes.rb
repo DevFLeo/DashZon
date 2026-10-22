@@ -25,14 +25,27 @@ post "/api/admin/equipes/modelo" do
   json ok: true, criadas: criadas, equipes: Equipes.todas
 end
 
+# Nova estrutura em texto (uma unidade por linha, recuo = dentro). Ver
+# Equipes.criar_arvore! para o formato. Tudo ou nada.
+post "/api/admin/equipes/arvore" do
+  r = Equipes.criar_arvore!(body_json["texto"])
+  json r.merge("equipes" => Equipes.todas), 201
+end
+
+# Texto de partida: o modelo SEMEC ou uma estrutura existente (?raiz=id).
+get "/api/admin/equipes/texto" do
+  json texto: params[:raiz].to_s.empty? ? Equipes.modelo_texto : Equipes.texto_da_arvore(Equipes.por_id!(params[:raiz])["id"])
+end
+
 put "/api/admin/equipes/:id" do
   Equipes.atualizar!(params[:id], body_json)
   json Equipes.todas.find { |e| e["id"] == params[:id].to_i }
 end
 
+# ?cascata=1: exclui também tudo o que está dentro (a árvore inteira).
 delete "/api/admin/equipes/:id" do
-  Equipes.excluir!(params[:id])
-  json ok: true
+  n = Equipes.excluir!(params[:id], cascata: params[:cascata] == "1")
+  json ok: true, excluidas: n
 end
 
 # Define exatamente quem está na unidade: { "usuario_ids": [1, 2, 3],

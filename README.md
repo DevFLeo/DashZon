@@ -4,15 +4,18 @@ Painel de gestão para as secretarias da prefeitura: demandas, processos SEI, ba
 
 ## O que dá para fazer
 
-- **Estrutura da prefeitura em árvore.** Ex.: **SEMEC** (secretaria) / **SUPLAN** e **SURÇAM** (subsecretarias) / **DGEO**, **DIPLAD** e **DIPEI** (departamentos) / **DCAD**, **DTAD** e **DASI** (divisões do DGEO). Departamento pode ter departamentos e divisões dentro. Painel do adm > Criar > Estrutura modelo (SEMEC) cria esse exemplo de uma vez.
+- **Estrutura da prefeitura em árvore, do jeito que você quiser.** Ex.: **SEMEC** (secretaria) / **SUPLAN** e **SURÇAM** (subsecretarias) / **DGEO**, **DIPLAD** e **DIPEI** (departamentos) / **DCAD**, **DTAD** e **DASI** (divisões do DGEO). Departamento pode ter departamentos e divisões dentro.
+  - **Painel do adm > Criar > Nova estrutura (árvore)**: escreva a secretaria inteira como lista, uma unidade por linha (`SIGLA - Nome`), com recuo para o que fica dentro, e veja a prévia. Comece em branco (ex.: uma **SEMAGRIC**), do modelo SEMEC ou copiando uma estrutura que já existe e trocando as siglas.
+  - Renomear: **Editar** na unidade (ex.: trocar SEMEC por outro nome). Excluir uma estrutura inteira: **Excluir** na unidade de cima.
+  - O gestor também cria várias unidades de uma vez dentro da sua (Minha equipe > + Várias unidades).
 - **Permissões em cascata.** Cada pessoa é **membro** ou **gestor** de uma ou mais unidades. O gestor administra a unidade e tudo abaixo:
-  - Larissa, gestora da SUPLAN e da SURÇAM: põe e tira pessoas, cria unidades e edita registros de tudo abaixo das duas;
-  - Marvin, gestor do DGEO: o mesmo no DGEO, DCAD, DTAD e DASI;
-  - Eduardo, gerente (gestor) do DTAD: só no DTAD.
+  - a gestora da SUPLAN e da SURÇAM põe e tira pessoas, cria unidades e edita registros de tudo abaixo das duas;
+  - o gestor do DGEO faz o mesmo no DGEO, DCAD, DTAD e DASI;
+  - o gerente (gestor) do DTAD, só no DTAD.
   - Membro lança e edita os registros da própria unidade; excluir é do gestor (ou de quem lançou).
 - **Minha equipe** (para gestores): pessoas e unidades do seu alcance, criar conta com senha temporária, mudar quem é gestor, desativar.
 - **Painel do gestor** (função mestre): total de processos do DGEO alimenta o da SUPLAN, que alimenta o da SEMEC, com em andamento, concluídos, encerrados, atrasados, vencendo em 7 dias e taxa de conclusão. Mesmas regras para todas as unidades; baixa em CSV e imprime.
-- **Gestão de Demandas - DGEO** (o JSON do pedido) e **Processos SEI**: número do processo, ciência, onde está, situação e prazo, de forma resumida.
+- **Gestão de Demandas - DGEO** (o JSON do pedido) e **Processos SEI**: número do processo, ciência, onde está, situação e prazo, de forma resumida. O botão **Unidades do campo** troca as divisões do exemplo pelas da sua estrutura (ex.: as demandas passam a ser da SEMAGRIC) e pode renomear o módulo.
 - **Mapeamento de dados das unidades**: inventário de bases (origem, SEI!, LAI, LGPD, dados abertos, qualidade) e indicadores por unidade.
 - **Anotações** em Markdown (estilo Obsidian), com excluir e compartilhar o caderno seguindo a mesma cascata.
 - **Tabelas com "Classificar por"**: A-Z, data de criação, prazo mais próximo, prioridade (na ordem das opções) e outros.
@@ -28,7 +31,7 @@ Painel de gestão para as secretarias da prefeitura: demandas, processos SEI, ba
 powershell -ExecutionPolicy Bypass -File scripts\rodar.ps1      # http://127.0.0.1:4567
 ```
 
-No primeiro acesso, crie o administrador **ADMTOTAL**, escolha os modelos e, no Painel do adm, crie a estrutura e as pessoas. Docker, domínio com HTTPS e DuckDNS: `servidor.md` e `docs/PUBLICAR-DUCKDNS.md`.
+No primeiro acesso, crie o administrador **ADMTOTAL** (o sistema começa sem módulos; instale só os que quiser) e, no Painel do adm, crie a estrutura (Nova estrutura) e as pessoas. Docker, domínio com HTTPS e DuckDNS: `servidor.md` e `docs/PUBLICAR-DUCKDNS.md`.
 
 ## Documentos
 
@@ -57,7 +60,7 @@ prototipos/  experimento em React e Next.js (fora do sistema)
 ## Testes
 
 ```powershell
-cd backend; bundle exec rake test                        # 207 testes
+cd backend; bundle exec rake test                        # 212 testes
 python -m unittest discover -s scripts -p "test_*.py"    # importador
 node scripts\e2e-prefeitura.mjs --porta 4580             # navegador, numa instância de teste zerada
 ```

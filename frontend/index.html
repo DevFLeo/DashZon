@@ -223,6 +223,7 @@
         <div class="actions">
           <button class="btn btn-sm" id="btn-compartilhar-modulo" hidden>Compartilhar</button>
           <button class="btn btn-sm" id="btn-apagar-exemplos" hidden>Apagar dados de exemplo</button>
+          <button class="btn btn-sm" id="btn-unidades-campo" hidden>Unidades do campo</button>
           <button class="btn btn-sm" id="btn-estrutura">Estrutura (JSON)</button>
           <button class="btn btn-sm btn-danger" id="btn-excluir-modulo">Excluir módulo</button>
           <button class="btn btn-sm btn-primary" id="btn-novo-registro">+ Novo registro</button>
@@ -451,7 +452,7 @@
             <div class="menu-criar-lista" id="menu-criar" role="menu" hidden>
               <button type="button" role="menuitem" id="btn-novo-usuario"><strong>Usuário</strong><span>Uma pessoa com login e senha para entrar no sistema.</span></button>
               <button type="button" role="menuitem" id="btn-nova-equipe"><strong>Unidade</strong><span>Secretaria, subsecretaria, departamento, divisão ou equipe, dentro de outra unidade.</span></button>
-              <button type="button" role="menuitem" id="btn-estrutura-modelo"><strong>Estrutura modelo (SEMEC)</strong><span>Cria SEMEC / SUPLAN e SURÇAM / DGEO, DIPLAD e DIPEI / DCAD, DTAD e DASI, sem usuários. Não duplica o que já existe.</span></button>
+              <button type="button" role="menuitem" id="btn-nova-arvore"><strong>Nova estrutura (árvore)</strong><span>Uma secretaria inteira de uma vez (ex.: SEMAGRIC), escrita como lista. Comece em branco, do modelo SEMEC ou copiando uma estrutura que já existe.</span></button>
             </div>
           </div>
         </div>
@@ -594,6 +595,7 @@
         </div>
         <div class="actions">
           <button class="btn btn-sm" id="eqp-nova-unidade">+ Unidade</button>
+          <button class="btn btn-sm" id="eqp-nova-arvore">+ Várias unidades</button>
           <button class="btn btn-sm btn-primary" id="eqp-nova-pessoa">+ Pessoa</button>
         </div>
       </header>
@@ -984,6 +986,61 @@
   </form>
 </div>
 
+<!-- ============ Modal: nova estrutura em texto (Painel do adm e Minha equipe) ============ -->
+<div class="modal-overlay" id="modal-arvore">
+  <form class="modal modal-lg" id="form-arvore">
+    <h2 id="arvore-titulo">Nova estrutura</h2>
+    <p class="hint">Uma unidade por linha, no formato <code>SIGLA - Nome</code>. O recuo (dois espaços por nível; texto colado com Tab também vale) diz quem fica dentro de quem. O tipo vem do nível (secretaria, subsecretaria, departamento, divisão) ou de <code>| tipo</code> no fim da linha. Uma sigla que já existe é reaproveitada: dá para acrescentar unidades dentro de uma estrutura existente.</p>
+    <div class="field" id="arvore-base-wrap">
+      <label for="arvore-base">Começar de</label>
+      <select id="arvore-base"></select>
+      <div class="ajuda">Copiar uma estrutura e trocar as siglas e os nomes é o jeito mais rápido de montar outra parecida (ex.: a SEMAGRIC a partir da SEMEC).</div>
+    </div>
+    <div class="arvore-editor">
+      <div class="field">
+        <label for="arvore-texto">Estrutura</label>
+        <textarea id="arvore-texto" class="code" rows="14" spellcheck="false" placeholder="SEMAGRIC - Secretaria Municipal de Agricultura
+  SUPROD - Subsecretaria de Produção
+    DAGRO - Departamento de Agronegócio
+      DIVAP - Divisão de Apoio ao Produtor
+  SUFIS - Subsecretaria de Fiscalização"></textarea>
+      </div>
+      <div class="field">
+        <span class="arvore-previa-titulo">Prévia</span>
+        <div id="arvore-previa" class="arvore-previa" aria-live="polite"></div>
+      </div>
+    </div>
+    <div class="form-erro" id="arvore-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-arvore">Cancelar</button>
+      <button type="submit" class="btn btn-primary" id="arvore-criar">Criar estrutura</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ Modal: unidades do campo de um módulo (a partir de uma estrutura) ============ -->
+<div class="modal-overlay" id="modal-unidades-campo">
+  <form class="modal" id="form-unidades-campo">
+    <h2>Unidades do campo</h2>
+    <p class="hint" id="uc-dica"></p>
+    <div class="field">
+      <label for="uc-raiz" class="obrigatorio">Estrutura (a unidade de cima)</label>
+      <select id="uc-raiz" required></select>
+    </div>
+    <div class="field">
+      <label for="uc-nome">Nome do módulo</label>
+      <input id="uc-nome" type="text" maxlength="80">
+    </div>
+    <p class="hint">Opções que o campo vai ter (as que já estão em registros continuam no fim):</p>
+    <div id="uc-previa" class="arvore-previa"></div>
+    <div class="form-erro" id="uc-erro" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-fechar="modal-unidades-campo">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Aplicar</button>
+    </div>
+  </form>
+</div>
+
 <!-- ============ Modal: pessoa nova pelo gestor (Minha equipe) ============ -->
 <div class="modal-overlay" id="modal-gestao-pessoa">
   <form class="modal" id="form-gestao-pessoa">
@@ -1158,6 +1215,7 @@
 <script src="/js/expandir.js"></script>
 <script src="/js/quadro.js"></script>
 <script src="/js/gestao.js"></script>
+<script src="/js/estrutura.js"></script>
 <script src="/js/menu.js"></script>
 <script src="/js/responsivo.js"></script>
 <script src="/js/app.js"></script>

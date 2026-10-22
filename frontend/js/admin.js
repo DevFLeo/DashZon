@@ -74,16 +74,6 @@ const Admin = (() => {
     if (abrir) $("menu-criar").querySelector("button")?.focus();
   }
 
-  // Estrutura modelo da SEMEC (sem usuários): não duplica o que já existe.
-  async function criarModelo() {
-    if (!confirm("Criar a estrutura modelo?\nSEMEC / SUPLAN e SURÇAM / DGEO, DIPLAD e DIPEI / DCAD, DTAD e DASI.\nSiglas que já existem são mantidas.")) return;
-    try {
-      const r = await Api.post("/api/admin/equipes/modelo", {});
-      Util.aviso(r.criadas ? `${r.criadas} unidade(s) criada(s)` : "A estrutura modelo já existia");
-      await recarregar();
-    } catch (e) { Util.aviso(e.message, "erro"); }
-  }
-
   // ------------------------------------------------ estrutura (unidades) ----
   const NOME_TIPO = { secretaria: "Secretaria", subsecretaria: "Subsecretaria", departamento: "Departamento", divisao: "Divisão", equipe: "Equipe" };
   const rotuloUnidade = (e) => (e.sigla ? `${e.sigla} · ${e.nome}` : e.nome);
@@ -106,7 +96,7 @@ const Admin = (() => {
 
   function renderEquipes() {
     if (!equipes.length) {
-      $("admin-equipes").innerHTML = '<div class="empty-state empty-state-baixo">Nenhuma unidade ainda. Use <strong>Criar ▾ → Unidade</strong> ou <strong>Estrutura modelo (SEMEC)</strong>.</div>';
+      $("admin-equipes").innerHTML = '<div class="empty-state empty-state-baixo">Nenhuma unidade ainda. Use <strong>Criar ▾ → Nova estrutura (árvore)</strong> para montar uma secretaria inteira (em branco, do modelo SEMEC ou copiando outra) ou <strong>Criar ▾ → Unidade</strong>.</div>';
       return;
     }
     const linhas = equipes.map((e) => linhaUnidade(e, `
@@ -206,11 +196,18 @@ const Admin = (() => {
     } catch (er) { erro("equipe-erro", er.message); }
   }
 
+  // Com unidades dentro: oferece excluir a árvore inteira (ex.: tirar a SEMEC de exemplo).
   async function excluirEquipe(e) {
-    if (!confirm(`Excluir a unidade "${rotuloUnidade(e)}"? As ${e.membros.length} pessoa(s) continuam com as contas; só deixam de estar nela.`)) return;
+    const dentro = equipes.filter((x) => x.id !== e.id && (x.caminho || "").startsWith(`${e.caminho} / `));
+    const pessoas = new Set([e, ...dentro].flatMap((x) => x.membros.map((m) => m.id))).size;
+    const pergunta = dentro.length
+      ? `Excluir "${rotuloUnidade(e)}" e as ${dentro.length} unidade(s) que estão dentro dela (${dentro.map((x) => x.sigla || x.nome).slice(0, 8).join(", ")}${dentro.length > 8 ? "..." : ""})?
+As ${pessoas} pessoa(s) continuam com as contas; só deixam de estar nessas unidades. Não dá para desfazer.`
+      : `Excluir a unidade "${rotuloUnidade(e)}"? As ${e.membros.length} pessoa(s) continuam com as contas; só deixam de estar nela.`;
+    if (!confirm(pergunta)) return;
     try {
-      await Api.del(`/api/admin/equipes/${e.id}`);
-      Util.aviso("Unidade excluída");
+      const r = await Api.del(`/api/admin/equipes/${e.id}${dentro.length ? "?cascata=1" : ""}`);
+      Util.aviso(r.excluidas > 1 ? `${r.excluidas} unidades excluídas` : "Unidade excluída");
       await recarregar();
     } catch (er) { Util.aviso(er.message, "erro"); }
   }
@@ -227,7 +224,7 @@ const Admin = (() => {
     usuario_ativo: "Ativou/desativou usuário", senha_temporaria: "Gerou senha temporária", link_redefinicao: "Gerou link de senha",
     email_confirmado: "Confirmou e-mail", equipe_criada: "Criou unidade", empresa_teste_criada: "Criou empresa de teste",
     equipe_alterada: "Alterou unidade", equipe_excluida: "Excluiu unidade", equipe_membros: "Mudou pessoas da unidade",
-    estrutura_modelo: "Criou a estrutura modelo", unidade_criada: "Gestor criou unidade", unidade_alterada: "Gestor alterou unidade",
+    estrutura_modelo: "Criou a estrutura modelo", arvore_criada: "Criou estrutura (árvore)", modulo_unidades: "Trocou as unidades do campo", unidade_criada: "Gestor criou unidade", unidade_alterada: "Gestor alterou unidade",
     unidade_excluida: "Gestor excluiu unidade", membro_definido: "Gestor pôs ou mudou papel", membro_removido: "Gestor tirou da unidade",
     registro_excluido: "Excluiu registro",
     regras_alteradas: "Mudou regras", organizacao_alterada: "Mudou organização", dashboard_criado: "Criou dashboard",
@@ -535,7 +532,7 @@ const Admin = (() => {
     const item = (id, fn) => $(id).addEventListener("click", () => { abrirMenuCriar(false); fn(); });
     item("btn-novo-usuario", () => abrirFormulario());
     item("btn-nova-equipe", () => abrirEquipe());
-    item("btn-estrutura-modelo", criarModelo);
+    item("btn-nova-arvore", () => Estrutura.abrirArvore({ lista: equipes, depois: recarregar }));
     $("form-equipe").addEventListener("submit", (ev) => (Gestao.formularioUnidadeAberto() ? Gestao.salvarUnidade(ev) : salvarEquipe(ev)));
     $("eq-tipo").addEventListener("change", atualizarSigla);
     $("form-usuario").addEventListener("submit", salvar);
