@@ -343,6 +343,43 @@
         "series-7": "#c4623a",
         "series-8": "#c23b3b"
       }
+    },
+    {
+      "id": "verao",
+      "nome": "Verão",
+      "grupo": "Estações",
+      "desc": "Sol, mar e hibisco",
+      "fase": "dia",
+      "escuro": false,
+      "atributo": "verao",
+      "tokens": {
+        "surface-1": "#fffdf7",
+        "page-plane": "#fdf5e6",
+        "text-primary": "#2a2114",
+        "text-secondary": "#57482f",
+        "text-muted": "#6c5d45",
+        "gridline": "#f0e4cc",
+        "baseline": "#dccaa4",
+        "border": "rgba(42, 33, 20, 0.10)",
+        "border-strong": "rgba(42, 33, 20, 0.18)",
+        "hover": "rgba(14, 143, 179, 0.07)",
+        "accent": "#0b7fa3",
+        "accent-ink": "#ffffff",
+        "status-good": "#2e9c5f",
+        "status-warning": "#f2b705",
+        "status-serious": "#e0700c",
+        "status-critical": "#d1442f",
+        "success-text": "#23784a",
+        "critical-text": "#b8392a",
+        "series-1": "#0b7fa3",
+        "series-2": "#c8620a",
+        "series-3": "#2e8c56",
+        "series-4": "#a37b00",
+        "series-5": "#cc4473",
+        "series-6": "#2a6fdb",
+        "series-7": "#8a5cd6",
+        "series-8": "#d1442f"
+      }
     }
   ]
 }
