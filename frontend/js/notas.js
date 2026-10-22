@@ -46,11 +46,52 @@ const Notas = (() => {
     }
     $("notas-modulo").textContent = modulo.nome;
     $("notas-descricao").textContent = modulo.descricao || "";
+    mostrarAcoesDoModulo();
     // Sem nota no endereço: no computador reabre a última; no celular mostra a lista.
     const telaLarga = !window.matchMedia("(max-width: 800px)").matches;
     const alvo = idNota && nota(Number(idNota)) ? Number(idNota) : telaLarga && atualId && nota(atualId) ? atualId : null;
     renderLista();
     if (alvo) mostrar(alvo); else renderVazio();
+  }
+
+  // Remover o caderno ou só as notas de exemplo, como na tela de tabela
+  // (modulos.js): só para quem pode alterar o módulo (o dono ou um admin).
+  function mostrarAcoesDoModulo() {
+    const pode = !!modulo.editavel && App.usuario()?.perfil !== "visualizador";
+    const exemplos = pode ? modulo.exemplos || 0 : 0;
+    $("notas-excluir-modulo").hidden = !pode;
+    $("notas-apagar-exemplos").hidden = !exemplos;
+    $("notas-apagar-exemplos").textContent = `Apagar notas de exemplo (${exemplos})`;
+  }
+
+  async function apagarExemplos() {
+    if (!confirm(`Apagar as ${modulo.exemplos} nota(s) de exemplo de "${modulo.nome}"?
+As que você escreveu ou editou continuam.`)) return;
+    try {
+      await gravarAgora();
+      const r = await Api.del(`/api/modulos/${encodeURIComponent(modulo.slug)}/exemplos`);
+      modulo = { ...modulo, exemplos: 0 };
+      mostrarAcoesDoModulo();
+      await carregar();
+      if (atualId && !nota(atualId)) { atualId = null; history.replaceState(null, "", `#/m/${encodeURIComponent(modulo.slug)}`); }
+      renderLista();
+      if (atualId) mostrar(atualId); else renderVazio();
+      await App.recarregarNav();
+      Util.aviso(`${r.apagados} nota(s) de exemplo apagada(s)`);
+    } catch (e) { Util.aviso(e.message, "erro"); }
+  }
+
+  async function excluirModulo() {
+    if (!confirm(`Excluir o módulo "${modulo.nome}" e as ${notas.length} nota(s) dele?
+Isso não pode ser desfeito. Para só tirar do seu menu, use Configurações > Módulos.`)) return;
+    try {
+      await gravarAgora();
+      await Api.del(`/api/modulos/${encodeURIComponent(modulo.slug)}`);
+      esquecer();
+      Util.aviso("Módulo excluído");
+      await App.recarregarNav();
+      App.irPadrao();
+    } catch (e) { Util.aviso(e.message, "erro"); }
   }
 
   async function carregar() {
@@ -316,6 +357,8 @@ const Notas = (() => {
     $("notas-vazia-nova").addEventListener("click", novaNota);
     $("notas-baixar-tudo").addEventListener("click", baixarTudo);
     $("notas-estrutura").addEventListener("click", () => Modulos.abrirEstrutura(modulo));
+    $("notas-apagar-exemplos").addEventListener("click", apagarExemplos);
+    $("notas-excluir-modulo").addEventListener("click", excluirModulo);
     $("notas-btn-importar").addEventListener("click", () => $("notas-importar").click());
     $("notas-btn-importar-pasta").addEventListener("click", () => $("notas-importar-pasta").click());
     $("notas-importar").addEventListener("change", (e) => { importar(e.target.files, false); e.target.value = ""; });
