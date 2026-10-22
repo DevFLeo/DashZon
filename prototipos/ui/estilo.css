@@ -15,6 +15,38 @@
   --series-1: #3987e5; --series-2: #e8814e; --series-3: #3cb98c; --series-4: #d9b43a;
   --series-5: #9d74e6; --series-6: #e2608f; --series-7: #4cc1d8; --series-8: #ef6161;
 }
+/* Os outros temas do oficial (frontend/css/style.css), com os nomes de token
+   daqui: fundo = page-plane, superficie = surface-1, texto* = text-*,
+   destaque = accent, bom/ruim = success/critical-text. */
+:root[data-tema="suave"] {
+  --fundo: #eee5d5; --superficie: #f7f0e4; --borda: #e0d5c2; --hover: #ebe2d2;
+  --texto: #3a332b; --texto-2: #5a5045; --texto-fraco: #6e6352;
+  --destaque: #3a6ca3; --destaque-tinta: #fffaf2; --bom: #3b6a29; --ruim: #a13b33;
+  --series-1: #3d72ad; --series-2: #c96a37; --series-3: #2e8f6c; --series-4: #a0760f;
+  --series-5: #bf6488; --series-6: #4a852d; --series-7: #6656a0; --series-8: #bf4f49;
+}
+:root[data-tema="floresta_dia"] {
+  --fundo: #eef3ea; --superficie: #fbfcf8; --borda: #dbe5d6; --hover: #e8efe3;
+  --texto: #13261c; --texto-2: #3e5446; --texto-fraco: #5f7265;
+  --destaque: #2d6a4f; --destaque-tinta: #ffffff; --bom: #2d6a4f; --ruim: #a8432c;
+  --series-1: #2d6a4f; --series-2: #c2772a; --series-3: #3a7ca5; --series-4: #9a8417;
+  --series-5: #a8577e; --series-6: #5e9234; --series-7: #6f4e37; --series-8: #c0533a;
+}
+:root[data-tema="floresta_tarde"] {
+  --fundo: #e7e1cb; --superficie: #f4efdf; --borda: #ddd5bd; --hover: #ebe5d2;
+  --texto: #2c3326; --texto-2: #4c5442; --texto-fraco: #5a604c;
+  --destaque: #3b6e52; --destaque-tinta: #fbf7ea; --bom: #36633f; --ruim: #9a3f2d;
+  --series-1: #3b6e52; --series-2: #b46d2c; --series-3: #3f7493; --series-4: #8a7520;
+  --series-5: #9b5374; --series-6: #5b8634; --series-7: #6f4e37; --series-8: #b04c37;
+}
+:root[data-tema="floresta_noite"] {
+  --fundo: #0c1410; --superficie: #17221c; --borda: #26332b; --hover: #1f2b24;
+  --texto: #eef4ec; --texto-2: #b9c8b8; --texto-fraco: #8a9a88;
+  --destaque: #52b788; --destaque-tinta: #0c1410; --bom: #74c69d; --ruim: #ec8f76;
+  --series-1: #52b788; --series-2: #e0a458; --series-3: #6fa8dc; --series-4: #d6c45c;
+  --series-5: #d47fa6; --series-6: #a3c45a; --series-7: #b08f74; --series-8: #e07a5f;
+}
+:root[data-tema="escuro"], :root[data-tema="floresta_noite"] { color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--fundo); color: var(--texto); font-family: var(--fonte); }
 a { color: inherit; }
@@ -187,6 +219,42 @@ textarea.campo { resize: vertical; min-height: 80px; }
 .aviso-erro { background: var(--ruim); color: #fff; }
 @keyframes entrar { from { transform: translateY(8px); opacity: 0; } }
 
+/* configurações */
+.nav-extra { padding: 6px 10px; border-top: 1px solid var(--borda); }
+.recolhida .nav-extra { padding: 6px 8px; }
+.config-secao { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); padding: 18px 20px; margin-bottom: 16px; }
+.config-secao h2 { margin: 0 0 4px; font-size: 18px; }
+.config-secao > .card-sub { margin: 0 0 12px; }
+.temas { border: 0; padding: 0; margin: 12px 0 0; min-width: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.temas legend { padding: 0; margin-bottom: 8px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--texto-fraco); }
+.tema-cartao { position: relative; display: grid; gap: 8px; padding: 8px; border: 1px solid var(--borda); border-radius: 12px; cursor: pointer; background: var(--fundo); }
+.tema-cartao:hover { border-color: var(--texto-fraco); }
+.tema-cartao.marcado { border-color: var(--destaque); box-shadow: inset 0 0 0 1px var(--destaque); }
+.tema-cartao input { position: absolute; opacity: 0; pointer-events: none; }
+.tema-cartao:has(input:focus-visible) { outline: 2px solid var(--destaque); outline-offset: 2px; }
+.tema-cartao.marcado::after { content: ""; position: absolute; top: 14px; right: 14px; width: 16px; height: 16px; border-radius: 50%; background: var(--destaque-tinta); box-shadow: inset 0 0 0 5px var(--destaque), 0 0 0 2px var(--superficie); }
+.tema-previa { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 6px; height: 76px; padding: 8px; border-radius: 8px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .08); overflow: hidden; }
+.tema-previa-sistema { grid-template-columns: 1fr 1fr; gap: 0; padding: 0; }
+.tema-previa-sistema .tema-previa { height: 100%; border-radius: 0; box-shadow: none; }
+.tp-cartao { height: 100%; border-radius: 6px; padding: 6px; display: grid; grid-template-rows: auto 1fr; gap: 6px; min-width: 0; }
+.tp-linha { width: 55%; height: 5px; border-radius: 3px; opacity: .8; }
+.tp-barras { display: flex; align-items: flex-end; gap: 4px; }
+.tp-barras span { flex: 1; border-radius: 3px 3px 0 0; }
+.tp-botao { width: 18px; height: 18px; border-radius: 6px; }
+.tema-texto { display: grid; gap: 1px; padding: 0 2px 2px; }
+.tema-texto .card-sub { margin: 0; font-size: 12px; }
+.lista-chaves { list-style: none; margin: 0; padding: 0; display: grid; }
+.lista-chaves li + li { border-top: 1px solid var(--borda); }
+.chave { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; cursor: pointer; }
+.chave-texto { display: grid; gap: 1px; min-width: 0; }
+.chave-texto .card-sub { margin: 0; }
+.chave input { appearance: none; flex-shrink: 0; width: 44px; height: 26px; border-radius: 999px; background: var(--hover); box-shadow: inset 0 0 0 1px var(--borda); position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+.chave input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--texto-fraco); transition: transform .15s, background .15s; }
+.chave input:checked { background: var(--destaque); box-shadow: none; }
+.chave input:checked::after { transform: translateX(18px); background: var(--destaque-tinta); }
+.chave input:disabled { opacity: .6; }
+@media (prefers-reduced-motion: reduce) { .chave input, .chave input::after { transition: none; } }
+
 /* login */
 .login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 .login-card { width: min(380px, 100%); background: var(--superficie); border: 1px solid var(--borda); border-radius: 20px; padding: 28px; display: grid; gap: 12px; }
@@ -251,6 +319,10 @@ textarea.campo { resize: vertical; min-height: 80px; }
   .card:has(.card-grafico), .card:has(.calendario) { min-height: 280px; }
   .card:has(.tabela) { overflow: auto; }
   .cal-numeros { grid-template-columns: repeat(3, minmax(0, 1fr)); flex-basis: 100%; }
+  .temas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tema-previa { height: 56px; padding: 6px; }
+  .tema-cartao.marcado::after { top: 10px; right: 10px; }
+  .config-secao { padding: 14px; }
   .resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cabecalho-acoes > .btn-primario { width: 100%; }
   .busca { max-width: none; flex-basis: 100%; }

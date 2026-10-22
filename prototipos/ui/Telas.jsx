@@ -4,9 +4,10 @@
 // Por isso os links chegam prontos em `hrefDashboard`/`hrefModulo` e o
 // componente de link (`Link`) é o de cada um.
 import { useEffect, useState } from "react";
-import { Avisos, Icone } from "./Base.jsx";
+import { Avisos, Icone, avisar } from "./Base.jsx";
 import { Card } from "./Card.jsx";
 import { Api } from "./logica.js";
+import { PROXIMO, temaPorId } from "./temas.js";
 
 export function Cubo() {
   return (
@@ -37,20 +38,37 @@ function useLocal(chave, padrao) {
   return [valor, setValor];
 }
 
-// Tema claro/escuro no <html data-tema>. Sem escolha salva, segue o sistema.
-export function useTema() {
-  const [tema, setTema] = useState("escuro");
+// Tema no <html data-tema>. A escolha é a da conta (preferencias.tema, a mesma
+// do oficial); antes do login vale a guardada no navegador. "sistema" segue o
+// computador e acompanha quando ele muda.
+// Devolve [tema efetivo, girar (botão do topo), escolha, escolher(id)].
+export function useTema(daConta, logado = false) {
+  const [escolha, setEscolha] = useState("sistema");
+  const [escuroNoSistema, setEscuroNoSistema] = useState(true);
   useEffect(() => {
-    const salvo = lerLocal("dashzon.prototipo.tema", null);
-    setTema(salvo || (window.matchMedia?.("(prefers-color-scheme: light)").matches ? "claro" : "escuro"));
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (mq) {
+      setEscuroNoSistema(mq.matches);
+      const mudou = (e) => setEscuroNoSistema(e.matches);
+      mq.addEventListener("change", mudou);
+      setEscolha((e) => lerLocal("dashzon.prototipo.tema", e));
+      return () => mq.removeEventListener("change", mudou);
+    }
+    setEscolha((e) => lerLocal("dashzon.prototipo.tema", e));
   }, []);
+  useEffect(() => { if (temaPorId(daConta)) setEscolha(daConta); }, [daConta]);
+
+  const tema = escolha === "sistema" ? (escuroNoSistema ? "escuro" : "claro") : escolha;
   useEffect(() => { document.documentElement.dataset.tema = tema; }, [tema]);
-  const trocar = () => setTema((t) => {
-    const novo = t === "escuro" ? "claro" : "escuro";
+
+  async function escolher(novo) {
+    if (!temaPorId(novo)) return;
+    setEscolha(novo);
     gravarLocal("dashzon.prototipo.tema", novo);
-    return novo;
-  });
-  return [tema, trocar];
+    if (!logado) return;
+    try { await Api.put("/api/eu/preferencias", { tema: novo }); } catch (e) { avisar(`O tema não foi salvo na conta: ${e.message}`, "erro"); }
+  }
+  return [tema, () => escolher(PROXIMO[tema]), escolha, escolher];
 }
 
 export function Login({ onEntrou, tecnologia }) {
@@ -138,14 +156,15 @@ function Secao({ id, titulo, fechadas, alternar, children }) {
   );
 }
 
-export function Moldura({ sessao, ativo, Link, hrefDashboard, hrefModulo, tema, trocarTema, onSair, tecnologia, children }) {
+export function Moldura({ sessao, ativo, Link, hrefDashboard, hrefModulo, hrefConfig, tema, trocarTema, onSair, tecnologia, children }) {
   const [gaveta, setGaveta] = useState(false);
   const [recolhida, setRecolhida] = useLocal("dashzon.prototipo.recolhida", false);
   const [fechadas, setFechadas] = useLocal("dashzon.prototipo.secoes", []);
   const alternar = (id) => setFechadas((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
 
-  // A gaveta fecha ao trocar de tela e com Esc.
-  useEffect(() => { setGaveta(false); }, [ativo]);
+  // Ao trocar de tela: a gaveta fecha e a página volta ao topo (senão a tela
+  // nova abre rolada onde a anterior estava).
+  useEffect(() => { setGaveta(false); window.scrollTo(0, 0); }, [ativo]);
   useEffect(() => {
     if (!gaveta) return;
     const tecla = (e) => { if (e.key === "Escape") setGaveta(false); };
@@ -155,9 +174,13 @@ export function Moldura({ sessao, ativo, Link, hrefDashboard, hrefModulo, tema, 
   // A grade e os gráficos do Chart.js se ajustam quando a barra muda de largura.
   useEffect(() => { window.dispatchEvent(new Event("resize")); }, [recolhida]);
 
+  // O ícone mostra a fase do tema atual (sol, pôr do sol, lua); o clique vai
+  // para o próximo da família, como no oficial.
+  const atual = temaPorId(tema);
+  const proximo = temaPorId(PROXIMO[tema]);
   const botaoTema = (
-    <button className="btn-icone" onClick={trocarTema} aria-label={tema === "escuro" ? "Usar o tema claro" : "Usar o tema escuro"} title="Mudar o tema">
-      <Icone nome={tema === "escuro" ? "sol" : "lua"} />
+    <button className="btn-icone" onClick={trocarTema} aria-label={`Tema ${atual?.nome}. Mudar para ${proximo?.nome}`} title={`Tema ${atual?.nome} (clique para ${proximo?.nome})`}>
+      <Icone nome={{ dia: "sol", tarde: "tarde", noite: "lua" }[atual?.fase] || "sol"} />
     </button>
   );
   const item = (chave, href, nome, extra) => (
@@ -195,6 +218,11 @@ export function Moldura({ sessao, ativo, Link, hrefDashboard, hrefModulo, tema, 
             {sessao.menuModulos.map((m) => item(`m${m.slug}`, hrefModulo(m.slug), m.nome, <span className="contagem">{m.total}</span>))}
           </Secao>
         </nav>
+        <div className="nav-extra">
+          <Link href={hrefConfig} className={`nav-item ${ativo === "config" ? "ativo" : ""}`} aria-current={ativo === "config" ? "page" : undefined} title={recolhida ? "Configurações" : undefined}>
+            <Icone nome="engrenagem" /><span className="nav-nome">Configurações</span>
+          </Link>
+        </div>
         <div className="rodape">
           <span className="rodape-nome">Conectado como <strong>{sessao.usuario.nome || sessao.usuario.login}</strong></span>
           <button className="btn btn-pequeno" onClick={onSair} aria-label="Sair" title="Sair"><Icone nome="sair" /><span className="nav-nome">Sair</span></button>
@@ -242,3 +270,4 @@ export function Dashboard({ id, sessao, tema }) {
 }
 
 export { Modulo } from "./Registros.jsx";
+export { Configuracoes } from "./Configuracoes.jsx";
