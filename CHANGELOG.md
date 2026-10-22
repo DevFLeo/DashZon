@@ -36,15 +36,15 @@ Co-Authored-By: ... (quando houver)
 
 | Tipo | Commits |
 |---|---|
-| Novidades (`feat`) | 67 |
+| Novidades (`feat`) | 68 |
 | Correções (`fix`) | 22 |
 | Desempenho (`perf`) | 1 |
-| Refatoração (`refactor`) | 1 |
+| Refatoração (`refactor`) | 2 |
 | Testes (`test`) | 15 |
-| Documentação (`docs`) | 67 |
+| Documentação (`docs`) | 70 |
 | Manutenção (`chore`) | 4 |
 | Fora do padrão | 3 |
-| **Total** | **180** |
+| **Total** | **185** |
 
 As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeito que deixou de existir.
 
@@ -52,10 +52,18 @@ As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeit
 
 ### Novidades (`feat`)
 
+- **mobile:** app de celular em React Native (Expo), parte 1 (`c92afb0`)
 - **prototipos:** Configurações com todos os temas e módulos no menu (`81d4b3d`)
+
+### Refatoração (`refactor`)
+
+- **prototipos:** lógica e temas em @dashzon/core, sem HTML nem CSS (`9b7669d`)
 
 ### Documentação (`docs`)
 
+- app de celular (parte 1) e @dashzon/core no Sistema.md, Log.md e READMEs (`d0f9b21`)
+- **readme:** CHANGELOG.md na estrutura do projeto (`33dcde3`)
+- CHANGELOG.md com os 179 commits e a metodologia de commit (`92e8246`)
 - **prototipos:** README e prints das Configurações (`150b212`)
 - Configurações dos protótipos no Sistema.md e no Log.md (`e126596`)
 
