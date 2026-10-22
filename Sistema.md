@@ -384,7 +384,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 - **Markdown** (`js/markdown.js`, sem biblioteca): o texto é escapado antes da marcação, então HTML da nota nunca é interpretado; links só com `http(s)`, `mailto` ou endereço relativo. A auditoria isenta da medida de alvo de toque os links dentro do Markdown (exceção "inline" da WCAG 2.5.8).
 - **Boot:** `GET /api/status` decide entre setup, login (ou "crie seu usuário") e o app; troca de senha obrigatória antes de qualquer outra tela.
 - **`Api`:** `fetch` + JSON. Um 401 fora de `/api/login` e `/api/usuarios/primeiro` volta para `/`.
-- **Temas:** sistema, claro, suave e escuro, por tokens CSS (`--series-*`, `--text-*`). Modo privacidade pela classe `sensivel`.
+- **Temas:** sistema, claro, suave, escuro e a família Floresta (`floresta_dia`, `floresta_tarde`, `floresta_noite`; `data-theme="floresta-*"`), por tokens CSS (`--series-*`, `--text-*`), validados por `Usuarios::TEMAS`. As cores da Floresta saem da paleta "Floresta" dos cards; as 8 séries mantêm matizes distintos e o mesmo papel (1 = principal/entrada, 8 = saída). O botão do topo gira claro -> suave -> escuro, ou, num tema Floresta, dia -> tarde -> noite. Modo privacidade pela classe `sensivel`.
 - **Fonte:** preferência da conta `fonte` (`inter` padrão, `sistema`, `nunito`, `atkinson`; validada por `Usuarios::FONTES`).
   - `js/fonte.js` põe `data-fonte` no `<html>` (que troca `--font-sans`) e guarda a escolha no `localStorage`, para a tela de login já abrir com ela.
   - O Chart.js desenha em `<canvas>` e não herda o CSS: `Fonte.aplicar` define `Chart.defaults.font.family` e redesenha os gráficos depois que o arquivo da fonte carrega.

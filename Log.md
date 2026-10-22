@@ -6,6 +6,21 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimentoUI-UX` · Temas Floresta (dia, tarde e noite)
+
+**O que:** três temas novos em Configurações > Aparência, no grupo "Floresta", feitos a partir da paleta "Floresta" dos cards:
+- **Floresta dia:** claro, fundo esverdeado, destaque verde-pinho;
+- **Floresta tarde:** luz dourada sobre pergaminho, contraste mais baixo (como o suave);
+- **Floresta noite:** escuro, verde profundo, destaque menta com texto escuro por cima.
+
+As 8 cores de série continuam distintas entre si e com o mesmo papel (1 = entrada, 8 = saída em terracota). Com um tema Floresta, o botão do topo gira dia -> tarde -> noite. O backend aceita os valores novos (`Usuarios::TEMAS`, com teste) e o `antes.js` aplica o tema antes de desenhar.
+
+**Validação:** contraste WCAG medido (texto >= 4,5:1 em cartão e fundo; séries >= 3,4:1); roteiro de 10 passos (salvar pela Aparência, botão do topo, recarregar, voltar ao claro, celular) em duas rodadas com banco zerado, com auditoria de layout em cada tema; `rake test` duas vezes; `auditar-responsivo.ps1` completo.
+
+**Por quê:** pedido de um tema "floresta" com as cores já definidas, em dia, tarde e noite.
+
+---
+
 ## 2026-10-21 · `desenvolvimentoUI-UX` · Remover as Anotações; teste com dois usuários
 
 **O que:**
