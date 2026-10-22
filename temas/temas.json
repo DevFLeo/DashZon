@@ -284,12 +284,12 @@
         "status-critical": "#b03a2e",
         "success-text": "#4c6b26",
         "critical-text": "#9a3228",
-        "series-1": "#a8501f",
+        "series-1": "#5f7a2a",
         "series-2": "#a87010",
-        "series-3": "#5f7a2a",
-        "series-4": "#8c3b2e",
-        "series-5": "#4f6d8c",
-        "series-6": "#a85a3e",
+        "series-3": "#a8501f",
+        "series-4": "#4f6d8c",
+        "series-5": "#8a5f94",
+        "series-6": "#5d7f7a",
         "series-7": "#7a5230",
         "series-8": "#b03a2e"
       }
