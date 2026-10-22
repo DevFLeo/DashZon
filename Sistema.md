@@ -518,4 +518,5 @@ Melhorias em **como o usuário alimenta** os dashboards são permitidas, desde q
 - Funcionalidade nova no backend vem com teste. Nunca testar contra `data/dashzon.db`. Sintaxe: `ruby -c`, `node --check frontend/js/*.js`.
 - Branches: `desenvolvimento` (trabalho), `main` (estável), `producao` (servidor); `desenvolvimentoUI-UX` para a interface dos protótipos React e Next. Push só quando pedido.
 - Commits em pt-BR, um por parte pronta (`feat(área)`, `fix(área)`, `test`, `docs`), com o README por último.
+- `CHANGELOG.md`: tudo o que entrou, por data e por tipo (Conventional Commits), gerado do `git log` por `python scripts/gerar_changelog.py`. Rode de novo depois de novos commits.
 - Manter `docs/DESENVOLVIMENTO.md`, `Sistema.md` e `Log.md` em dia. Comentários explicam o porquê.

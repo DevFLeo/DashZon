@@ -6,6 +6,14 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-22 · `desenvolvimento-mobile` · CHANGELOG.md e metodologia de commit
+
+**O que:** `CHANGELOG.md` na raiz com os 179 commits do projeto, por data e por tipo (`feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `chore`), com o hash de cada um, um resumo por tipo e a metodologia de commit (Conventional Commits e as regras do projeto). Gerado por `scripts/gerar_changelog.py`, que grava em UTF-8 de qualquer pasta. Três commits antigos fora do padrão aparecem numa seção própria.
+
+**Por quê:** pedido de escrever os feat, fix e issues corrigidas com a metodologia de commit, e um texto à parte para o pull request.
+
+---
+
 ## 2026-10-22 · `desenvolvimentoUI-UX` · Configurações nos protótipos (temas e menu)
 
 **O que:**
