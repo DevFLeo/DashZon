@@ -7,6 +7,9 @@ node_modules/
 .expo/
 dist/
 dist-android/
+
+# Prints e resultados dos testes
+testes/resultados/
 web-build/
 expo-env.d.ts
 
