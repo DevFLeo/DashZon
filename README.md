@@ -305,13 +305,14 @@ Dockerfile, docker-compose.yml, .env.example   Docker (motor compilado no Linux,
 - `desenvolvimentoUI-UX`: interface dos protótipos, temas Floresta, "Quem vê" e exclusão com módulos (enviada ao GitHub em 22/10/2026).
 - `desenvolvimento-teste-next`: só o protótipo Next, como `prototipos/teste-front-next`, para testar o frontend em Next.
 - `desenvolvimento-mobile-parte-1`: o app de celular em React Native (parte 1) e a lógica em `prototipos/core`.
+- `desenvolvimento-mobile-parte-2`: dashboards e lembretes no app de celular, e os testes dele com parâmetros (`prototipos/mobile/testes/`).
 
 ## Próximos passos
 
 - Empacotamento como executável Windows.
 - Orçamento × realizado (cruzar dois módulos, como no Actual Budget).
 - Importar planilha pela própria tela (hoje é pelo `scripts/importar_planilha.py`) e extrato OFX do banco (a alternativa ao Open Finance; ver as perguntas e respostas).
-- App de celular: próximas partes (dashboards, lembretes, digital, lançar sem internet; lista em `prototipos/README.md`) e teste num aparelho de verdade.
+- App de celular: próximas partes (digital, lançar sem internet, mais lembretes; lista em `prototipos/README.md`) e teste num aparelho de verdade.
 - Decidir se o frontend web migra para React ou Next (protótipos em `prototipos/`, com prints de comparação).
 - Consulta automática de CNPJ por API pública ao cadastrar uma empresa (viável; ver `relatorio.md`).
 - Subir sozinho junto com o Windows (hoje é preciso rodar o `iniciar-publico.ps1` depois de reiniciar o PC).
