@@ -282,7 +282,7 @@ deploy/                  Caddyfile e scripts de publicação (instalar, iniciar,
 scripts/gerar-previews.js  refaz os prints de frontend/preview/
 scripts/importar_planilha.py  importa uma planilha .xlsx/.csv para um módulo (Python, só biblioteca padrão)
 exemplos/                planilha modelo do cronograma de estudos (.xlsx e .csv) e o script que a gera
-prototipos/              experimento: o DashZon em React (Vite) e em Next.js, com prints de comparação
+prototipos/              experimento: o DashZon em React (Vite), Next.js e no celular (React Native, mobile/), com a lógica em core/
 relatorio.md             relatório de testes do sistema e a situação de cada correção
 CLAUDE.md                instruções enxutas para o assistente: instalar, subir, parar e o que nunca fazer
 Sistema.md               especificação técnica completa e regras de desenvolvimento
@@ -302,13 +302,17 @@ Dockerfile, docker-compose.yml, .env.example   Docker (motor compilado no Linux,
 - `desenvolvimento`: trabalho do dia a dia; vai para a `main` quando estiver estável.
 - `producao`: o que está (ou vai estar) rodando no servidor.
 - `desenvolvimento-empresa`: equipes e empresas, permissões por equipe, aprovações, estudos no dashboard e os protótipos React/Next (enviada ao GitHub em 21/10/2026).
+- `desenvolvimentoUI-UX`: interface dos protótipos, temas Floresta, "Quem vê" e exclusão com módulos (enviada ao GitHub em 22/10/2026).
+- `desenvolvimento-teste-next`: só o protótipo Next, como `prototipos/teste-front-next`, para testar o frontend em Next.
+- `desenvolvimento-mobile-parte-1`: o app de celular em React Native (parte 1) e a lógica em `prototipos/core`.
 
 ## Próximos passos
 
 - Empacotamento como executável Windows.
 - Orçamento × realizado (cruzar dois módulos, como no Actual Budget).
 - Importar planilha pela própria tela (hoje é pelo `scripts/importar_planilha.py`) e extrato OFX do banco (a alternativa ao Open Finance; ver as perguntas e respostas).
-- Decidir se o frontend migra para React ou Next (protótipos em `prototipos/`, com prints de comparação).
+- App de celular: próximas partes (dashboards, lembretes, digital, lançar sem internet; lista em `prototipos/README.md`) e teste num aparelho de verdade.
+- Decidir se o frontend web migra para React ou Next (protótipos em `prototipos/`, com prints de comparação).
 - Consulta automática de CNPJ por API pública ao cadastrar uma empresa (viável; ver `relatorio.md`).
 - Subir sozinho junto com o Windows (hoje é preciso rodar o `iniciar-publico.ps1` depois de reiniciar o PC).
 - Tela para ver e baixar de novo as exportações guardadas no banco (a API `/api/exportacoes` já existe).
