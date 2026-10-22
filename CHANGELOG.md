@@ -36,15 +36,15 @@ Co-Authored-By: ... (quando houver)
 
 | Tipo | Commits |
 |---|---|
-| Novidades (`feat`) | 68 |
+| Novidades (`feat`) | 69 |
 | Correções (`fix`) | 22 |
 | Desempenho (`perf`) | 1 |
 | Refatoração (`refactor`) | 2 |
-| Testes (`test`) | 15 |
-| Documentação (`docs`) | 70 |
+| Testes (`test`) | 16 |
+| Documentação (`docs`) | 73 |
 | Manutenção (`chore`) | 4 |
 | Fora do padrão | 3 |
-| **Total** | **185** |
+| **Total** | **190** |
 
 As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeito que deixou de existir.
 
@@ -52,6 +52,7 @@ As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeit
 
 ### Novidades (`feat`)
 
+- **mobile:** dashboards e lembretes no app de celular (parte 2) (`af766fa`)
 - **mobile:** app de celular em React Native (Expo), parte 1 (`c92afb0`)
 - **prototipos:** Configurações com todos os temas e módulos no menu (`81d4b3d`)
 
@@ -59,8 +60,15 @@ As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeit
 
 - **prototipos:** lógica e temas em @dashzon/core, sem HTML nem CSS (`9b7669d`)
 
+### Testes (`test`)
+
+- **mobile:** testes do app com parâmetros, dentro de prototipos/mobile/testes (`7fd5e9c`)
+
 ### Documentação (`docs`)
 
+- app de celular parte 2 (dashboards, lembretes, testes) no Sistema.md, Log.md e READMEs (`72422a2`)
+- **readme:** app de celular, core e as branches novas (`2f78ffe`)
+- **changelog:** commits do app de celular e do core (`cbb2195`)
 - app de celular (parte 1) e @dashzon/core no Sistema.md, Log.md e READMEs (`d0f9b21`)
 - **readme:** CHANGELOG.md na estrutura do projeto (`33dcde3`)
 - CHANGELOG.md com os 179 commits e a metodologia de commit (`92e8246`)
