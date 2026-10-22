@@ -1,0 +1,8 @@
+{
+  "name": "@dashzon/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lógica e temas do DashZon sem HTML nem CSS, para os protótipos web e o app de celular.",
+  "main": "index.js",
+  "type": "module"
+}
