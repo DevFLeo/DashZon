@@ -380,6 +380,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
   - `[[link]]` abre a nota ou cria uma que não existe; tarefas `- [ ]` clicáveis na prévia; "Mencionada em";
   - importar `.md` (arquivos soltos ou uma pasta, como um cofre do Obsidian; mesmo título na mesma pasta é atualizado) e baixar uma nota `.md` ou todas num `.zip` (`Util.zip`, sem compressão, nomes em UTF-8);
   - lê até 1000 notas por módulo.
+  - quem pode alterar o módulo (dono ou admin; nunca o visualizador) vê "Apagar notas de exemplo (N)" (`DELETE /api/modulos/:slug/exemplos`) e "Excluir módulo" (`DELETE /api/modulos/:slug`), como na tela de tabela; para só tirar do próprio menu continua valendo Configurações > Módulos.
 - **Markdown** (`js/markdown.js`, sem biblioteca): o texto é escapado antes da marcação, então HTML da nota nunca é interpretado; links só com `http(s)`, `mailto` ou endereço relativo. A auditoria isenta da medida de alvo de toque os links dentro do Markdown (exceção "inline" da WCAG 2.5.8).
 - **Boot:** `GET /api/status` decide entre setup, login (ou "crie seu usuário") e o app; troca de senha obrigatória antes de qualquer outra tela.
 - **`Api`:** `fetch` + JSON. Um 401 fora de `/api/login` e `/api/usuarios/primeiro` volta para `/`.

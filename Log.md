@@ -6,6 +6,18 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimentoUI-UX` · Remover as Anotações; teste com dois usuários
+
+**O que:**
+- **Anotações:** a tela de notas ganhou "Apagar notas de exemplo (N)" e "Excluir módulo", que só a tela de tabela tinha. Aparecem só para quem pode alterar o módulo (o dono ou um admin; nunca o visualizador).
+- **Teste com dois usuários** (`admin` e `art`, como no banco real) numa instância separada: cada um cria "Finanças pessoais" como "Só eu" e recebe o próprio Lançamentos com os 12 exemplos ("(2)" e "(3)"); um não vê o dashboard do outro (404); o Lançamentos de todos não muda; o `art` não vê as opções de remover as Anotações do admin; o admin apaga as 6 notas de exemplo e exclui o módulo, que some para os dois, e o teste do `art` continua.
+
+**Validação:** roteiro com 12 passos, duas rodadas em banco zerado (12/12); auditoria das notas em 1280 e 390 px sem erros; `auditar-responsivo.ps1` completo; `rake test`.
+
+**Por quê:** pedido de testar com os dois usuários e de uma opção para remover as anotações.
+
+---
+
 ## 2026-10-21 · `desenvolvimentoUI-UX` · Dashboard de teste não mistura com os dados de todos
 
 **O que:**
