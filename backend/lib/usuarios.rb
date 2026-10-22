@@ -38,7 +38,7 @@ module Usuarios
   PERFIS = %w[admin usuario visualizador].freeze
   CARGOS_SUGERIDOS = ["Sócio", "Líder de produção", "Funcionário"].freeze
   EXIGIR_DOCUMENTO = %w[nao cpf cnpj qualquer].freeze
-  TEMAS = %w[sistema claro suave escuro].freeze
+  TEMAS = %w[sistema claro suave escuro floresta_dia floresta_tarde floresta_noite].freeze
   # Fontes da interface (arquivos em frontend/vendor/fonts; ver js/fonte.js).
   FONTES = %w[inter sistema nunito atkinson].freeze
   # Tamanho do texto da interface (escala --fs no CSS; ver js/fonte.js).

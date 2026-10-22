@@ -150,6 +150,101 @@
   --critical-text: #a13b33;
 }
 
+/* Temas Floresta: a paleta "Floresta" dos cards (pinho #2d6a4f, musgo #74a942,
+   sálvia #b5c99a, floresta profunda #1b4332, menta #95d5b2, casca #6f4e37,
+   areia #d4a373) virou fundo, texto e destaque. As 8 séries continuam com
+   matizes diferentes entre si (categorias distinguíveis) e com o mesmo papel
+   das outras paletas: a 1 é a principal/entrada e a 8 (terracota) é a saída.
+   Dia: claro, de manhã na mata. Tarde: luz dourada, contraste mais baixo,
+   como o suave. Noite: escuro, verde profundo com destaque em menta. */
+:root[data-theme="floresta-dia"] {
+  color-scheme: light;
+  --surface-1: #fbfcf8;
+  --page-plane: #eef3ea;
+  --text-primary: #13261c;
+  --text-secondary: #3e5446;
+  --text-muted: #5f7265;
+  --gridline: #dbe5d6;
+  --baseline: #b5c99a;
+  --border: rgba(27, 67, 50, 0.12);
+  --border-strong: rgba(27, 67, 50, 0.24);
+  --hover: rgba(45, 106, 79, 0.07);
+  --series-1: #2d6a4f;
+  --series-2: #c2772a;
+  --series-3: #3a7ca5;
+  --series-4: #9a8417;
+  --series-5: #a8577e;
+  --series-6: #5e9234;
+  --series-7: #6f4e37;
+  --series-8: #c0533a;
+  --accent: #2d6a4f;
+  --accent-ink: #ffffff;
+  --status-good: #40916c;
+  --status-warning: #d4a12a;
+  --status-serious: #d4804f;
+  --status-critical: #c0533a;
+  --success-text: #2d6a4f;
+  --critical-text: #a8432c;
+}
+:root[data-theme="floresta-tarde"] {
+  color-scheme: light;
+  --surface-1: #f4efdf;
+  --page-plane: #e7e1cb;
+  --text-primary: #2c3326;
+  --text-secondary: #4c5442;
+  --text-muted: #5a604c;
+  --gridline: #ddd5bd;
+  --baseline: #c4b996;
+  --border: rgba(44, 51, 38, 0.13);
+  --border-strong: rgba(44, 51, 38, 0.24);
+  --hover: rgba(111, 78, 55, 0.07);
+  --series-1: #3b6e52;
+  --series-2: #b46d2c;
+  --series-3: #3f7493;
+  --series-4: #8a7520;
+  --series-5: #9b5374;
+  --series-6: #5b8634;
+  --series-7: #6f4e37;
+  --series-8: #b04c37;
+  --accent: #3b6e52;
+  --accent-ink: #fbf7ea;
+  --status-good: #4f8a4a;
+  --status-warning: #d4a373;
+  --status-serious: #c97a4c;
+  --status-critical: #b04c37;
+  --success-text: #36633f;
+  --critical-text: #9a3f2d;
+}
+:root[data-theme="floresta-noite"] {
+  color-scheme: dark;
+  --surface-1: #17221c;
+  --page-plane: #0c1410;
+  --text-primary: #eef4ec;
+  --text-secondary: #b9c8b8;
+  --text-muted: #8a9a88;
+  --gridline: #26332b;
+  --baseline: #364539;
+  --border: rgba(238, 244, 236, 0.10);
+  --border-strong: rgba(238, 244, 236, 0.18);
+  --hover: rgba(149, 213, 178, 0.07);
+  --series-1: #52b788;
+  --series-2: #e0a458;
+  --series-3: #6fa8dc;
+  --series-4: #d6c45c;
+  --series-5: #d47fa6;
+  --series-6: #a3c45a;
+  --series-7: #b08f74;
+  --series-8: #e07a5f;
+  --accent: #52b788;
+  --accent-ink: #0c1410;
+  --status-good: #52b788;
+  --status-warning: #e0b458;
+  --status-serious: #e09a5f;
+  --status-critical: #e07a5f;
+  --success-text: #74c69d;
+  --critical-text: #ec8f76;
+}
+
 /* Tamanho do texto (Configurações > Aparência; js/fonte.js põe data-tamanho no
    <html>). Todo font-size em px é multiplicado por --fs; só o texto muda: a
    grade dos dashboards e o layout salvo continuam os mesmos. Textos de até

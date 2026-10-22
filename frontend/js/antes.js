@@ -4,7 +4,8 @@
 // do próprio DashZon.
 try {
   var t = localStorage.getItem("dashzon.tema");
-  var attr = { claro: "light", suave: "soft", escuro: "dark" }[t];
+  var attr = { claro: "light", suave: "soft", escuro: "dark",
+    floresta_dia: "floresta-dia", floresta_tarde: "floresta-tarde", floresta_noite: "floresta-noite" }[t];
   if (attr) document.documentElement.setAttribute("data-theme", attr);
   var f = localStorage.getItem("dashzon.fonte");
   if (f === "sistema" || f === "nunito" || f === "atkinson") document.documentElement.setAttribute("data-fonte", f);

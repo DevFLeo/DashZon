@@ -78,6 +78,11 @@ class PreferenciasTest < Minitest::Test
     assert_equal 200, last_response.status, last_response.body
     put_json "/api/eu/preferencias", { "tema" => "suave" }
     assert_equal "suave", resposta["preferencias"]["tema"]
+    %w[floresta_dia floresta_tarde floresta_noite].each do |tema|
+      put_json "/api/eu/preferencias", { "tema" => tema }
+      assert_equal 200, last_response.status, last_response.body
+      assert_equal tema, resposta["preferencias"]["tema"]
+    end
     put_json "/api/eu/preferencias", { "tema" => "claro" } # só o tema; o resto fica
     prefs = resposta["preferencias"]
     assert_equal "claro", prefs["tema"]
