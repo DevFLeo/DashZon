@@ -257,7 +257,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | `PATCH /api/modulos/:slug/registros/:id` | Altera só os campos enviados; o resto vem do banco, e o registro inteiro passa por `coerce_registro!` (checklist) |
 | `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD validado por `coerce_registro!` |
 | `GET/POST /api/dashboards`, `GET/PUT/DELETE /api/dashboards/:id` | Dashboards **por usuário**: a lista traz os seus e os da equipe (com `dono_nome`, `fixo`, `editavel`); o privado de outra pessoa responde 404; `PUT` parcial (`nome`, `fixo`, `visibilidade`; `dono_id` só admin); alterar exige ser o dono ou admin num da equipe (403). O `GET :id` traz os widgets |
-| `GET /api/dashboards/:id/exemplos`, `DELETE /api/dashboards/:id?exemplos=1`, `DELETE /api/modulos/:slug/exemplos` | Dados de exemplo: quantos os módulos do dashboard ainda têm; excluir o dashboard levando só esses registros; apagar os exemplos de um módulo. `/api/modulos` e `GET /api/modulos/:slug` trazem `exemplos` |
+| `GET /api/dashboards/:id/exemplos`, `DELETE /api/dashboards/:id?exemplos=1&modulos=1`, `DELETE /api/modulos/:slug/exemplos` | Dados de exemplo: quantos os módulos do dashboard ainda têm; excluir o dashboard levando só esses registros; apagar os exemplos de um módulo. `/api/modulos` e `GET /api/modulos/:slug` trazem `exemplos`. O `GET` também traz `modulos_do_dashboard` (os dos cards e os que o template instalou junto: mesmo horário, dono e template que declara um dashboard com esse nome), com `registros`, `exemplos`, `removivel` e `motivo`; `modulos=1` exclui os removíveis (que a pessoa pode alterar e que nenhum outro dashboard usa), com os registros, e o diário registra quais |
 | `POST /api/dashboards/:id/widgets`, `PUT/DELETE /api/widgets/:id`, `PUT /api/widgets/:id/layout` | Widgets (o `layout` altera só x/y/w/h) |
 | `GET /api/widgets/:id/data` | Dados do card (`aggregate`, revalidado contra o schema atual, projetado, com cache) |
 | `POST /api/widgets/preview` | Prévia sobre 72 registros fictícios (nada gravado) |
@@ -353,7 +353,7 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
 
 **Cores do card** (editor > passo "Cores"; `config.paleta`, `config.cores` {categoria: "#rrggbb"}, `config.cor`): 9 paletas nomeadas (`Util.PALETAS`), cor por categoria ou série com `<input type=color>`, e "Surpreenda-me" (`Util.paletaSurpresa`: matizes pelo ângulo de ouro, com um nome). `Util.corDe` = escolhida > paleta > identidade de sempre (`corSerie`); `Util.corUnica` para número, linha e calendário. Sem cores escolhidas, o desenho é idêntico ao de antes. O servidor valida (`normalize_aparencia!`) e não usa isso na consulta.
 
-**Dados de exemplo:** ao excluir um dashboard, uma janela lista os módulos dele com dados de exemplo e oferece apagá-los junto (`DELETE /api/dashboards/:id?exemplos=1`). Na tela do módulo, "Apagar dados de exemplo (N)" (`DELETE /api/modulos/:slug/exemplos`).
+**Dados de exemplo:** ao excluir um dashboard, uma janela lista os módulos dele com dados de exemplo e oferece apagá-los junto (`DELETE /api/dashboards/:id?exemplos=1`). A mesma janela oferece excluir também os módulos do dashboard (`?modulos=1`): marcada quando eles só têm dados de exemplo; desmarcada, com aviso, quando há registros cadastrados por alguém; e lista os que ficam e por quê (de outra pessoa, ou usado por outro dashboard). Na tela do módulo, "Apagar dados de exemplo (N)" (`DELETE /api/modulos/:slug/exemplos`).
 
 **Responsividade** (bloco no fim do `style.css`, para ter precedência):
 

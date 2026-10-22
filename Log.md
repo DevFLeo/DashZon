@@ -6,6 +6,18 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimentoUI-UX` · Excluir o dashboard com os módulos
+
+**O que:**
+- **Backend:** `DELETE /api/dashboards/:id?modulos=1` exclui também os módulos do dashboard, com os registros. Contam como do dashboard os módulos dos cards e os que o template instalou junto com ele (mesmo horário de criação, mesmo dono e um template que declara um dashboard com esse nome; assim o "Orçamento mensal" sai com o "Finanças pessoais", e o setup, que instala vários templates no mesmo segundo, não mistura um com o outro). Só saem os que a pessoa pode alterar e que nenhum outro dashboard usa. O diário de alterações registra quais saíram. Cinco testes novos em `acesso_test.rb`.
+- **Frontend:** a janela "Excluir dashboard" ganhou "Excluir também os módulos deste dashboard, com todos os registros", com a contagem de cada um. Vem marcada quando os módulos só têm dados de exemplo; desmarcada, com aviso, quando alguém cadastrou ou editou algo. Lista os que ficam e por quê.
+
+**Validação:** `rake test` duas vezes; roteiro com 7 passos (admin e `art`: só exemplos, com dado de alguém, módulo usado por outro dashboard, módulo de outra pessoa, celular) em duas rodadas com banco zerado; `auditar-responsivo.ps1` completo.
+
+**Por quê:** pedido de que, ao tirar um dashboard, os módulos dele saiam também, e não só o conteúdo.
+
+---
+
 ## 2026-10-21 · `desenvolvimentoUI-UX` · Temas Floresta (dia, tarde e noite)
 
 **O que:** três temas novos em Configurações > Aparência, no grupo "Floresta", feitos a partir da paleta "Floresta" dos cards:
