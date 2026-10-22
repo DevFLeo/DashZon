@@ -6,6 +6,20 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-22 · `desenvolvimento-mobile` (vira `desenvolvimento-mobile-parte-1`) · App de celular em React Native, parte 1
+
+**O que:**
+- **`prototipos/core`** (`@dashzon/core`): a lógica e os temas saem de `prototipos/ui` para um pacote sem HTML nem CSS, que serve à web e ao celular. A API ganhou o endereço do servidor como parâmetro (`criarApi`) e as cores do tema viraram uma função de fora (`criarCores(lerToken)`). O `ui` reexporta tudo: React e Next sem mudança de comportamento.
+- **`prototipos/mobile`**: app em React Native com Expo (SDK 58), parte 1: entrar com o endereço do servidor, módulos do menu com "+ Lançar", módulo com resumo, busca e registros em cartões, formulário pelo schema (teclado numérico com vírgula, Hoje/Ontem, opções em botões, interruptor), editar e excluir com confirmação, temas da conta e sair. Usa a API Ruby sem mudança.
+- **Branch `desenvolvimento-teste-next`**: o protótipo React base sai e o Next fica como `prototipos/teste-front-next`, sem mudança de código (só workspaces, scripts e `.gitignore`).
+- Possibilidades para as próximas partes do app em `prototipos/README.md`.
+
+**Validação:** o app empacota para Android (Hermes) e web; roteiro de 10 passos no Chrome a 390x844 (entrar, erro de senha, módulos, busca, lançar com "123,45" e data de hoje conferidos no banco, editar, erro do servidor, excluir com confirmação, tema Floresta salvo na conta, sair), sem rolagem lateral, nenhum alvo de toque menor que 44 px e nenhum erro de JavaScript, duas rodadas com banco zerado; roteiro dos protótipos web (48 passos) duas vezes depois da separação do `core`; build do React e do Next. **Não testado num aparelho de verdade** (sem celular nem emulador aqui): o Android foi conferido só até o empacotamento.
+
+**Por quê:** pedido de seguir com o projeto em React Native e de possibilidades para o uso no celular; o `core` evita a "Frankenstein" (duas cópias da lógica) discutida antes.
+
+---
+
 ## 2026-10-22 · `desenvolvimento-mobile` · CHANGELOG.md e metodologia de commit
 
 **O que:** `CHANGELOG.md` na raiz com os 179 commits do projeto, por data e por tipo (`feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `chore`), com o hash de cada um, um resumo por tipo e a metodologia de commit (Conventional Commits e as regras do projeto). Gerado por `scripts/gerar_changelog.py`, que grava em UTF-8 de qualquer pasta. Três commits antigos fora do padrão aparecem numa seção própria.

@@ -399,15 +399,17 @@ SPA sem build. Scripts carregados em ordem: `vendor/gridstack-all.js`, `vendor/c
   - `scripts/auditar-responsivo.ps1 -TamanhoFonte muito_grande` audita com o texto maior.
 - **Cantos:** `--radius-sm` 8px (botões, campos), `--radius-md` 14px (cartões), `--radius-lg` 20px (janelas). Nos gráficos (a pedido, sem mudar dados nem ordem): linhas com `cubicInterpolationMode: "monotone"` (suaves sem passar dos pontos), barras com `borderRadius` 6, legenda e tooltip arredondados.
 
-### 9.1 Protótipos em React e Next.js (`prototipos/`)
+### 9.1 Protótipos em React, Next.js e React Native (`prototipos/`)
 
 Experimento, fora do frontend oficial (que continua sem build e sem CDN, §12.6). Workspace npm com três pacotes:
 
 | Pacote | O que é |
 |---|---|
-| `ui` (`@dashzon/ui`) | Componentes e lógica compartilhados: `Telas.jsx` (login, moldura com barra lateral, dashboard, tema), `Registros.jsx` (tela do módulo e formulário de registro), `Base.jsx` (ícones SVG, avisos, janela `<dialog>`, confirmação), `Card.jsx` (número, meta, barras, linha, pizza, tabela, calendário com `react-chartjs-2`), `logica.js` (cópia de `valorDe`, `formatador`, `ordenar`, cores, `opcoesDe`, `resolverToken`) e `estilo.css` (tokens do DashZon) |
+| `core` (`@dashzon/core`) | Lógica e temas sem HTML nem CSS, para a web e o celular: `logica.js` (`criarApi(base, credenciais)`, formatação, cópia de `valorDe`, `formatador`, `descricao`, `ordenar`, `opcoesDe`, `resolverToken`, e `criarCores(lerToken)` para as cores do tema) e `temas.js` (os valores de `Usuarios::TEMAS`, a ordem do botão do topo e os tokens de cor de cada tema) |
+| `ui` (`@dashzon/ui`) | Telas web compartilhadas (reexporta o `core`; `logica.js` só acrescenta as cores lidas do CSS): `Telas.jsx` (login, moldura com barra lateral, dashboard, tema), `Registros.jsx` (tela do módulo e formulário de registro), `Base.jsx` (ícones SVG, avisos, janela `<dialog>`, confirmação), `Card.jsx` (número, meta, barras, linha, pizza, tabela, calendário com `react-chartjs-2`), `logica.js` (cópia de `valorDe`, `formatador`, `ordenar`, cores, `opcoesDe`, `resolverToken`) e `estilo.css` (tokens do DashZon) |
 | `react` | Vite + React 19: rotas por `#hash`; proxy `/api` no `vite.config.js` |
 | `next` | Next.js 15 (App Router): `/entrar` e o grupo `(app)` (`/`, `/d/[id]`, `/m/[slug]`), cujo `layout.jsx` é a moldura e fica montado entre as rotas (sessão em `contexto.js`); proxy em `app/api/[...caminho]/route.js` |
+| `mobile` | App de celular em React Native (Expo SDK 58, RN 0.88), fora dos workspaces (o React Native exige versões exatas do React); usa o `core` por `file:../core` e o Metro observa `../core`. Parte 1: entrar (endereço do servidor guardado), módulos do menu, registros (busca, cartões, puxar para atualizar), lançar/editar/excluir pelo schema, temas da conta. Fala com a API Ruby sem mudança: o app não manda `Origin` (o `Seguranca::Protecao` deixa passar e exige a sessão) e o cookie fica no aparelho. Precisa do servidor em HTTPS. Acessibilidade com as propriedades `aria-*` (o `accessibilityState` antigo o React Native Web ignora) |
 
 - **O que fazem:**
   - **Registros:** resumo, busca (300 ms depois da última tecla, resposta atrasada descartada), até 4 filtros, checklist (`PATCH` só do campo, desfeito se falhar), "Carregar mais", criar/editar/excluir. O formulário sai do schema como no oficial (padrões `$hoje`, opção removida mantida, erro 422 no formulário), "Editar" lê o registro do banco, e o 202 do visualizador vira aviso.
@@ -418,7 +420,7 @@ Experimento, fora do frontend oficial (que continua sem build e sem CDN, §12.6)
 - **O que não fazem:** arrastar e editar cards, editar a estrutura de módulos, painel do adm, o resto das configurações (conta, senha, fonte, tamanho do texto), notas (o módulo de notas aparece como tabela) e aprovações.
 - **Teste:** o roteiro de ponta a ponta usa as checagens do `scripts/auditar-responsivo.js` (seletores trocados para `dialog[open]` e `.grade > .card`) em 1280, 768 e 390px.
 - **API:** os dois proxies trocam o `Origin` pelo do backend (o `Seguranca::Protecao` recusa escrita de outra origem) e repassam o cookie de sessão. O padrão é a instância de teste (`DASHZON_API`, 4571), nunca o banco real.
-- **Lógica:** a de `ui/logica.js` é cópia: a referência continua sendo `frontend/js/dashboards.js` (REGRA §12.1).
+- **Lógica:** a de `core/logica.js` é cópia, usada pela web e pelo celular: a referência continua sendo `frontend/js/dashboards.js` (REGRA §12.1).
 - **Comparação:** prints em `prototipos/prints/` e comparação no `prototipos/README.md`.
 - **Comandos:** `cd prototipos; npm install; npm run react` (porta 5173, só em `localhost`) ou `npm run next` (porta 3000).
 
