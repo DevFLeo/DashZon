@@ -6,6 +6,21 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-22 · `desenvolvimento-mobile-parte-2` · App de celular: dashboards, lembretes e testes com parâmetros
+
+**O que:**
+- **Dashboards no celular:** lista no Início e tela do dashboard com os cards empilhados na ordem salva, números e metas estreitos lado a lado; número, meta, tabela, barras, linha, rosca e calendário em SVG; tocar num grupo, fatia ou dia mostra o valor; cada gráfico tem um resumo em texto. Os dados vêm de `src/graficos.js`, com a lógica do `Card.jsx` (que copia a do oficial).
+- **Lembrete diário** (notificação do aparelho, sem servidor): horário e módulo escolhidos em Ajustes; tocar abre o formulário do módulo.
+- **Testes em `prototipos/mobile/testes/`**, com parâmetros por variável de ambiente (`DASHZON_TESTE_*`): 16 testes de unidade no Node e o ponta a ponta no Chromium (14 passos) em 390 e 360 px, que confere rolagem lateral, alvos de toque e valores cortados; `npm run teste` faz tudo em 2 rodadas com a instância de teste zerada (porta 4581) e recusa o banco real.
+
+**Problemas no caminho** (`desenvolvimento.md`): números grandes cortados nos cards de meia largura (o encolhimento automático do React Native não existe na web), eixo do gráfico espremido pela rolagem lateral e fonte serifada no SVG da web; o Chrome de uma rodada ainda fechando bloqueava a próxima. Todos corrigidos; a checagem de valores cortados entrou no teste.
+
+**Validação:** `npm run teste` com 16/16 de unidade e 14/14 de ponta a ponta nas duas rodadas; empacotamento para Android. **Não testado num aparelho de verdade**, inclusive as notificações.
+
+**Por quê:** pedido de adicionar a parte 2 sugerida (dashboards e lembretes) e de criar parâmetros de teste dentro da pasta do React Native.
+
+---
+
 ## 2026-10-22 · `desenvolvimento-mobile` (vira `desenvolvimento-mobile-parte-1`) · App de celular em React Native, parte 1
 
 **O que:**

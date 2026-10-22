@@ -83,11 +83,16 @@ Para usar outra instância: `$env:DASHZON_API = "http://127.0.0.1:4567"` antes d
 
 ## App de celular
 
-Em `mobile/` (como rodar no celular com o Expo Go: `mobile/README.md`). A **parte 1** cobre o uso mais forte no celular, que é lançar e consultar: entrar, módulos do menu, registros com busca, lançar, editar e excluir, e os temas da conta.
+Em `mobile/` (como rodar no celular com o Expo Go e os testes com parâmetros: `mobile/README.md`).
+
+- **Parte 1:** entrar, módulos do menu, registros com busca, lançar, editar e excluir, e os temas da conta.
+- **Parte 2:** dashboards no celular (cards empilhados na ordem salva, gráficos em SVG com toque para ver o valor) e lembrete diário no aparelho; testes em `mobile/testes/` (unidade e ponta a ponta, parâmetros por variável de ambiente).
 
 | Tela | Print |
 |---|---|
-| Início com "+ Lançar" | `mobile-inicio.png` (Floresta noite: `mobile-inicio-floresta-noite.png`) |
+| Início com dashboards e "+ Lançar" | `mobile-inicio.png` (Floresta noite: `mobile-inicio-floresta-noite.png`) |
+| Dashboard Finanças (e tocando num grupo) | `mobile-dashboard-financas.png`, `mobile-dashboard-grupo.png` (Floresta noite: `mobile-dashboard-floresta-noite.png`) |
+| Dashboard Estudos: calendário e meta | `mobile-dashboard-estudos.png` |
 | Módulo: resumo e registros em cartões | `mobile-modulo.png` |
 | Lançar | `mobile-formulario.png` |
 | Excluir com confirmação | `mobile-confirmar.png` |
@@ -99,8 +104,7 @@ Em `mobile/` (como rodar no celular com o Expo Go: `mobile/README.md`). A **part
 
 | Possibilidade | Para quê |
 |---|---|
-| Dashboards no celular | Ver os cards (números, metas, gráficos, calendário) empilhados, na ordem salva |
-| Lembretes no aparelho | Avisar a hora da sessão de estudo, conta a vencer ou meta do mês, sem servidor (notificações locais) |
+| Mais lembretes no aparelho | Além do diário (parte 2): conta a vencer, sessão de estudo marcada, meta do mês |
 | Entrar com digital ou rosto | Reabrir o app sem digitar a senha (a sessão continua no servidor) |
 | Lançar sem internet | Guardar o lançamento no aparelho e enviar quando a conexão voltar |
 | Atalho "Lançar gasto" | Pelo ícone do app (toque longo), direto no formulário |
