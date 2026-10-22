@@ -6,6 +6,18 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-21 · `desenvolvimentoUI-UX` · Motor C++ em Release por padrão (de volta)
+
+**O que:** reaplicado (`cherry-pick -x`) o `c8ac28f` de 07/10, que tinha saído da `main` no force push de 21/10: sem tipo de build, o `engine-cpp/CMakeLists.txt` usa Release.
+
+**Onde vale:** no `cmake` de configuração única com GCC/Clang (Linux/macOS sem Docker, o caminho do `CLAUDE.md`), que antes compilava sem otimização (`-O0`). O Docker já passava `-DCMAKE_BUILD_TYPE=Release` e o Windows (`rodar.ps1`) usa o gerador do Visual Studio com `--config Release`: nos dois nada muda.
+
+**Validação:** gerador do Visual Studio numa pasta à parte: continua multi-config, sem tipo forçado, e compila o `dashzon_engine.exe` em Release; `rake test` 203/203. Com o MSVC em configuração única (NMake) o próprio CMake já define Debug antes da regra, então ela não age ali (fora do escopo; ninguém compila assim). **Não testado com GCC nesta máquina:** o Docker está instalado, mas o serviço estava desligado e o WSL não tem compilador.
+
+**Por quê:** pedido de recuperar o fix perdido; sem ele o motor fica bem mais lento quando compilado num servidor Linux fora do Docker.
+
+---
+
 ## 2026-10-21 · `desenvolvimentoUI-UX` · Excluir o dashboard com os módulos
 
 **O que:**
