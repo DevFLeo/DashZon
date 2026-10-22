@@ -232,6 +232,43 @@
         "success-text": "#74c69d",
         "critical-text": "#ec8f76"
       }
+    },
+    {
+      "id": "outono",
+      "nome": "Outono",
+      "grupo": "Estações",
+      "desc": "Ferrugem, mostarda e oliva, como as folhas caindo",
+      "fase": "tarde",
+      "escuro": false,
+      "atributo": "outono",
+      "tokens": {
+        "surface-1": "#f8f1e7",
+        "page-plane": "#efe3d3",
+        "text-primary": "#33241a",
+        "text-secondary": "#5b4636",
+        "text-muted": "#6c5744",
+        "gridline": "#e3d4c0",
+        "baseline": "#c9b394",
+        "border": "rgba(51, 36, 26, 0.12)",
+        "border-strong": "rgba(51, 36, 26, 0.22)",
+        "hover": "rgba(168, 80, 31, 0.07)",
+        "accent": "#a8501f",
+        "accent-ink": "#fff8f0",
+        "status-good": "#5f8a3a",
+        "status-warning": "#c98a1b",
+        "status-serious": "#c97a4c",
+        "status-critical": "#b03a2e",
+        "success-text": "#4c6b26",
+        "critical-text": "#9a3228",
+        "series-1": "#a8501f",
+        "series-2": "#a87010",
+        "series-3": "#5f7a2a",
+        "series-4": "#8c3b2e",
+        "series-5": "#4f6d8c",
+        "series-6": "#a85a3e",
+        "series-7": "#7a5230",
+        "series-8": "#b03a2e"
+      }
     }
   ]
 }

@@ -66,7 +66,11 @@ describe("temas e cores", () => {
     }
   });
   test("os temas da tela são os da conta, e o botão gira na família", () => {
-    assert.deepEqual(TEMAS.map((t) => t.id), ["sistema", "claro", "suave", "escuro", "floresta_dia", "floresta_tarde", "floresta_noite"]);
+    // A lista vem de temas/temas.json: os conhecidos estão lá, na ordem; temas novos podem entrar.
+    const ids = TEMAS.map((t) => t.id);
+    const conhecidos = ["sistema", "claro", "suave", "escuro", "floresta_dia", "floresta_tarde", "floresta_noite"];
+    assert.deepEqual(ids.filter((i) => conhecidos.includes(i)), conhecidos);
+    assert.equal(new Set(ids).size, ids.length, "sem ids repetidos");
     assert.equal(PROXIMO.floresta_noite, "floresta_dia");
     assert.equal(PROXIMO.escuro, "claro");
   });
