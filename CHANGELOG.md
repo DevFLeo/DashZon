@@ -36,15 +36,15 @@ Co-Authored-By: ... (quando houver)
 
 | Tipo | Commits |
 |---|---|
-| Novidades (`feat`) | 69 |
-| Correções (`fix`) | 22 |
+| Novidades (`feat`) | 75 |
+| Correções (`fix`) | 24 |
 | Desempenho (`perf`) | 1 |
-| Refatoração (`refactor`) | 2 |
+| Refatoração (`refactor`) | 3 |
 | Testes (`test`) | 16 |
-| Documentação (`docs`) | 73 |
+| Documentação (`docs`) | 76 |
 | Manutenção (`chore`) | 4 |
 | Fora do padrão | 3 |
-| **Total** | **190** |
+| **Total** | **202** |
 
 As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeito que deixou de existir.
 
@@ -52,12 +52,24 @@ As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeit
 
 ### Novidades (`feat`)
 
+- **temas:** seletor rápido com o mascote (segurar o botão do tema) (`1e4c441`)
+- **temas:** Vivaldi, as quatro estações automáticas (`d1dc402`)
+- **temas:** tema Verão (estações do ano) (`e45f5f9`)
+- **temas:** tema Primavera (estações do ano) (`14fc785`)
+- **temas:** tema Inverno (estações do ano) (`12d1add`)
+- **temas:** tema Outono (estações do ano) (`2770ef3`)
 - **mobile:** dashboards e lembretes no app de celular (parte 2) (`af766fa`)
 - **mobile:** app de celular em React Native (Expo), parte 1 (`c92afb0`)
 - **prototipos:** Configurações com todos os temas e módulos no menu (`81d4b3d`)
 
+### Correções (`fix`)
+
+- **temas:** Primavera com entrada e saída distinguíveis (`26c3cb1`)
+- **temas:** Outono com entrada e saída distinguíveis (`881d335`)
+
 ### Refatoração (`refactor`)
 
+- **temas:** pasta temas/ como fonte única de todos os temas (`2e53559`)
 - **prototipos:** lógica e temas em @dashzon/core, sem HTML nem CSS (`9b7669d`)
 
 ### Testes (`test`)
@@ -66,6 +78,9 @@ As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeit
 
 ### Documentação (`docs`)
 
+- pasta temas/, estações, Vivaldi e o seletor do mascote no Sistema.md, Log.md e temas/README.md (`d256727`)
+- **readme:** branch da parte 2 do app de celular (`7f5cff7`)
+- **changelog:** parte 2 do app de celular (`94d5ae9`)
 - app de celular parte 2 (dashboards, lembretes, testes) no Sistema.md, Log.md e READMEs (`72422a2`)
 - **readme:** app de celular, core e as branches novas (`2f78ffe`)
 - **changelog:** commits do app de celular e do core (`cbb2195`)
