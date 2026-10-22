@@ -2,6 +2,7 @@ require "sinatra"
 require "json"
 require "securerandom"
 require "ipaddr"
+require "digest"
 require_relative "lib/database"
 require_relative "lib/module_schema"
 require_relative "lib/template_registry"
@@ -348,6 +349,22 @@ before "/api/*" do
   if request.path_info.start_with?("/api/admin/") && u["perfil"] != "admin"
     halt json({ error: "Só administradores podem fazer isso" }, 403)
   end
+end
+
+# Temas para o frontend oficial (sem build), gerados de temas/temas.json:
+# os tokens de cor de cada tema e a lista para o seletor e o botão do topo.
+get "/temas.css" do
+  content_type "text/css", charset: "utf-8"
+  cache_control :no_cache
+  etag Digest::SHA256.hexdigest(Temas.css)
+  Temas.css
+end
+
+get "/temas.js" do
+  content_type "application/javascript", charset: "utf-8"
+  cache_control :no_cache
+  etag Digest::SHA256.hexdigest(Temas.js)
+  Temas.js
 end
 
 get "/" do

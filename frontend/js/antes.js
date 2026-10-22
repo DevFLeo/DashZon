@@ -3,10 +3,12 @@
 // e não inline no HTML, porque a política de conteúdo (CSP) só aceita scripts
 // do próprio DashZon.
 try {
+  // O atributo de cada tema vem de /temas.js (gerado de temas/temas.json).
   var t = localStorage.getItem("dashzon.tema");
-  var attr = { claro: "light", suave: "soft", escuro: "dark",
-    floresta_dia: "floresta-dia", floresta_tarde: "floresta-tarde", floresta_noite: "floresta-noite" }[t];
-  if (attr) document.documentElement.setAttribute("data-theme", attr);
+  var lista = (window.DASHZON_TEMAS && window.DASHZON_TEMAS.temas) || [];
+  for (var i = 0; i < lista.length; i++) {
+    if (lista[i].id === t) document.documentElement.setAttribute("data-theme", lista[i].atributo);
+  }
   var f = localStorage.getItem("dashzon.fonte");
   if (f === "sistema" || f === "nunito" || f === "atkinson") document.documentElement.setAttribute("data-fonte", f);
   var z = localStorage.getItem("dashzon.tamanho");

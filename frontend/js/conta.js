@@ -47,6 +47,10 @@ const Conta = (() => {
 
   function preencherPreferencias() {
     const p = eu.preferencias;
+    // Os temas vêm de temas/temas.json (Tema.opcoes), agrupados como no JSON.
+    const e = Util.escapeHtml;
+    $("pref-tema").innerHTML = Tema.opcoes().map((g) => `<optgroup label="${e(g.nome)}">${g.temas.map((t) =>
+      `<option value="${e(t.id)}">${e(t.nome)}${t.desc ? ` (${e(t.desc)})` : ""}</option>`).join("")}</optgroup>`).join("");
     $("pref-tema").value = p.tema;
     $("pref-fonte").innerHTML = Object.entries(Fonte.FONTES).map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
     $("pref-fonte").value = p.fonte;

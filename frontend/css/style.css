@@ -19,37 +19,7 @@
 }
 
 :root {
-  color-scheme: light;
-  --surface-1: #fcfcfb;
-  --page-plane: #f9f9f7;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
-  --gridline: #e1e0d9;
-  --baseline: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.10);
-  --border-strong: rgba(11, 11, 11, 0.18);
-  --hover: rgba(11, 11, 11, 0.05);
-
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
-  --series-4: #eda100;
-  --series-5: #e87ba4;
-  --series-6: #008300;
-  --series-7: #4a3aa7;
-  --series-8: #e34948;
-
-  --accent: #2a78d6;
-  --accent-ink: #ffffff;
-
-  --status-good: #0ca30c;
-  --status-warning: #fab219;
-  --status-serious: #ec835a;
-  --status-critical: #d03b3b;
-  --success-text: #006300;
-  --critical-text: #b42f2f;
-
+  /* As cores de cada tema vêm de /temas.css, gerado de temas/temas.json (lib/temas.rb). */
   /* Cantos: botões e campos 8px, cartões 14px, janelas 20px. */
   --radius-sm: 8px;
   --radius-md: 14px;
@@ -62,188 +32,6 @@
 :root[data-fonte="sistema"] { --font-sans: var(--font-sistema); }
 :root[data-fonte="nunito"] { --font-sans: "Nunito Variable", var(--font-sistema); }
 :root[data-fonte="atkinson"] { --font-sans: "Atkinson Hyperlegible", var(--font-sistema); }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) { /* só quando segue o sistema */
-    color-scheme: dark;
-    --surface-1: #1a1a19;
-    --page-plane: #0d0d0d;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --gridline: #2c2c2a;
-    --baseline: #383835;
-    --border: rgba(255, 255, 255, 0.10);
-    --border-strong: rgba(255, 255, 255, 0.18);
-    --hover: rgba(255, 255, 255, 0.06);
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --series-4: #c98500;
-    --series-5: #d55181;
-    --series-6: #008300;
-    --series-7: #9085e9;
-    --series-8: #e66767;
-    --accent: #3987e5;
-    --success-text: #0ca30c;
-    --critical-text: #e66767;
-  }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --surface-1: #1a1a19;
-  --page-plane: #0d0d0d;
-  --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
-  --gridline: #2c2c2a;
-  --baseline: #383835;
-  --border: rgba(255, 255, 255, 0.10);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --hover: rgba(255, 255, 255, 0.06);
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-3: #199e70;
-  --series-4: #c98500;
-  --series-5: #d55181;
-  --series-6: #008300;
-  --series-7: #9085e9;
-  --series-8: #e66767;
-  --accent: #3987e5;
-  --success-text: #0ca30c;
-  --critical-text: #e66767;
-}
-
-/* Tema suave (pôr do sol): meio-termo entre claro e escuro, para cansar menos
-   a vista. Fundo creme quente (menos luz azul), texto marrom-escuro em vez de
-   preto puro e contraste mais baixo que o claro, mas ainda acima de 4,5:1 no
-   texto. As séries seguem a mesma ordem e identidade das outras paletas, só
-   menos saturadas. */
-:root[data-theme="soft"] {
-  color-scheme: light;
-  --surface-1: #f7f0e4;
-  --page-plane: #eee5d5;
-  --text-primary: #3a332b;
-  --text-secondary: #5a5045;
-  --text-muted: #6e6352;
-  --gridline: #e0d5c2;
-  --baseline: #c9bca5;
-  --border: rgba(58, 51, 43, 0.12);
-  --border-strong: rgba(58, 51, 43, 0.22);
-  --hover: rgba(58, 51, 43, 0.06);
-  --series-1: #3d72ad;
-  --series-2: #c96a37;
-  --series-3: #2e8f6c;
-  --series-4: #a0760f;
-  --series-5: #bf6488;
-  --series-6: #4a852d;
-  --series-7: #6656a0;
-  --series-8: #bf4f49;
-  --accent: #3a6ca3;
-  --accent-ink: #fffaf2;
-  --status-good: #4a8f3a;
-  --status-warning: #d9a326;
-  --status-serious: #d68254;
-  --status-critical: #b8473f;
-  --success-text: #3b6a29;
-  --critical-text: #a13b33;
-}
-
-/* Temas Floresta: a paleta "Floresta" dos cards (pinho #2d6a4f, musgo #74a942,
-   sálvia #b5c99a, floresta profunda #1b4332, menta #95d5b2, casca #6f4e37,
-   areia #d4a373) virou fundo, texto e destaque. As 8 séries continuam com
-   matizes diferentes entre si (categorias distinguíveis) e com o mesmo papel
-   das outras paletas: a 1 é a principal/entrada e a 8 (terracota) é a saída.
-   Dia: claro, de manhã na mata. Tarde: luz dourada, contraste mais baixo,
-   como o suave. Noite: escuro, verde profundo com destaque em menta. */
-:root[data-theme="floresta-dia"] {
-  color-scheme: light;
-  --surface-1: #fbfcf8;
-  --page-plane: #eef3ea;
-  --text-primary: #13261c;
-  --text-secondary: #3e5446;
-  --text-muted: #5f7265;
-  --gridline: #dbe5d6;
-  --baseline: #b5c99a;
-  --border: rgba(27, 67, 50, 0.12);
-  --border-strong: rgba(27, 67, 50, 0.24);
-  --hover: rgba(45, 106, 79, 0.07);
-  --series-1: #2d6a4f;
-  --series-2: #c2772a;
-  --series-3: #3a7ca5;
-  --series-4: #9a8417;
-  --series-5: #a8577e;
-  --series-6: #5e9234;
-  --series-7: #6f4e37;
-  --series-8: #c0533a;
-  --accent: #2d6a4f;
-  --accent-ink: #ffffff;
-  --status-good: #40916c;
-  --status-warning: #d4a12a;
-  --status-serious: #d4804f;
-  --status-critical: #c0533a;
-  --success-text: #2d6a4f;
-  --critical-text: #a8432c;
-}
-:root[data-theme="floresta-tarde"] {
-  color-scheme: light;
-  --surface-1: #f4efdf;
-  --page-plane: #e7e1cb;
-  --text-primary: #2c3326;
-  --text-secondary: #4c5442;
-  --text-muted: #5a604c;
-  --gridline: #ddd5bd;
-  --baseline: #c4b996;
-  --border: rgba(44, 51, 38, 0.13);
-  --border-strong: rgba(44, 51, 38, 0.24);
-  --hover: rgba(111, 78, 55, 0.07);
-  --series-1: #3b6e52;
-  --series-2: #b46d2c;
-  --series-3: #3f7493;
-  --series-4: #8a7520;
-  --series-5: #9b5374;
-  --series-6: #5b8634;
-  --series-7: #6f4e37;
-  --series-8: #b04c37;
-  --accent: #3b6e52;
-  --accent-ink: #fbf7ea;
-  --status-good: #4f8a4a;
-  --status-warning: #d4a373;
-  --status-serious: #c97a4c;
-  --status-critical: #b04c37;
-  --success-text: #36633f;
-  --critical-text: #9a3f2d;
-}
-:root[data-theme="floresta-noite"] {
-  color-scheme: dark;
-  --surface-1: #17221c;
-  --page-plane: #0c1410;
-  --text-primary: #eef4ec;
-  --text-secondary: #b9c8b8;
-  --text-muted: #8a9a88;
-  --gridline: #26332b;
-  --baseline: #364539;
-  --border: rgba(238, 244, 236, 0.10);
-  --border-strong: rgba(238, 244, 236, 0.18);
-  --hover: rgba(149, 213, 178, 0.07);
-  --series-1: #52b788;
-  --series-2: #e0a458;
-  --series-3: #6fa8dc;
-  --series-4: #d6c45c;
-  --series-5: #d47fa6;
-  --series-6: #a3c45a;
-  --series-7: #b08f74;
-  --series-8: #e07a5f;
-  --accent: #52b788;
-  --accent-ink: #0c1410;
-  --status-good: #52b788;
-  --status-warning: #e0b458;
-  --status-serious: #e09a5f;
-  --status-critical: #e07a5f;
-  --success-text: #74c69d;
-  --critical-text: #ec8f76;
-}
 
 /* Tamanho do texto (Configurações > Aparência; js/fonte.js põe data-tamanho no
    <html>). Todo font-size em px é multiplicado por --fs; só o texto muda: a
@@ -583,7 +371,6 @@ textarea.code {
 }
 .toast-erro { background: var(--status-critical); color: #fff; }
 
-
 /* ---------- Configurações ---------- */
 .secao-modal { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
 
@@ -834,7 +621,6 @@ fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-s
 .eq-empresa-campos { margin: 8px 0 4px 26px; }
 #admin-equipes td.membros { max-width: 420px; }
 .empty-state-baixo { padding: 18px; }
-
 
 .exd-aviso { color: var(--status-warning); font-size: max(11px, calc(12px * var(--fs))); }
 /* Aprovações (perfil visualizador) */

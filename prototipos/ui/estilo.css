@@ -1,52 +1,7 @@
-/* Estilo dos protótipos React e Next: mesmos tokens de cor do DashZon
-   (frontend/css/style.css), em versão enxuta. */
-:root, :root[data-tema="claro"] {
-  --fundo: #f4f3ef; --superficie: #ffffff; --borda: #e3e1da; --hover: #efede7;
-  --texto: #1d1d1b; --texto-2: #4a4a46; --texto-fraco: #7a7a74;
-  --destaque: #2a78d6; --destaque-tinta: #ffffff; --bom: #1d9e5a; --ruim: #d24b4b;
-  --series-1: #2a78d6; --series-2: #e0703a; --series-3: #2fa37a; --series-4: #c9a227;
-  --series-5: #8a5cd6; --series-6: #d6487e; --series-7: #3fb0c7; --series-8: #d24b4b;
-  --raio: 14px; --fonte: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-:root[data-tema="escuro"] {
-  --fundo: #0e0e0e; --superficie: #1b1b1b; --borda: #2c2c2c; --hover: #242424;
-  --texto: #f2f2f2; --texto-2: #c9c9c9; --texto-fraco: #8f8f8f;
-  --destaque: #3987e5; --destaque-tinta: #ffffff; --bom: #2fbf73; --ruim: #ef6161;
-  --series-1: #3987e5; --series-2: #e8814e; --series-3: #3cb98c; --series-4: #d9b43a;
-  --series-5: #9d74e6; --series-6: #e2608f; --series-7: #4cc1d8; --series-8: #ef6161;
-}
-/* Os outros temas do oficial (frontend/css/style.css), com os nomes de token
-   daqui: fundo = page-plane, superficie = surface-1, texto* = text-*,
-   destaque = accent, bom/ruim = success/critical-text. */
-:root[data-tema="suave"] {
-  --fundo: #eee5d5; --superficie: #f7f0e4; --borda: #e0d5c2; --hover: #ebe2d2;
-  --texto: #3a332b; --texto-2: #5a5045; --texto-fraco: #6e6352;
-  --destaque: #3a6ca3; --destaque-tinta: #fffaf2; --bom: #3b6a29; --ruim: #a13b33;
-  --series-1: #3d72ad; --series-2: #c96a37; --series-3: #2e8f6c; --series-4: #a0760f;
-  --series-5: #bf6488; --series-6: #4a852d; --series-7: #6656a0; --series-8: #bf4f49;
-}
-:root[data-tema="floresta_dia"] {
-  --fundo: #eef3ea; --superficie: #fbfcf8; --borda: #dbe5d6; --hover: #e8efe3;
-  --texto: #13261c; --texto-2: #3e5446; --texto-fraco: #5f7265;
-  --destaque: #2d6a4f; --destaque-tinta: #ffffff; --bom: #2d6a4f; --ruim: #a8432c;
-  --series-1: #2d6a4f; --series-2: #c2772a; --series-3: #3a7ca5; --series-4: #9a8417;
-  --series-5: #a8577e; --series-6: #5e9234; --series-7: #6f4e37; --series-8: #c0533a;
-}
-:root[data-tema="floresta_tarde"] {
-  --fundo: #e7e1cb; --superficie: #f4efdf; --borda: #ddd5bd; --hover: #ebe5d2;
-  --texto: #2c3326; --texto-2: #4c5442; --texto-fraco: #5a604c;
-  --destaque: #3b6e52; --destaque-tinta: #fbf7ea; --bom: #36633f; --ruim: #9a3f2d;
-  --series-1: #3b6e52; --series-2: #b46d2c; --series-3: #3f7493; --series-4: #8a7520;
-  --series-5: #9b5374; --series-6: #5b8634; --series-7: #6f4e37; --series-8: #b04c37;
-}
-:root[data-tema="floresta_noite"] {
-  --fundo: #0c1410; --superficie: #17221c; --borda: #26332b; --hover: #1f2b24;
-  --texto: #eef4ec; --texto-2: #b9c8b8; --texto-fraco: #8a9a88;
-  --destaque: #52b788; --destaque-tinta: #0c1410; --bom: #74c69d; --ruim: #ec8f76;
-  --series-1: #52b788; --series-2: #e0a458; --series-3: #6fa8dc; --series-4: #d6c45c;
-  --series-5: #d47fa6; --series-6: #a3c45a; --series-7: #b08f74; --series-8: #e07a5f;
-}
-:root[data-tema="escuro"], :root[data-tema="floresta_noite"] { color-scheme: dark; }
+/* Estilo dos protótipos React e Next. As cores de cada tema não ficam aqui:
+   vêm de temas/temas.json, pelo cssDosTemas() do @dashzon/core (injetado no
+   main.jsx do React e no layout do Next). */
+:root { --raio: 14px; --fonte: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--fundo); color: var(--texto); font-family: var(--fonte); }
 a { color: inherit; }

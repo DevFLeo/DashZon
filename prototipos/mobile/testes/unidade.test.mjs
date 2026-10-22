@@ -60,7 +60,8 @@ describe("temas e cores", () => {
   test("todo tema tem os tokens que o app usa", () => {
     const usados = ["fundo", "superficie", "borda", "hover", "texto", "texto-2", "texto-fraco", "destaque", "destaque-tinta", "bom", "ruim"];
     for (const id of Object.keys(TOKENS)) {
-      for (const t of usados) assert.match(TOKENS[id][`--${t}`], /^#[0-9a-f]{6}$/i, `${id} --${t}`);
+      // hover é translúcido (rgba), como no oficial; os demais, cor sólida.
+      for (const t of usados) assert.match(TOKENS[id][`--${t}`], t === "hover" ? /^rgba\(/ : /^#[0-9a-f]{6}$/i, `${id} --${t}`);
       for (let i = 1; i <= 8; i++) assert.ok(TOKENS[id][`--series-${i}`], `${id} --series-${i}`);
     }
   });

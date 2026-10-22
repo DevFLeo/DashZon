@@ -6,6 +6,7 @@ require_relative "database"
 require_relative "segredo"
 require_relative "documento"
 require_relative "seguranca"
+require_relative "temas"
 
 # Contas de acesso: cadastro, perfis, senhas, links de uso único e os ajustes
 # do painel do administrador. Toda regra de usuário mora aqui; as rotas em
@@ -38,7 +39,8 @@ module Usuarios
   PERFIS = %w[admin usuario visualizador].freeze
   CARGOS_SUGERIDOS = ["Sócio", "Líder de produção", "Funcionário"].freeze
   EXIGIR_DOCUMENTO = %w[nao cpf cnpj qualquer].freeze
-  TEMAS = %w[sistema claro suave escuro floresta_dia floresta_tarde floresta_noite].freeze
+  # Os temas vêm de temas/temas.json (lib/temas.rb): um tema novo no JSON já é aceito aqui.
+  TEMAS = Temas.ids
   # Fontes da interface (arquivos em frontend/vendor/fonts; ver js/fonte.js).
   FONTES = %w[inter sistema nunito atkinson].freeze
   # Tamanho do texto da interface (escala --fs no CSS; ver js/fonte.js).

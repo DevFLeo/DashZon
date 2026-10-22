@@ -33,6 +33,7 @@ ENV BUNDLE_WITHOUT=""
 RUN cd backend && bundle install --jobs "$(nproc)"
 COPY backend backend
 COPY frontend frontend
+COPY temas temas
 ENV DASHZON_ENGINE=/app/engine-cpp/build/dashzon_engine
 RUN cd backend && bundle exec rake test
 
@@ -51,6 +52,7 @@ COPY --from=build /app/engine-cpp/build/dashzon_engine engine-cpp/build/dashzon_
 COPY --from=build /usr/local/bundle /usr/local/bundle
 COPY backend backend
 COPY frontend frontend
+COPY temas temas
 
 # Roda sem root. /dados guarda o banco e a chave do servidor (segredo.key).
 RUN useradd --create-home --uid 1000 dashzon \
