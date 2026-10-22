@@ -89,6 +89,8 @@ deploy/logs/
 !/prototipos/package-lock.json
 !/prototipos/*/package.json
 !/prototipos/next/jsconfig.json
+!/prototipos/mobile/app.json
+!/prototipos/mobile/package-lock.json
 node_modules/
 /prototipos/next/.next/
 /prototipos/react/dist/
