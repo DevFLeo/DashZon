@@ -287,6 +287,7 @@ relatorio.md             relatório de testes do sistema e a situação de cada 
 CLAUDE.md                instruções enxutas para o assistente: instalar, subir, parar e o que nunca fazer
 Sistema.md               especificação técnica completa e regras de desenvolvimento
 Log.md                   o que foi feito, quando e por quê
+CHANGELOG.md             todos os commits por data e tipo (feat, fix, docs...); scripts/gerar_changelog.py refaz
 servidor.md              passo a passo do servidor: Windows, Docker, domínio, backup
 scripts/rodar.ps1        sobe/para o DashZon no Windows, instalando só o que falta
 scripts/auditar-responsivo.ps1  testa a interface em 7 tamanhos de tela (prints + erros medidos)
