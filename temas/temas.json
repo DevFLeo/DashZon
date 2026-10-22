@@ -269,6 +269,43 @@
         "series-7": "#7a5230",
         "series-8": "#b03a2e"
       }
+    },
+    {
+      "id": "inverno",
+      "nome": "Inverno",
+      "grupo": "Estações",
+      "desc": "Noite fria, azul-gelo",
+      "fase": "noite",
+      "escuro": true,
+      "atributo": "inverno",
+      "tokens": {
+        "surface-1": "#18212c",
+        "page-plane": "#0e141c",
+        "text-primary": "#eaf1f8",
+        "text-secondary": "#b5c3d3",
+        "text-muted": "#8697aa",
+        "gridline": "#253140",
+        "baseline": "#364557",
+        "border": "rgba(234, 241, 248, 0.10)",
+        "border-strong": "rgba(234, 241, 248, 0.18)",
+        "hover": "rgba(124, 196, 255, 0.07)",
+        "accent": "#7cc4ff",
+        "accent-ink": "#0e141c",
+        "status-good": "#6fd3b8",
+        "status-warning": "#e9c46a",
+        "status-serious": "#e9a35b",
+        "status-critical": "#ef8a7a",
+        "success-text": "#8fe0c4",
+        "critical-text": "#f2a092",
+        "series-1": "#7cc4ff",
+        "series-2": "#e9a35b",
+        "series-3": "#6fd3b8",
+        "series-4": "#d9c46a",
+        "series-5": "#c79bf2",
+        "series-6": "#f0a6c8",
+        "series-7": "#a7b7c6",
+        "series-8": "#ef8a7a"
+      }
     }
   ]
 }
