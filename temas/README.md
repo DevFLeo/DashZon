@@ -37,5 +37,12 @@ Depois de mudar o JSON: reinicie o servidor (o backend lê o arquivo na partida)
 Em `automaticos` ficam as escolhas que viram um tema conforme algo de fora:
 
 - `sistema`: o claro ou o escuro, conforme o modo do aparelho (`"claro"` e `"escuro"` dizem quais).
+- `vivaldi` (as quatro estações): vira Outono, Inverno, Primavera ou Verão pela data. Em `"estacoes"`, cada item diz de quando (`"desde": "MM-DD"`) vale qual tema; vale o último já começado no ano e, antes do primeiro, o último do ano anterior. As datas são as do hemisfério sul (20/03, 21/06, 22/09 e 21/12).
+
+Cada automático aparece no começo do próprio grupo nas listas.
+
+## Seletor rápido
+
+Segurar o botão do tema (meio segundo), clicar com o botão direito ou apertar a seta para baixo abre um pop-up com o cubo do DashZon (o mascote) pintado nas cores de cada tema. Ele é montado a partir desta mesma lista: um tema novo aparece lá também.
 
 O JSON não aceita comentários: os `//` acima são só explicação.

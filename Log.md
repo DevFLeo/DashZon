@@ -6,6 +6,21 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-22 · `desenvolvimento-mobile-parte-2` · Pasta temas/, estações do ano, Vivaldi e o seletor do mascote
+
+**O que:**
+- **`temas/` como fonte única** (portabilidade conferida antes: o Ruby lê JSON; Node, Vite, Next e Metro importam com `with { type: "json" }`). `temas/temas.json` tem todos os temas; o backend valida e gera `/temas.css` e `/temas.js` para o oficial (sem build); os protótipos e o celular leem pelo `@dashzon/core`. As cores saíram do `style.css`, do `estilo.css` e do `core/temas.js`. Um tema novo é só um item no JSON.
+- **Estações do ano**, um commit cada: Outono, Inverno, Primavera e Verão, com contraste conferido.
+- **Vivaldi**: automático que vira a estação do dia (hemisfério sul); o botão do topo continua trocando, a partir da estação do dia.
+- **Seletor rápido com o mascote**: segurar o botão do tema (ou botão direito, ou seta para baixo) abre o cubo do DashZon nas cores de cada tema; no Vivaldi, uma estação em cada face. No oficial e nos protótipos web.
+- **Correções**: no Outono e na Primavera a entrada e a saída dos gráficos tinham cores parecidas; agora todos os temas têm pelo menos 75 graus de diferença de matiz entre as duas.
+
+**Validação:** `rake test` (203); roteiro de temas do oficial com 14 passos (estações, Vivaldi ao recarregar, botão, seletor por segurar, setas, Enter, Esc, botão direito, clique fora, celular), duas rodadas; protótipos web 50/50 (com o seletor) duas rodadas; `npm run teste` do celular; `auditar-responsivo.ps1` completo.
+
+**Por quê:** pedido de temas das estações (com uma função automática pelas estações), de um tema "Vivaldi" (as quatro estações, com o ícone de troca e o pop-up do mascote ao segurar o sol) e de uma pasta `temas/` como única referência de temas.
+
+---
+
 ## 2026-10-22 · `desenvolvimento-mobile-parte-2` · App de celular: dashboards, lembretes e testes com parâmetros
 
 **O que:**
