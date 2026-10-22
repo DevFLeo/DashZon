@@ -33,9 +33,17 @@ const Tema = (() => {
     return IDS.includes(t) ? t : "sistema";
   }
 
-  // Um tema automático vira um tema de verdade ("sistema": claro ou escuro).
-  function resolver(auto) {
+  // Um tema automático vira um tema de verdade: "sistema" fica claro ou
+  // escuro conforme o aparelho; "vivaldi" (as quatro estações) segue a data:
+  // vale a última estação cujo início ("MM-DD") já passou no ano, e antes da
+  // primeira (de janeiro a março), a última do ano anterior.
+  function resolver(auto, hoje = new Date()) {
     if (auto.claro) return escuroNoSistema.matches ? auto.escuro : auto.claro;
+    if (auto.estacoes) {
+      const md = `${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+      const ja = auto.estacoes.filter((e) => e.desde <= md);
+      return (ja.length ? ja[ja.length - 1] : auto.estacoes[auto.estacoes.length - 1]).tema;
+    }
     return TEMAS[0]?.id || "claro";
   }
 
@@ -100,16 +108,17 @@ const Tema = (() => {
 
   function definirCallback(callback) { aoMudar = callback; }
 
-  // Para o seletor da Aparência: os grupos na ordem do JSON, com os automáticos.
+  // Para o seletor da Aparência e o seletor rápido: os grupos na ordem do
+  // JSON, cada automático no começo do próprio grupo ("sistema" em Básicos,
+  // "vivaldi" em Estações).
   function opcoes() {
     const grupos = [];
-    for (const t of [...AUTOMATICOS, ...TEMAS]) {
-      let g = grupos.find((x) => x.nome === t.grupo);
-      if (!g) grupos.push((g = { nome: t.grupo, temas: [] }));
-      g.temas.push(t);
-    }
+    for (const t of TEMAS) if (!grupos.some((g) => g.nome === t.grupo)) grupos.push({ nome: t.grupo, temas: [] });
+    for (const a of AUTOMATICOS) if (!grupos.some((g) => g.nome === a.grupo)) grupos.unshift({ nome: a.grupo, temas: [] });
+    for (const g of grupos) g.temas = [...AUTOMATICOS.filter((a) => a.grupo === g.nome), ...TEMAS.filter((t) => t.grupo === g.nome)];
     return grupos;
   }
 
-  return { init, aplicar, escolher, preferido, efetivo, definirCallback, opcoes, porId: (id) => POR_ID[id] };
+  const automatico = (id) => AUTOMATICOS.find((a) => a.id === id);
+  return { init, aplicar, escolher, preferido, efetivo, definirCallback, opcoes, porId: (id) => POR_ID[id], automatico };
 })();

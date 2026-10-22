@@ -8,6 +8,30 @@
       "desc": "Claro ou escuro, como o computador",
       "claro": "claro",
       "escuro": "escuro"
+    },
+    {
+      "id": "vivaldi",
+      "nome": "Vivaldi",
+      "grupo": "Estações",
+      "desc": "As quatro estações: muda sozinho com a data (hemisfério sul)",
+      "estacoes": [
+        {
+          "desde": "03-20",
+          "tema": "outono"
+        },
+        {
+          "desde": "06-21",
+          "tema": "inverno"
+        },
+        {
+          "desde": "09-22",
+          "tema": "primavera"
+        },
+        {
+          "desde": "12-21",
+          "tema": "verao"
+        }
+      ]
     }
   ],
   "temas": [

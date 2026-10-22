@@ -85,7 +85,9 @@ export default function Ajustes({ voltar, escolherTema, sair, servidor, avisar }
         <View style={s.grade} accessibilityRole="radiogroup" accessibilityLabel="Tema">
           {TEMAS.map((t) => {
             const ativo = tema.escolha === t.id;
-            const [fundo, cartao, , destaque, s1, s2, s3] = t.previa || ["#f4f3ef", "#ffffff", "", "#2a78d6", "#2a78d6", "#0e0e0e", "#3987e5"];
+            // Automático: as cores de destaque dos temas que ele usa (Vivaldi: as quatro estações).
+            const partes = t.compoe ? t.compoe.map((id) => TEMAS.find((x) => x.id === id)?.previa).filter(Boolean) : [];
+            const [fundo, cartao, , destaque, s1, s2, s3] = t.previa || [partes[0][0], partes[0][1], "", partes[0][3], ...partes.map((p) => p[3]).slice(-3)];
             return (
               <Pressable key={t.id} onPress={() => trocar(t)} accessibilityRole="radio" aria-checked={ativo} accessibilityLabel={`${t.nome}. ${t.desc}`}
                 style={[s.tema, { borderColor: ativo ? tema.cor("destaque") : tema.cor("borda"), borderWidth: ativo ? 2 : 1, backgroundColor: tema.cor("superficie") }]}>

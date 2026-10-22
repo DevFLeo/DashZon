@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { Avisos, Icone, avisar } from "./Base.jsx";
 import { Card } from "./Card.jsx";
 import { Api } from "./logica.js";
-import { PROXIMO, temaPorId } from "./temas.js";
+import { PROXIMO, temaEfetivo, temaPorId } from "./temas.js";
 
 export function Cubo() {
   return (
@@ -58,7 +58,7 @@ export function useTema(daConta, logado = false) {
   }, []);
   useEffect(() => { if (temaPorId(daConta)) setEscolha(daConta); }, [daConta]);
 
-  const tema = escolha === "sistema" ? (escuroNoSistema ? "escuro" : "claro") : escolha;
+  const tema = temaEfetivo(escolha, escuroNoSistema);
   useEffect(() => { document.documentElement.dataset.tema = tema; }, [tema]);
 
   async function escolher(novo) {

@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { criarCores, temaEfetivo, TOKENS, TEMAS, PROXIMO } from "@dashzon/core";
+const dia = (iso) => new Date(`${iso}T12:00:00`);
 import { horaTexto, lerHora, normalizarServidor, numeroParaTela, paraIso, paraTela } from "../src/formatos.js";
 import { MAX_GRUPOS, dadosCalendario, dadosGrafico, dadosMeta, dadosNumero, dadosPizza, dadosTabela, meiaLinha, ordemDosCards } from "../src/graficos.js";
 
@@ -79,6 +80,16 @@ describe("temas e cores", () => {
     assert.equal(temaEfetivo("sistema", false), "claro");
     assert.equal(temaEfetivo("floresta_tarde", true), "floresta_tarde");
     assert.equal(temaEfetivo("inexistente", false), "claro");
+  });
+  test("Vivaldi: a estação pela data (hemisfério sul), e o botão gira nas estações", () => {
+    const casos = { "2026-01-10": "verao", "2026-03-19": "verao", "2026-03-20": "outono", "2026-06-20": "outono", "2026-06-21": "inverno",
+      "2026-09-21": "inverno", "2026-09-22": "primavera", "2026-12-20": "primavera", "2026-12-21": "verao", "2026-12-31": "verao" };
+    for (const [d, esperado] of Object.entries(casos)) assert.equal(temaEfetivo("vivaldi", true, dia(d)), esperado, d);
+    assert.deepEqual(TEMAS.find((t) => t.id === "vivaldi").compoe, ["outono", "inverno", "primavera", "verao"]);
+    assert.equal(PROXIMO.outono, "inverno");
+    assert.equal(PROXIMO.verao, "outono");
+    const grupo = TEMAS.filter((t) => t.grupo === "Estações").map((t) => t.id);
+    assert.deepEqual(grupo, ["vivaldi", "outono", "inverno", "primavera", "verao"], "o automático abre o grupo");
   });
   test("entrada e saída: série 1 e série 8 do tema; cor escolhida vence", () => {
     const mov = MODULO.schema.campos[1];

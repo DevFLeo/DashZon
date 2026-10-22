@@ -10,11 +10,11 @@ import { TEMAS } from "./temas.js";
 // Miniatura do tema: a página, um cartão com texto, o destaque e três séries.
 function Previa({ tema }) {
   if (!tema.previa) {
-    // "Seguir o sistema": metade clara, metade escura.
+    // Automático: um pedaço de cada tema que ele usa ("sistema": claro e
+    // escuro; Vivaldi: as quatro estações).
     return (
-      <span className="tema-previa tema-previa-sistema" aria-hidden="true">
-        <Previa tema={TEMAS.find((t) => t.id === "claro")} />
-        <Previa tema={TEMAS.find((t) => t.id === "escuro")} />
+      <span className="tema-previa tema-previa-sistema" aria-hidden="true" style={{ gridTemplateColumns: `repeat(${tema.compoe.length}, 1fr)` }}>
+        {tema.compoe.map((id) => <Previa key={id} tema={TEMAS.find((t) => t.id === id)} />)}
       </span>
     );
   }

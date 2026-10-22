@@ -6,6 +6,16 @@ try {
   // O atributo de cada tema vem de /temas.js (gerado de temas/temas.json).
   var t = localStorage.getItem("dashzon.tema");
   var lista = (window.DASHZON_TEMAS && window.DASHZON_TEMAS.temas) || [];
+  var autos = (window.DASHZON_TEMAS && window.DASHZON_TEMAS.automaticos) || [];
+  // Automático por estação (Vivaldi): a última estação já começada no ano.
+  for (var a = 0; a < autos.length; a++) {
+    var est = autos[a].estacoes;
+    if (autos[a].id !== t || !est) continue;
+    var d = new Date();
+    var md = ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    t = est[est.length - 1].tema;
+    for (var e = 0; e < est.length; e++) if (est[e].desde <= md) t = est[e].tema;
+  }
   for (var i = 0; i < lista.length; i++) {
     if (lista[i].id === t) document.documentElement.setAttribute("data-theme", lista[i].atributo);
   }

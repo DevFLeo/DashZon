@@ -21,15 +21,20 @@ function tokensDoApp(t) {
 export const TOKENS = Object.fromEntries(DADOS.temas.map((t) => [t.id, tokensDoApp(t.tokens)]));
 export const ESCUROS = DADOS.temas.filter((t) => t.escuro).map((t) => t.id);
 
-// O que as telas de configuração mostram: os automáticos e os temas, na
-// ordem do JSON. `previa`: fundo, cartão, texto, destaque e três séries.
-export const TEMAS = [
-  ...DADOS.automaticos.map((a) => ({ id: a.id, grupo: a.grupo, nome: a.nome, desc: a.desc, automatico: true })),
-  ...DADOS.temas.map((t) => ({
-    id: t.id, grupo: t.grupo, nome: t.nome, desc: t.desc, fase: t.fase, escuro: t.escuro,
-    previa: [t.tokens["page-plane"], t.tokens["surface-1"], t.tokens["text-primary"], t.tokens.accent, t.tokens["series-1"], t.tokens["series-2"], t.tokens["series-3"]]
+// O que as telas de configuração mostram, por grupo na ordem do JSON, cada
+// automático no começo do próprio grupo. `previa`: fundo, cartão, texto,
+// destaque e três séries; nos automáticos, `compoe` diz de quais temas mostrar.
+const previaDe = (t) => [t.tokens["page-plane"], t.tokens["surface-1"], t.tokens["text-primary"], t.tokens.accent, t.tokens["series-1"], t.tokens["series-2"], t.tokens["series-3"]];
+const grupos = [...new Set([...DADOS.automaticos.filter((a) => !DADOS.temas.some((t) => t.grupo === a.grupo)).map((a) => a.grupo), ...DADOS.temas.map((t) => t.grupo)])];
+export const TEMAS = grupos.flatMap((g) => [
+  ...DADOS.automaticos.filter((a) => a.grupo === g).map((a) => ({
+    id: a.id, grupo: a.grupo, nome: a.nome, desc: a.desc, automatico: true,
+    compoe: a.estacoes ? a.estacoes.map((e) => e.tema) : [a.claro, a.escuro]
+  })),
+  ...DADOS.temas.filter((t) => t.grupo === g).map((t) => ({
+    id: t.id, grupo: t.grupo, nome: t.nome, desc: t.desc, fase: t.fase, escuro: t.escuro, previa: previaDe(t)
   }))
-];
+]);
 
 export const temaPorId = (id) => TEMAS.find((t) => t.id === id);
 
@@ -39,10 +44,18 @@ export const PROXIMO = Object.fromEntries(DADOS.temas.map((t) => {
   return [t.id, familia[(familia.indexOf(t) + 1) % familia.length].id];
 }));
 
-// Um automático vira um tema de verdade: "sistema" segue o modo escuro do aparelho.
-export function temaEfetivo(escolha, escuroNoSistema) {
+// Um automático vira um tema de verdade: "sistema" segue o modo escuro do
+// aparelho; "vivaldi" (as quatro estações) segue a data: vale a última
+// estação cujo início ("MM-DD") já passou no ano; antes da primeira, a última.
+export function estacaoDe(auto, hoje = new Date()) {
+  const md = `${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+  const ja = auto.estacoes.filter((e) => e.desde <= md);
+  return (ja.length ? ja[ja.length - 1] : auto.estacoes[auto.estacoes.length - 1]).tema;
+}
+export function temaEfetivo(escolha, escuroNoSistema, hoje = new Date()) {
   const auto = DADOS.automaticos.find((a) => a.id === escolha);
   if (auto?.claro) return escuroNoSistema ? auto.escuro : auto.claro;
+  if (auto?.estacoes) return estacaoDe(auto, hoje);
   return TOKENS[escolha] ? escolha : (escuroNoSistema ? "escuro" : "claro");
 }
 
