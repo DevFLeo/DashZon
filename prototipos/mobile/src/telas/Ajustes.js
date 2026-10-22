@@ -1,8 +1,72 @@
-// Ajustes: o tema (o mesmo da conta, também no oficial) e sair.
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+// Ajustes: o tema (o mesmo da conta, também no oficial), o lembrete diário
+// (só no aparelho) e sair.
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { TEMAS } from "@dashzon/core";
-import { Botao, Cabecalho } from "../componentes";
+import { Botao, Cabecalho, Campo, Chip } from "../componentes";
+import { horaTexto, lerHora } from "../formatos";
+import { SUPORTADO, desligarLembrete, ligarLembrete, lerLembrete } from "../lembretes";
 import { NA_WEB, useApp } from "../sessao";
+
+const HORAS = ["08:00", "12:00", "18:00", "20:00"];
+
+function Lembretes({ avisar }) {
+  const { tema, sessao } = useApp();
+  const [salvo, setSalvo] = useState(null);
+  const [ligado, setLigado] = useState(false);
+  const [hora, setHora] = useState("20:00");
+  const [modulo, setModulo] = useState(sessao.menuModulos[0]?.slug || "");
+  const [enviando, setEnviando] = useState(false);
+  useEffect(() => {
+    lerLembrete().then((l) => {
+      if (!l) return;
+      setSalvo(l);
+      setLigado(!!l.ligado);
+      setHora(l.hora);
+      if (sessao.menuModulos.some((m) => m.slug === l.modulo)) setModulo(l.modulo);
+    });
+  }, []);
+
+  if (!SUPORTADO) {
+    return <Text style={{ color: tema.cor("texto-fraco") }}>Os lembretes funcionam no app do celular (notificações do aparelho).</Text>;
+  }
+  const horaLida = lerHora(hora);
+  async function salvar() {
+    if (!horaLida) { avisar("Hora inválida. Use HH:MM, por exemplo 20:00.", "erro"); return; }
+    const m = sessao.menuModulos.find((x) => x.slug === modulo);
+    if (!m) { avisar("Escolha um módulo.", "erro"); return; }
+    setEnviando(true);
+    try {
+      const novo = ligado ? await ligarLembrete(horaLida, m) : await desligarLembrete();
+      setSalvo(novo);
+      avisar(ligado ? `Lembrete todo dia às ${horaTexto(horaLida)}` : "Lembrete desligado");
+    } catch (e) { avisar(e.message, "erro"); } finally { setEnviando(false); }
+  }
+  return (
+    <View>
+      <View style={[s.linha, { borderColor: tema.cor("borda") }]}>
+        <Text style={{ color: tema.cor("texto"), fontSize: 16, flex: 1 }}>Lembrete diário para lançar</Text>
+        <Switch value={ligado} onValueChange={setLigado} accessibilityLabel="Lembrete diário para lançar"
+          trackColor={{ true: tema.cor("destaque"), false: tema.cor("borda") }} thumbColor={tema.cor("superficie")} />
+      </View>
+      {ligado && (
+        <>
+          <Campo rotulo="Horário" value={hora} onChangeText={setHora} placeholder="HH:MM" keyboardType="numbers-and-punctuation" maxLength={5}
+            erro={hora && !horaLida ? "Use HH:MM, por exemplo 20:00." : ""} />
+          <View style={[s.chips, { marginTop: -6, marginBottom: 14 }]}>
+            {HORAS.map((h) => <Chip key={h} texto={h} ativo={hora === h} onPress={() => setHora(h)} />)}
+          </View>
+          <Text style={[s.rotulo, { color: tema.cor("texto-2") }]}>Abrir o formulário de</Text>
+          <View style={[s.chips, { marginBottom: 14 }]}>
+            {sessao.menuModulos.map((m) => <Chip key={m.slug} texto={m.nome} ativo={modulo === m.slug} onPress={() => setModulo(m.slug)} />)}
+          </View>
+        </>
+      )}
+      {salvo?.ligado ? <Text style={{ color: tema.cor("texto-fraco"), marginBottom: 10 }}>Agora: todo dia às {salvo.hora}, em {salvo.nomeModulo}.</Text> : null}
+      <Botao titulo={ligado ? "Salvar lembrete" : "Desligar lembrete"} onPress={salvar} carregando={enviando} desativado={!ligado && !salvo?.ligado} />
+    </View>
+  );
+}
 
 export default function Ajustes({ voltar, escolherTema, sair, servidor, avisar }) {
   const { tema, sessao } = useApp();
@@ -38,6 +102,9 @@ export default function Ajustes({ voltar, escolherTema, sair, servidor, avisar }
           })}
         </View>
 
+        <Text style={[s.secao, { color: tema.cor("texto-fraco"), marginTop: 24 }]}>LEMBRETES</Text>
+        <Lembretes avisar={avisar} />
+
         <Text style={[s.secao, { color: tema.cor("texto-fraco"), marginTop: 24 }]}>CONTA</Text>
         <Text style={{ color: tema.cor("texto"), fontSize: 16 }}>{sessao.usuario.nome || sessao.usuario.login}</Text>
         {!NA_WEB && servidor ? <Text style={{ color: tema.cor("texto-fraco"), marginBottom: 12 }}>{servidor}</Text> : <View style={{ height: 12 }} />}
@@ -54,5 +121,8 @@ const s = StyleSheet.create({
   tema: { width: "47.5%", flexGrow: 1, borderRadius: 14, padding: 8, gap: 4, minHeight: 44 },
   previa: { height: 64, borderRadius: 8, padding: 6, flexDirection: "row", alignItems: "flex-end", gap: 6, overflow: "hidden" },
   previaCartao: { flex: 1, height: "100%", borderRadius: 6, padding: 5, flexDirection: "row", alignItems: "flex-end", gap: 4 },
-  previaBotao: { width: 16, height: 16, borderRadius: 5 }
+  previaBotao: { width: 16, height: 16, borderRadius: 5 },
+  linha: { flexDirection: "row", alignItems: "center", minHeight: 56, borderBottomWidth: 1, marginBottom: 14 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  rotulo: { fontSize: 14, fontWeight: "600", marginBottom: 8 }
 });

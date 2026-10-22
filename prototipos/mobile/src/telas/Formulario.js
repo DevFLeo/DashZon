@@ -7,16 +7,8 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { NUMERICOS, hojeISO, opcoesDe, resolverToken } from "@dashzon/core";
 import { Botao, Cabecalho, Campo, Chip, Confirmar } from "../componentes";
+import { numeroParaTela, paraIso, paraTela } from "../formatos";
 import { useApp } from "../sessao";
-
-// Datas: o servidor usa AAAA-MM-DD; na tela, DD/MM/AAAA.
-const paraTela = (iso) => (iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
-function paraIso(texto) {
-  const m = String(texto || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : String(texto || "").trim();
-}
-// Números: aceita vírgula (teclado brasileiro); o servidor também aceita "1.234,56".
-const numeroParaTela = (v) => (v === null || v === undefined ? "" : String(v).replace(".", ","));
 
 export default function Formulario({ slug, id, voltar, aoSalvar, avisar }) {
   const { tema, api } = useApp();

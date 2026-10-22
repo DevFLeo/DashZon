@@ -1,5 +1,5 @@
-// DashZon no celular (protótipo React Native / Expo), parte 1: entrar,
-// módulos, registros e lançamento rápido, com os temas da conta.
+// DashZon no celular (protótipo React Native / Expo): entrar, dashboards,
+// módulos, registros e lançamento rápido, temas da conta e lembretes.
 // A lógica é a de @dashzon/core, a mesma dos protótipos web; a API é a do
 // backend Ruby, sem mudança (sem Origin, só a sessão por cookie).
 import { StatusBar } from "expo-status-bar";
@@ -7,8 +7,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Aviso, Botao, useAviso } from "./src/componentes";
+import { aoTocarNoLembrete, configurarNotificacoes } from "./src/lembretes";
 import { Provedor, criarApiDoApp, lerServidor, useTema } from "./src/sessao";
 import Ajustes from "./src/telas/Ajustes";
+import Dashboard from "./src/telas/Dashboard";
 import Entrar from "./src/telas/Entrar";
 import Formulario from "./src/telas/Formulario";
 import Inicio from "./src/telas/Inicio";
@@ -38,11 +40,12 @@ function Conteudo() {
     try {
       const status = await api.get("/api/status");
       if (!status.usuario) { setSessao({ carregando: false, sem_login: true }); return; }
-      const modulos = await api.get("/api/modulos");
+      const [modulos, dashboards] = await Promise.all([api.get("/api/modulos"), api.get("/api/dashboards")]);
       const pref = status.usuario.preferencias || {};
       const ocultos = new Set(pref.modulos_ocultos || []);
       setSessao({
         carregando: false, usuario: status.usuario, moeda: status.moeda, modulos,
+        menuDashboards: ordenar(dashboards, pref.ordem_menu?.dashboards, "id"),
         menuModulos: ordenar(modulos.filter((m) => !ocultos.has(m.slug)), pref.ordem_menu?.modulos, "slug")
       });
     } catch (e) {
@@ -53,6 +56,10 @@ function Conteudo() {
   useEffect(() => { carregar(); }, [carregar]);
 
   const ir = (t) => setPilha((p) => [...p, t]);
+
+  // Lembretes: mostrar com o app aberto e, ao tocar, abrir o formulário do módulo.
+  useEffect(() => { configurarNotificacoes(); }, []);
+  useEffect(() => aoTocarNoLembrete((slug) => setPilha([{ tela: "inicio" }, { tela: "form", slug }])), []);
   const voltar = useCallback(() => setPilha((p) => (p.length > 1 ? p.slice(0, -1) : p)), []);
 
   // Botão voltar do Android: volta uma tela; na primeira, deixa o sistema agir.
@@ -84,7 +91,8 @@ function Conteudo() {
   } else {
     const atual = pilha[pilha.length - 1];
     const depoisDeSalvar = () => { voltar(); setVersao((v) => v + 1); carregar(); };
-    if (atual.tela === "modulo") tela = <Modulo key={atual.slug} slug={atual.slug} voltar={voltar} ir={ir} versao={versao} />;
+    if (atual.tela === "dashboard") tela = <Dashboard key={atual.id} id={atual.id} voltar={voltar} />;
+    else if (atual.tela === "modulo") tela = <Modulo key={atual.slug} slug={atual.slug} voltar={voltar} ir={ir} versao={versao} />;
     else if (atual.tela === "form") tela = <Formulario slug={atual.slug} id={atual.id} voltar={voltar} aoSalvar={depoisDeSalvar} avisar={avisar} />;
     else if (atual.tela === "ajustes") tela = <Ajustes voltar={voltar} escolherTema={escolherTema} sair={sair} servidor={servidor} avisar={avisar} />;
     else tela = <Inicio ir={ir} recarregando={recarregando} recarregar={recarregar} />;

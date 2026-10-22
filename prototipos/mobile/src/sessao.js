@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Platform, useColorScheme } from "react-native";
 import { criarApi, criarCores, PROXIMO, temaEfetivo, TOKENS, ESCUROS } from "@dashzon/core";
+export { normalizarServidor } from "./formatos";
 
 const CHAVE_SERVIDOR = "dashzon.servidor";
 const CHAVE_TEMA = "dashzon.tema";
@@ -17,13 +18,6 @@ export async function lerServidor() {
 }
 export async function gravarServidor(url) {
   try { await AsyncStorage.setItem(CHAVE_SERVIDOR, url); } catch (_) { /* sem armazenamento */ }
-}
-
-// "dashzon.duckdns.org" -> "https://dashzon.duckdns.org"; tira a barra final.
-export function normalizarServidor(texto) {
-  let t = String(texto || "").trim().replace(/\/+$/, "");
-  if (t && !/^https?:\/\//i.test(t)) t = `https://${t}`;
-  return t;
 }
 
 export const criarApiDoApp = (servidor) => (NA_WEB ? criarApi("", "same-origin") : criarApi(servidor, "include"));
@@ -44,7 +38,8 @@ export function useTema(daConta, api) {
   const valor = useMemo(() => {
     const t = TOKENS[id];
     const cor = (nome) => t[`--${nome}`];
-    return { id, escolha, escuro: ESCUROS.includes(id), cor, ...criarCores((nome) => t[nome]) };
+    const serie = (i) => t[`--series-${(i % 8) + 1}`];
+    return { id, escolha, escuro: ESCUROS.includes(id), cor, serie, ...criarCores((nome) => t[nome]) };
   }, [id, escolha]);
 
   async function escolher(novo) {
