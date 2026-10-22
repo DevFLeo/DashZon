@@ -918,12 +918,18 @@ const Dashboards = (() => {
   }
 
   // Excluir: se os módulos do dashboard ainda têm dados de exemplo do
-  // template, oferece apagá-los junto (marcado por padrão).
+  // template, oferece apagá-los junto (marcado por padrão). E oferece excluir
+  // os próprios módulos (os dos cards e os que vieram com o template), só os
+  // que a pessoa pode alterar e que nenhum outro dashboard usa: marcado
+  // quando eles só têm dados de exemplo; com dados de alguém, desmarcado e
+  // com aviso.
   async function excluir() {
     const ex = await Api.get(`/api/dashboards/${atual.id}/exemplos`);
-    $("exd-texto").textContent = ex.total
+    const mods = ex.modulos_do_dashboard || [];
+    $("exd-texto").textContent = ex.total || mods.some((m) => m.removivel)
       ? `Excluir o dashboard "${atual.nome}"?`
       : `Excluir o dashboard "${atual.nome}"? Os módulos e os registros não são afetados.`;
+    mostrarModulosParaExcluir(mods);
     $("exd-exemplos").hidden = !ex.total;
     // Módulo usado por outro dashboard: avisa e deixa desmarcado (relatório, problema 8).
     const compartilhado = ex.modulos.some((m) => m.outros_dashboards.length || m.outros_ocultos);
@@ -937,13 +943,36 @@ const Dashboards = (() => {
     Util.abrirModal("modal-excluir-dashboard");
   }
 
+  function mostrarModulosParaExcluir(mods) {
+    const saem = mods.filter((m) => m.removivel);
+    const ficam = mods.filter((m) => !m.removivel);
+    const deAlguem = (m) => m.registros - m.exemplos;
+    $("exd-modulos").hidden = !mods.length;
+    $("exd-apagar-modulos").closest("label").hidden = !saem.length;
+    $("exd-apagar-modulos").checked = saem.length > 0 && saem.every((m) => !deAlguem(m));
+    $("exd-modulos-rotulo").textContent = saem.length === 1
+      ? "Excluir também o módulo deste dashboard, com todos os registros:"
+      : `Excluir também os ${saem.length} módulos deste dashboard, com todos os registros:`;
+    $("exd-modulos-lista").innerHTML = saem.map((m) => `<li>${esc(m.nome)}: ${m.registros} registro(s)${deAlguem(m)
+      ? `<div class="exd-aviso">${deAlguem(m)} não são de exemplo: alguém cadastrou ou editou.</div>` : ""}</li>`).join("");
+    $("exd-modulos-ficam").hidden = !ficam.length;
+    $("exd-modulos-ficam").textContent = ficam.length
+      ? `Ficam: ${ficam.map((m) => `${m.nome} (${m.motivo})`).join("; ")}.` : "";
+  }
+
   async function confirmarExcluir(ev) {
     ev.preventDefault();
     const comExemplos = !$("exd-exemplos").hidden && $("exd-apagar").checked;
+    const comModulos = !$("exd-modulos").hidden && !$("exd-apagar-modulos").closest("label").hidden && $("exd-apagar-modulos").checked;
+    const qs = new URLSearchParams();
+    if (comExemplos) qs.set("exemplos", "1");
+    if (comModulos) qs.set("modulos", "1");
     try {
-      const r = await Api.del(`/api/dashboards/${atual.id}${comExemplos ? "?exemplos=1" : ""}`);
+      const r = await Api.del(`/api/dashboards/${atual.id}${qs.toString() ? `?${qs}` : ""}`);
       Util.fecharModal("modal-excluir-dashboard");
-      Util.aviso(r.exemplos_apagados ? `Dashboard excluído, com ${r.exemplos_apagados} registro(s) de exemplo` : "Dashboard excluído");
+      const partes = [r.modulos_apagados?.length ? `${r.modulos_apagados.length} módulo(s)` : "",
+        r.exemplos_apagados ? `${r.exemplos_apagados} registro(s) de exemplo` : ""].filter(Boolean);
+      Util.aviso(partes.length ? `Dashboard excluído, com ${partes.join(" e ")}` : "Dashboard excluído");
       await App.recarregarNav();
       App.irPadrao();
     } catch (e) {
