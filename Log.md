@@ -6,6 +6,19 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-23 · `desenvolvimento-mobile-parte-2` · Pré-teste no emulador Android
+
+**O que:**
+- **Ambiente de emulação no PC**: Android Studio com o aparelho virtual Pixel_10 (aceleração WHPX), Expo Go instalado nele pelo `npx expo start --android`.
+- **Correções que o emulador revelou** (o teste no navegador não pegava): o `expo-notifications` derrubava o app no Expo Go do Android; no primeiro uso a tela ficava carregando para sempre; servidor fora do alcance travava a tela (agora 15 s de tempo limite).
+- **Teste novo** `npm run teste:emulador` (`testes/emulador.ps1` + `testes/e2e-emulador.mjs`): liga o emulador, `adb reverse`, Metro, instância zerada por rodada; toca e digita pelo `adb` achando os elementos pelos rótulos de acessibilidade.
+
+**Validação:** emulador 5/5 nas duas rodadas; `npm run teste` do celular (17 de unidade, 14/14 na web nas duas rodadas); build do React. Backend sem mudança.
+
+**Por quê:** pedido de um pré-teste com o ambiente de emulação disponível no PC antes da parte 3 do celular.
+
+---
+
 ## 2026-10-22 · `desenvolvimento-mobile-parte-2` · Pasta temas/, estações do ano, Vivaldi e o seletor do mascote
 
 **O que:**

@@ -44,6 +44,7 @@ npm run teste            # tudo: unidade, export web e 2 rodadas de ponta a pont
 npm run teste:unidade    # só os testes de unidade (Node)
 npm run teste:web        # só o ponta a ponta, numa instância de teste já no ar e NÃO configurada
 npm run teste:servir     # o app web com /api repassada (para olhar no navegador)
+npm run teste:emulador   # o app nativo no emulador Android (Expo Go), 2 rodadas
 ```
 
 O `npm run teste` chama `testes/rodar-testes.ps1`, que aceita `-Rodadas 1`, `-SemExport`, `-SoUnidade`, `-Porta` e `-Banco`. Ele recusa a porta 4567 e o `dashzon.db`: os testes nunca encostam no banco real.
@@ -54,6 +55,8 @@ O `npm run teste` chama `testes/rodar-testes.ps1`, que aceita `-Rodadas 1`, `-Se
 | `unidade.test.mjs` | Formatos (datas, números, endereço, hora), temas e cores, e os dados dos cards: ordem, séries, empilhar, 15 grupos, tabela, rosca, meta do mês, calendário |
 | `e2e-web.mjs` | O app de verdade num Chromium headless com tela de celular: entrar, dashboards, tocar no gráfico, módulo, busca, lançar com "123,45", editar, erro do servidor, excluir, tema, sair. Em cada tela confere rolagem lateral, alvos de toque e valores cortados |
 | `servir-web.mjs` | Serve `dist/` e repassa `/api` para a instância, trocando o `Origin` pelo do backend |
+| `e2e-emulador.mjs` | O app nativo no emulador Android, pelo `adb`: acha os elementos na árvore de acessibilidade (os rótulos do leitor de tela) e toca e digita como uma pessoa. Primeiro uso sem servidor, entrar, dashboard, lançar com "123,45" (conferido no banco, com a data do aparelho), tema salvo na conta e o aviso dos lembretes |
+| `emulador.ps1` | Liga o emulador se preciso, faz o `adb reverse` (Metro e instância), sobe o Metro e roda as rodadas com a instância zerada. Aceita `-Rodadas`, `-Porta`, `-Banco`, `-Avd` e `-Fechar` (desliga emulador e Metro no fim) |
 | `rodar-testes.ps1` | Orquestra tudo; prints e resultado em `testes/resultados/` (fora do git) |
 
 **Parâmetros** (cada um troca por variável de ambiente, sem mexer no código):
@@ -69,10 +72,18 @@ O `npm run teste` chama `testes/rodar-testes.ps1`, que aceita `-Rodadas 1`, `-Se
 | Navegador | `NAVEGADOR` | Edge, Chrome ou o Chrome do Puppeteer |
 | Porta do DevTools | `DASHZON_TESTE_CDP` | `9360` |
 | Pasta dos prints | `DASHZON_TESTE_SAIDA` | `testes/resultados/<data>` |
+| adb (emulador) | `DASHZON_TESTE_ADB` | `ANDROID_HOME` ou `%LOCALAPPDATA%\Android\Sdk`, em `platform-tools\adb.exe` |
+| Aparelho virtual | `DASHZON_TESTE_AVD` | `Pixel_10` (ou o primeiro de `emulator -list-avds`) |
 
 Exemplo: `$env:DASHZON_TESTE_TELAS = "320x640,412x915"; npm run teste`.
 
-**O que os testes não cobrem:** o aparelho de verdade. O ponta a ponta usa a versão web (React Native Web). As notificações só existem no celular: aqui elas são conferidas apenas até o empacotamento para Android (`npx expo export --platform android`); **falta testar num aparelho** (Expo Go), assim como o resto do app.
+### Emulador Android
+
+Precisa do Android Studio com um aparelho virtual (Device Manager). O `npm run teste:emulador` faz o resto: liga o emulador, instala o Expo Go na primeira vez (`npx expo start --android`), abre o app por `exp://127.0.0.1:8081` (o `adb reverse` leva a porta do Metro e a da instância de teste ao PC; assim o app usa `http://127.0.0.1:4581`, como no PC) e roda duas rodadas.
+
+Achados no emulador, já corrigidos: o `expo-notifications` quebra ao carregar no Expo Go do Android (o app confere os módulos nativos antes e, sem eles, os lembretes avisam que precisam do app instalado); no primeiro uso o app ficava carregando sem fim (agora vai direto para a tela de entrar); servidor fora do alcance travava (agora tempo limite de 15 s).
+
+**O que os testes não cobrem:** um celular físico, e os lembretes de fato disparando: no Expo Go do Android as notificações não existem; precisam de um build de desenvolvimento (`npx expo run:android` ou EAS).
 
 ## Estrutura
 
