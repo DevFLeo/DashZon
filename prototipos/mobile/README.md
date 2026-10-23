@@ -37,6 +37,22 @@ Também: botão voltar do Android, área segura da tela (entalhe e barra de gest
 
 Para instalar dependências novas, use `npx expo install <pacote>`: ele escolhe as versões compatíveis com o SDK.
 
+## Gerar um APK (instalar sem o Expo Go)
+
+```powershell
+cd prototipos\mobile
+npm run apk                     # só HTTPS
+npm run apk -- -Http -Instalar  # libera http:// (teste na rede local) e instala no aparelho conectado
+```
+
+Sai em `apk\dashzon-<versão>.apk` (fora do git). O `apk.ps1` gera o projeto nativo (`expo prebuild`, pasta `android/`, fora do git) e compila com o Gradle (`assembleRelease`): o JS vai dentro do APK, não precisa do Metro nem do Expo Go, e os lembretes funcionam. Precisa só do Android Studio (traz o Java e o SDK); o primeiro build leva uns 5 minutos.
+
+- **Instalar no celular:** copie o `.apk` para o aparelho (cabo, Drive, WhatsApp) e abra; o Android pede para permitir "instalar apps desconhecidos". No emulador: `adb install -r apk\dashzon-0.1.0-http.apk`.
+- **Assinatura:** com a chave de debug. Serve para teste, não para a Play Store (essa precisa de uma chave própria ou do EAS).
+- **HTTP:** sem `-Http` o APK só fala HTTPS (o padrão do Android). O `-Http` (variável `DASHZON_APK_HTTP=1`, lida no `app.config.js`) é para testar contra uma instância na rede local, por exemplo `http://192.168.0.10:4581`; nunca use HTTP fora da rede de casa.
+- **Arquiteturas:** arm64-v8a (celulares) e x86_64 (emulador).
+- **Caminhos longos no Windows:** o ninja do CMake do SDK (1.10) não aceita caminhos de mais de 260 caracteres, e o build do C++ das dependências passa disso. O script prepara, uma vez, uma cópia do CMake do SDK com o ninja 1.12 em `%LOCALAPPDATA%\DashZon\cmake-android` (o SDK fica intacto) e aponta o `android\local.properties` para ela.
+
 ## Testes (`testes/`)
 
 ```powershell
@@ -45,6 +61,7 @@ npm run teste:unidade    # só os testes de unidade (Node)
 npm run teste:web        # só o ponta a ponta, numa instância de teste já no ar e NÃO configurada
 npm run teste:servir     # o app web com /api repassada (para olhar no navegador)
 npm run teste:emulador   # o app nativo no emulador Android (Expo Go), 2 rodadas
+npm run teste:emulador -- -Apk   # o mesmo contra o APK instalado (sem Metro): o lembrete aparece ligável
 ```
 
 O `npm run teste` chama `testes/rodar-testes.ps1`, que aceita `-Rodadas 1`, `-SemExport`, `-SoUnidade`, `-Porta` e `-Banco`. Ele recusa a porta 4567 e o `dashzon.db`: os testes nunca encostam no banco real.
@@ -74,6 +91,7 @@ O `npm run teste` chama `testes/rodar-testes.ps1`, que aceita `-Rodadas 1`, `-Se
 | Pasta dos prints | `DASHZON_TESTE_SAIDA` | `testes/resultados/<data>` |
 | adb (emulador) | `DASHZON_TESTE_ADB` | `ANDROID_HOME` ou `%LOCALAPPDATA%\Android\Sdk`, em `platform-tools\adb.exe` |
 | Aparelho virtual | `DASHZON_TESTE_AVD` | `Pixel_10` (ou o primeiro de `emulator -list-avds`) |
+| App aberto no emulador | `DASHZON_TESTE_APP` | `expo` (Expo Go) ou `apk` (`com.dashzon.app`) |
 
 Exemplo: `$env:DASHZON_TESTE_TELAS = "320x640,412x915"; npm run teste`.
 
@@ -83,7 +101,7 @@ Precisa do Android Studio com um aparelho virtual (Device Manager). O `npm run t
 
 Achados no emulador, já corrigidos: o `expo-notifications` quebra ao carregar no Expo Go do Android (o app confere os módulos nativos antes e, sem eles, os lembretes avisam que precisam do app instalado); no primeiro uso o app ficava carregando sem fim (agora vai direto para a tela de entrar); servidor fora do alcance travava (agora tempo limite de 15 s).
 
-**O que os testes não cobrem:** um celular físico, e os lembretes de fato disparando: no Expo Go do Android as notificações não existem; precisam de um build de desenvolvimento (`npx expo run:android` ou EAS).
+**O que os testes não cobrem:** um celular físico, e o lembrete de fato disparando no horário (no APK ele aparece e pode ser ligado; o disparo não é automatizado).
 
 ## Estrutura
 

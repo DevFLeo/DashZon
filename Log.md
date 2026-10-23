@@ -6,6 +6,19 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-23 · `desenvolvimento-mobile-parte-2` · APK testável do app
+
+**O que:**
+- `npm run apk` (`prototipos/mobile/apk.ps1`): gera o APK no PC, sem conta na Expo (`expo prebuild` + Gradle), em `apk/dashzon-<versão>.apk`. Instala com `-Instalar`; `-Http` libera http:// para teste na rede local (pelo `app.config.js`; sem ele, só HTTPS).
+- `app.json`: pacote Android `com.dashzon.app`. Dependência `expo-build-properties` (só usada com `-Http`).
+- Teste do emulador com `-Apk`: o mesmo roteiro contra o APK instalado; nele o lembrete diário aparece ligável (no Expo Go, o aviso).
+
+**Validação:** APK de 41,8 MB instalado no emulador; `teste:emulador -Apk` 5/5 nas duas rodadas; `npm run teste` (unidade, export web e 14/14 nas duas rodadas).
+
+**Por quê:** pedido de um APK para baixar e testar no celular.
+
+---
+
 ## 2026-10-23 · `desenvolvimento-mobile-parte-2` · Pré-teste no emulador Android
 
 **O que:**
