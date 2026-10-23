@@ -37,16 +37,30 @@ Co-Authored-By: ... (quando houver)
 | Tipo | Commits |
 |---|---|
 | Novidades (`feat`) | 75 |
-| Correções (`fix`) | 24 |
+| Correções (`fix`) | 25 |
 | Desempenho (`perf`) | 1 |
 | Refatoração (`refactor`) | 3 |
-| Testes (`test`) | 16 |
-| Documentação (`docs`) | 76 |
+| Testes (`test`) | 17 |
+| Documentação (`docs`) | 79 |
 | Manutenção (`chore`) | 4 |
 | Fora do padrão | 3 |
-| **Total** | **202** |
+| **Total** | **207** |
 
 As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeito que deixou de existir.
+
+## 2026-10-23
+
+### Correções (`fix`)
+
+- **mobile:** app abre no Android (Expo Go) e no primeiro uso (`bbd7130`)
+
+### Testes (`test`)
+
+- **mobile:** teste do app nativo no emulador Android (`9a977e8`)
+
+### Documentação (`docs`)
+
+- **mobile:** teste no emulador Android no README, Sistema.md e Log.md (`6d59fe6`)
 
 ## 2026-10-22
 
@@ -78,6 +92,8 @@ As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeit
 
 ### Documentação (`docs`)
 
+- **readme:** pasta temas/ na estrutura do projeto (`2289eba`)
+- **changelog:** temas das estações, Vivaldi e o seletor (`c149f5a`)
 - pasta temas/, estações, Vivaldi e o seletor do mascote no Sistema.md, Log.md e temas/README.md (`d256727`)
 - **readme:** branch da parte 2 do app de celular (`7f5cff7`)
 - **changelog:** parte 2 do app de celular (`94d5ae9`)
