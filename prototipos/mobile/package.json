@@ -25,7 +25,8 @@
     "teste": "powershell -ExecutionPolicy Bypass -File testes/rodar-testes.ps1",
     "teste:unidade": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test testes/unidade.test.mjs",
     "teste:web": "node testes/e2e-web.mjs",
-    "teste:servir": "node testes/servir-web.mjs"
+    "teste:servir": "node testes/servir-web.mjs",
+    "teste:emulador": "powershell -ExecutionPolicy Bypass -File testes/emulador.ps1"
   },
   "private": true
 }

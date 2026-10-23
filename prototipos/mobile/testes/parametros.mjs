@@ -57,5 +57,9 @@ export const PARAMETROS = {
   // Onde ficam os prints e o resultado (DASHZON_TESTE_SAIDA).
   saida: env.DASHZON_TESTE_SAIDA || path.join(AQUI, "resultados", data),
   // Pasta da versão web exportada (npx expo export --platform web).
-  dist: path.join(AQUI, "..", "dist")
+  dist: path.join(AQUI, "..", "dist"),
+  // Emulador Android (testes/emulador.ps1 e e2e-emulador.mjs): o adb do SDK
+  // (ANDROID_HOME) e o aparelho virtual (DASHZON_TESTE_AVD).
+  adb: env.DASHZON_TESTE_ADB || path.join(env.ANDROID_HOME || path.join(env.LOCALAPPDATA || "", "Android/Sdk"), "platform-tools", process.platform === "win32" ? "adb.exe" : "adb"),
+  avd: env.DASHZON_TESTE_AVD || "Pixel_10"
 };
