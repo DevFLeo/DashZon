@@ -8,10 +8,37 @@ import { horaTexto } from "./formatos";
 
 const CHAVE = "dashzon.lembrete";
 const CANAL = "lembretes";
+// O módulo só é carregado no celular (na web ele nem existe), e com proteção:
+// no Expo Go do Android (SDK 53+) o expo-notifications quebra ao carregar
+// (falta o módulo nativo de push, ExpoTopicSubscriptionModule). Sem ele o
+// app segue normal e os lembretes avisam que precisam do app instalado
+// (build de desenvolvimento). Achado no teste no emulador.
+let carregado;
+function notificacoes() {
+  if (carregado === undefined) {
+    carregado = null;
+    // Antes de carregar, confere se os módulos nativos existem: no Expo Go
+    // do Android falta o de push e o pacote quebra ao carregar (num erro que
+    // o modo de desenvolvimento mostra mesmo capturado). O executionEnvironment
+    // não serve para detectar: no Expo Go do SDK 58 ele vem como "bare".
+    if (Platform.OS !== "web") {
+      const { requireOptionalNativeModule } = require("expo-modules-core");
+      const nativos = Platform.OS === "android" ? ["ExpoTopicSubscriptionModule", "ExpoNotificationScheduler"] : ["ExpoNotificationScheduler"];
+      if (nativos.every((n) => requireOptionalNativeModule(n))) {
+        try {
+          const m = require("expo-notifications");
+          if (typeof m?.setNotificationHandler === "function" && typeof m?.scheduleNotificationAsync === "function") carregado = m;
+        } catch (_) { /* sem o módulo nativo: lembretes indisponíveis */ }
+      }
+    }
+  }
+  return carregado;
+}
 export const SUPORTADO = Platform.OS !== "web";
-
-// O módulo só é carregado no celular (na web ele nem existe).
-const notificacoes = () => require("expo-notifications");
+export const disponivel = () => !!notificacoes();
+export const MOTIVO = Platform.OS === "web"
+  ? "Os lembretes funcionam no app do celular (notificações do aparelho)."
+  : "Os lembretes precisam do app instalado (build de desenvolvimento): no Expo Go do Android as notificações não carregam.";
 
 export async function lerLembrete() {
   try { return JSON.parse((await AsyncStorage.getItem(CHAVE)) || "null"); } catch (_) { return null; }
@@ -19,7 +46,7 @@ export async function lerLembrete() {
 
 // Mostra a notificação mesmo com o app aberto. Chamado uma vez, no App.
 export function configurarNotificacoes() {
-  if (!SUPORTADO) return;
+  if (!disponivel()) return;
   notificacoes().setNotificationHandler({
     handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false })
   });
@@ -27,7 +54,7 @@ export function configurarNotificacoes() {
 
 // Tocar na notificação: devolve o slug do módulo para abrir o formulário.
 export function aoTocarNoLembrete(abrir) {
-  if (!SUPORTADO) return () => {};
+  if (!disponivel()) return () => {};
   const sub = notificacoes().addNotificationResponseReceivedListener((r) => {
     const slug = r.notification.request.content.data?.modulo;
     if (slug) abrir(slug);
@@ -38,7 +65,7 @@ export function aoTocarNoLembrete(abrir) {
 // Liga (ou troca) o lembrete diário. Devolve o que ficou gravado.
 // `hora` = { hora, minuto }; `modulo` = { slug, nome }.
 export async function ligarLembrete(hora, modulo) {
-  if (!SUPORTADO) throw new Error("Os lembretes funcionam só no app do celular.");
+  if (!disponivel()) throw new Error(MOTIVO);
   const N = notificacoes();
   // Android 8+: toda notificação precisa de um canal (e o pedido de
   // permissão do Android 13+ só aparece depois que existe um).
@@ -60,7 +87,7 @@ export async function ligarLembrete(hora, modulo) {
 }
 
 export async function desligarLembrete() {
-  if (SUPORTADO) await notificacoes().cancelAllScheduledNotificationsAsync();
+  if (disponivel()) await notificacoes().cancelAllScheduledNotificationsAsync();
   const atual = await lerLembrete();
   const salvo = atual ? { ...atual, ligado: false, id: null } : null;
   if (salvo) await AsyncStorage.setItem(CHAVE, JSON.stringify(salvo));

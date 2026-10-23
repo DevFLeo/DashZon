@@ -8,7 +8,7 @@ import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from "react-na
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Aviso, Botao, useAviso } from "./src/componentes";
 import { aoTocarNoLembrete, configurarNotificacoes } from "./src/lembretes";
-import { Provedor, criarApiDoApp, lerServidor, useTema } from "./src/sessao";
+import { NA_WEB, Provedor, criarApiDoApp, lerServidor, useTema } from "./src/sessao";
 import Ajustes from "./src/telas/Ajustes";
 import Dashboard from "./src/telas/Dashboard";
 import Entrar from "./src/telas/Entrar";
@@ -37,6 +37,8 @@ function Conteudo() {
 
   const carregar = useCallback(async () => {
     if (!api) return;
+    // Primeiro uso no celular: ainda sem servidor, vai direto para entrar.
+    if (!NA_WEB && !servidor) { setSessao({ carregando: false, sem_login: true }); return; }
     try {
       const status = await api.get("/api/status");
       if (!status.usuario) { setSessao({ carregando: false, sem_login: true }); return; }
@@ -52,7 +54,7 @@ function Conteudo() {
       // Sem servidor configurado (1º uso no celular) ou sem conexão: tela de entrar.
       setSessao({ carregando: false, sem_login: true, erro: e.status ? e.message : null });
     }
-  }, [api]);
+  }, [api, servidor]);
   useEffect(() => { carregar(); }, [carregar]);
 
   const ir = (t) => setPilha((p) => [...p, t]);

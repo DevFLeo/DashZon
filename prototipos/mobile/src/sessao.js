@@ -20,7 +20,7 @@ export async function gravarServidor(url) {
   try { await AsyncStorage.setItem(CHAVE_SERVIDOR, url); } catch (_) { /* sem armazenamento */ }
 }
 
-export const criarApiDoApp = (servidor) => (NA_WEB ? criarApi("", "same-origin") : criarApi(servidor, "include"));
+export const criarApiDoApp = (servidor) => (NA_WEB ? criarApi("", "same-origin") : criarApi(servidor, "include", 15000));
 
 const Contexto = createContext(null);
 export const useApp = () => useContext(Contexto);

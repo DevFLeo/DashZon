@@ -7,14 +7,26 @@
 // `base`: "" na web (mesma origem, pelo proxy) ou o endereço do servidor no
 // celular (ex.: "https://dashzon.duckdns.org"). `credenciais`: "same-origin"
 // na web; "include" no app nativo, que guarda o cookie da sessão sozinho.
-export function criarApi(base = "", credenciais = "same-origin") {
+// `tempoLimite` (ms, opcional): desiste do pedido; no celular um servidor
+// fora do alcance deixava o app carregando para sempre (visto no emulador).
+export function criarApi(base = "", credenciais = "same-origin", tempoLimite = 0) {
   async function api(metodo, caminho, corpo) {
-    const r = await fetch(`${base}${caminho}`, {
-      method: metodo,
-      credentials: credenciais,
-      headers: corpo ? { "Content-Type": "application/json" } : {},
-      body: corpo ? JSON.stringify(corpo) : undefined
-    });
+    const controle = tempoLimite ? new AbortController() : null;
+    const timer = controle ? setTimeout(() => controle.abort(), tempoLimite) : null;
+    let r;
+    try {
+      r = await fetch(`${base}${caminho}`, {
+        method: metodo,
+        credentials: credenciais,
+        headers: corpo ? { "Content-Type": "application/json" } : {},
+        body: corpo ? JSON.stringify(corpo) : undefined,
+        signal: controle?.signal
+      });
+    } catch (e) {
+      throw new Error(controle?.signal.aborted ? "O servidor não respondeu a tempo." : `Sem conexão com o servidor (${e.message}).`);
+    } finally {
+      clearTimeout(timer);
+    }
     let dados = null;
     try { dados = await r.json(); } catch (_) { /* corpo vazio */ }
     if (!r.ok) {

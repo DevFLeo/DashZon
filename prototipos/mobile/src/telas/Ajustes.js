@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-nat
 import { TEMAS } from "@dashzon/core";
 import { Botao, Cabecalho, Campo, Chip } from "../componentes";
 import { horaTexto, lerHora } from "../formatos";
-import { SUPORTADO, desligarLembrete, ligarLembrete, lerLembrete } from "../lembretes";
+import { MOTIVO, desligarLembrete, disponivel, ligarLembrete, lerLembrete } from "../lembretes";
 import { NA_WEB, useApp } from "../sessao";
 
 const HORAS = ["08:00", "12:00", "18:00", "20:00"];
@@ -27,9 +27,7 @@ function Lembretes({ avisar }) {
     });
   }, []);
 
-  if (!SUPORTADO) {
-    return <Text style={{ color: tema.cor("texto-fraco") }}>Os lembretes funcionam no app do celular (notificações do aparelho).</Text>;
-  }
+  if (!disponivel()) return <Text style={{ color: tema.cor("texto-fraco") }}>{MOTIVO}</Text>;
   const horaLida = lerHora(hora);
   async function salvar() {
     if (!horaLida) { avisar("Hora inválida. Use HH:MM, por exemplo 20:00.", "erro"); return; }
