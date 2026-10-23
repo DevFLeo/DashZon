@@ -40,11 +40,11 @@ Co-Authored-By: ... (quando houver)
 | Correções (`fix`) | 25 |
 | Desempenho (`perf`) | 1 |
 | Refatoração (`refactor`) | 3 |
-| Testes (`test`) | 17 |
-| Documentação (`docs`) | 79 |
+| Testes (`test`) | 18 |
+| Documentação (`docs`) | 81 |
 | Manutenção (`chore`) | 4 |
-| Fora do padrão | 3 |
-| **Total** | **207** |
+| Fora do padrão | 4 |
+| **Total** | **211** |
 
 As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeito que deixou de existir.
 
@@ -56,11 +56,18 @@ As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeit
 
 ### Testes (`test`)
 
+- **mobile:** teste do emulador também contra o APK instalado (`65804d5`)
 - **mobile:** teste do app nativo no emulador Android (`9a977e8`)
 
 ### Documentação (`docs`)
 
+- **mobile:** como gerar e instalar o APK (`ba12113`)
+- **changelog:** pré-teste no emulador Android (`5491779`)
 - **mobile:** teste no emulador Android no README, Sistema.md e Log.md (`6d59fe6`)
+
+### Fora do padrão
+
+- `build(mobile): APK testável gerado no PC (npm run apk)` (`9666822`)
 
 ## 2026-10-22
 
