@@ -9,6 +9,7 @@
 #   powershell -ExecutionPolicy Bypass -File testes\emulador.ps1               # 2 rodadas
 #   powershell -ExecutionPolicy Bypass -File testes\emulador.ps1 -Rodadas 1 -Avd Pixel_10
 #   powershell -ExecutionPolicy Bypass -File testes\emulador.ps1 -Fechar       # desliga emulador e Metro no fim
+#   powershell -ExecutionPolicy Bypass -File testes\emulador.ps1 -Apk          # o APK instalado (npm run apk -- -Http -Instalar), sem Metro
 #
 # Precisa do Android Studio com um aparelho virtual (AVD). Os demais
 # parâmetros (conta, templates, alvo de toque) ficam em testes\parametros.mjs.
@@ -17,7 +18,8 @@ param(
     [int]$Porta = 4581,                # instância de teste; nunca a 4567 (a do banco real)
     [string]$Banco = 'data\teste-mobile.db',
     [string]$Avd = '',                 # vazio = DASHZON_TESTE_AVD ou o primeiro da lista
-    [switch]$Fechar
+    [switch]$Fechar,
+    [switch]$Apk                       # testa o APK instalado em vez do Expo Go
 )
 $ErrorActionPreference = 'Stop'
 $mobile = Split-Path $PSScriptRoot -Parent
@@ -49,7 +51,7 @@ Write-Host "== Aparelho pronto: $((& $adb devices) -match "`tdevice$" | Select-O
 
 # 3. Metro
 $metro = $null
-if (-not (Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue)) {
+if (-not $Apk -and -not (Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue)) {
     Write-Host '== Subindo o Metro (npx expo start)'
     $log = Join-Path $PSScriptRoot 'resultados\metro.log'
     New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
@@ -67,7 +69,8 @@ try {
         & powershell -ExecutionPolicy Bypass -File $rodar -Porta $Porta -Parar | Out-Null
         Remove-Item "$(Join-Path $raiz $Banco)*" -Force -ErrorAction SilentlyContinue
         & powershell -ExecutionPolicy Bypass -File $rodar -Porta $Porta -Banco $Banco
-        $env:DASHZON_TESTE_API = "http://127.0.0.1:$Porta"
+        $env:DASHZON_TESTE_APP = if ($Apk) { 'apk' } else { 'expo' }
+        $env:DASHZON_TESTE_API ="http://127.0.0.1:$Porta"
         $env:DASHZON_TESTE_SAIDA = Join-Path $PSScriptRoot "resultados\$data-emulador-rodada$r"
         & node testes/e2e-emulador.mjs
         if ($LASTEXITCODE -ne 0) { $falhas++ }

@@ -61,5 +61,8 @@ export const PARAMETROS = {
   // Emulador Android (testes/emulador.ps1 e e2e-emulador.mjs): o adb do SDK
   // (ANDROID_HOME) e o aparelho virtual (DASHZON_TESTE_AVD).
   adb: env.DASHZON_TESTE_ADB || path.join(env.ANDROID_HOME || path.join(env.LOCALAPPDATA || "", "Android/Sdk"), "platform-tools", process.platform === "win32" ? "adb.exe" : "adb"),
-  avd: env.DASHZON_TESTE_AVD || "Pixel_10"
+  avd: env.DASHZON_TESTE_AVD || "Pixel_10",
+  // O que o teste do emulador abre (DASHZON_TESTE_APP): "expo" (o Expo Go
+  // com o Metro) ou "apk" (o APK instalado, com.dashzon.app; gere com npm run apk -- -Http).
+  app: env.DASHZON_TESTE_APP === "apk" ? "apk" : "expo"
 };

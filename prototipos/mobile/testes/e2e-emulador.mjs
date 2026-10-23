@@ -5,6 +5,7 @@
 // Pré-requisitos (o testes/emulador.ps1 prepara tudo):
 //   emulador ligado, adb reverse das portas 8081 (Metro) e da instância de
 //   teste, `npx expo start` no ar e uma instância de teste NÃO configurada.
+//   Com DASHZON_TESTE_APP=apk abre o APK instalado (sem Metro nem Expo Go).
 //   node testes/e2e-emulador.mjs
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -19,6 +20,7 @@ const adb = (...args) => execFileSync(ADB, args, { encoding: "utf8", maxBuffer: 
 const porta = new URL(P.api).port;
 // No emulador o app fala com 127.0.0.1, que o adb reverse leva à instância.
 const SERVIDOR = `http://127.0.0.1:${porta}`;
+const APK = P.app === "apk";
 
 // 1. Instância de teste não configurada: o teste faz o setup.
 const status = await (await fetch(`${P.api}/api/status`)).json();
@@ -101,10 +103,15 @@ async function passo(nome, fn) {
 }
 
 // 2. Abre o app do zero (sem servidor guardado).
-adb("shell", "pm", "clear", "host.exp.exponent");
-adb("reverse", "tcp:8081", "tcp:8081");
 adb("reverse", `tcp:${porta}`, `tcp:${porta}`);
-adb("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "exp://127.0.0.1:8081");
+if (APK) {
+  adb("shell", "pm", "clear", "com.dashzon.app");
+  adb("shell", "am", "start", "-n", "com.dashzon.app/.MainActivity");
+} else {
+  adb("shell", "pm", "clear", "host.exp.exponent");
+  adb("reverse", "tcp:8081", "tcp:8081");
+  adb("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "exp://127.0.0.1:8081");
+}
 
 await passo("abre na tela de entrar (primeiro uso, sem servidor)", async () => {
   // Depois do pm clear o Expo Go mostra, uma vez, o aviso e o próprio menu de
@@ -153,14 +160,16 @@ await passo("lançar com o teclado do celular ('123,45') e a data de hoje", asyn
   const iso = adb("shell", "date", "+%Y-%m-%d").trim();
   if (!r || r.valor !== 123.45 || r.categoria !== "Moradia" || r.data !== iso) throw new Error(`no banco: ${JSON.stringify(r)}`);
 });
-await passo("ajustes: lembretes explicam o Expo Go; tema Floresta noite salvo na conta", async () => {
+await passo(APK ? "ajustes: lembrete diário disponível; tema Floresta noite salvo na conta" : "ajustes: lembretes explicam o Expo Go; tema Floresta noite salvo na conta", async () => {
   await ate(textoNaTela("Olá, Admin Teste"), "início");
   await fecharMenuDoExpo();
   const ajustes = await ate("Ajustes", "Ajustes");
   tocar(ajustes, -Math.floor(ajustes.larg / 2) + 12); // pela borda esquerda: a direita fica sob o botão do Expo Go
   tocar(await ate((n) => n.rotulo.startsWith("Floresta noite."), "tema Floresta noite"));
   await espera(1500);
-  await rolarAte(textoNaTela("precisam do app instalado"), "aviso dos lembretes no Expo Go");
+  // No APK as notificações existem: aparece o interruptor; no Expo Go, o aviso.
+  if (APK) await rolarAte("Lembrete diário para lançar", "interruptor do lembrete");
+  else await rolarAte(textoNaTela("precisam do app instalado"), "aviso dos lembretes no Expo Go");
   const pref = (await apiTeste("/api/status")).usuario.preferencias.tema;
   if (pref !== "floresta_noite") throw new Error(`tema na conta: ${pref}`);
   print("ajustes");
