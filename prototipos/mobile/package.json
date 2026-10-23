@@ -7,6 +7,7 @@
     "@expo/metro-runtime": "~58.0.15",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~58.0.17",
+    "expo-build-properties": "~58.0.11",
     "expo-notifications": "~58.1.6",
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
@@ -26,7 +27,8 @@
     "teste:unidade": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test testes/unidade.test.mjs",
     "teste:web": "node testes/e2e-web.mjs",
     "teste:servir": "node testes/servir-web.mjs",
-    "teste:emulador": "powershell -ExecutionPolicy Bypass -File testes/emulador.ps1"
+    "teste:emulador": "powershell -ExecutionPolicy Bypass -File testes/emulador.ps1",
+    "apk": "powershell -ExecutionPolicy Bypass -File apk.ps1"
   },
   "private": true
 }

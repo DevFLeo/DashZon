@@ -10,6 +10,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.dashzon.app",
       "adaptiveIcon": {
         "backgroundColor": "#2d6a4f",
         "foregroundImage": "./assets/android-icon-foreground.png",

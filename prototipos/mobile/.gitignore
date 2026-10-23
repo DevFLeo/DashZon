@@ -7,6 +7,8 @@ node_modules/
 .expo/
 dist/
 dist-android/
+# APKs gerados pelo apk.ps1
+/apk/
 
 # Prints e resultados dos testes
 testes/resultados/
