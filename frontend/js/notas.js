@@ -60,8 +60,16 @@ const Notas = (() => {
     const pode = !!modulo.editavel && App.usuario()?.perfil !== "visualizador";
     const exemplos = pode ? modulo.exemplos || 0 : 0;
     $("notas-excluir-modulo").hidden = !pode;
+    ["notas-nova", "notas-vazia-nova", "notas-btn-importar", "notas-btn-importar-pasta", "nota-excluir"]
+      .forEach((id) => { $(id).hidden = soLeitura(); });
     $("notas-apagar-exemplos").hidden = !exemplos;
     $("notas-apagar-exemplos").textContent = `Apagar notas de exemplo (${exemplos})`;
+  }
+
+  // Só lê: o visualizador (cada tecla viraria um pedido de aprovação) e quem o
+  // dono não liberou para lançar (`pode_lancar`; o servidor também recusa).
+  function soLeitura() {
+    return App.usuario()?.perfil === "visualizador" || !modulo?.pode_lancar;
   }
 
   async function apagarExemplos() {
@@ -177,8 +185,7 @@ Isso não pode ser desfeito. Para só tirar do seu menu, use Configurações > M
     $("nota-pasta").value = pastaDe(n);
     $("nota-editor").value = conteudoDe(n);
     status("salvo");
-    // Visualizador: só lê (cada tecla viraria um pedido de aprovação).
-    const soLer = App.usuario()?.perfil === "visualizador";
+    const soLer = soLeitura();
     ["nota-titulo", "nota-pasta", "nota-editor"].forEach((id) => { $(id).readOnly = soLer; });
     if (soLer) $("nota-status").textContent = "Somente leitura";
     aplicarModo(modo());
@@ -215,7 +222,7 @@ Isso não pode ser desfeito. Para só tirar do seu menu, use Configurações > M
 
   // As edições são gravadas sozinhas, 700 ms depois da última tecla (só os campos que mudaram).
   function agendar(campo, valor) {
-    if (App.usuario()?.perfil === "visualizador") return;
+    if (soLeitura()) return;
     if (!pendente || pendente.id !== atualId) pendente = { id: atualId, mudancas: {} };
     pendente.mudancas[campo] = valor;
     const n = nota(atualId);
@@ -421,6 +428,7 @@ Isso não pode ser desfeito. Para só tirar do seu menu, use Configurações > M
     const v = alvo.schema.visao;
     const res = await Api.get(`/api/modulos/${slugNotas}/registros?q=${encodeURIComponent(t)}&limite=1000`);
     let n = res.result.find((x) => Util.semAcento(String(x[v.titulo] ?? "").trim()) === Util.semAcento(t));
+    if (!n && !alvo.pode_lancar) { Util.aviso(`Ainda não há nota "${t}", e só quem criou ${alvo.nome} cria notas nele.`, "erro"); return; }
     if (!n) {
       const dados = { [v.titulo]: t, [v.conteudo]: `# ${t}\n\n` };
       if (v.pasta && pasta) dados[v.pasta] = pasta;

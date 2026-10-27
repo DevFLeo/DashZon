@@ -112,7 +112,7 @@ const Modulos = (() => {
     if (c.tipo === "booleano") {
       const rotulo = `${c.nome}: ${Util.fmtValor(campos().find((x) => x.id === atual.schema.rotulo) || c, r[atual.schema.rotulo])}`;
       return `<td class="cel-check"><label class="marcar"><input type="checkbox" data-marcar="${r.id}" data-campo="${c.id}" ${v ? "checked" : ""}
-        aria-label="${esc(rotulo)}"></label></td>`;
+        ${atual.pode_lancar ? "" : "disabled"} aria-label="${esc(rotulo)}"></label></td>`;
     }
     if (c.tipo === "movimento" && v) return `<td><span class="chip chip-${v}">${Util.fmtValor(c, v)}</span></td>`;
     if (c.tipo === "selecao" && v) return `<td><span class="chip">${esc(v)}</span></td>`;
@@ -127,7 +127,7 @@ const Modulos = (() => {
       const filtrando = busca || Object.values(filtros).some(Boolean);
       alvo.innerHTML = `<div class="empty-state"><h2>Nenhum registro</h2>
         <div>${filtrando ? "Nada encontrado com essa busca ou filtro." : "Comece cadastrando o primeiro."}</div>
-        ${filtrando ? "" : '<button class="btn btn-primary" data-novo>+ Novo registro</button>'}</div>`;
+        ${filtrando || !atual.pode_lancar ? "" : '<button class="btn btn-primary" data-novo>+ Novo registro</button>'}</div>`;
       alvo.querySelector("[data-novo]")?.addEventListener("click", () => abrirFormulario());
       return;
     }
@@ -140,8 +140,8 @@ const Modulos = (() => {
     const linhas = registros.map((r) => `<tr>${cols.map((c) => celula(c, r)).join("")}
       <td><div class="row-actions">
         ${nota ? `<button class="btn btn-sm" data-nota-de="${r.id}" title="Abrir a anotação de ${esc(String(r[atual.schema.nota.titulo] ?? ""))}">Nota</button>` : ""}
-        <button class="btn btn-sm" data-editar="${r.id}">Editar</button>
-        <button class="btn btn-sm btn-danger" data-excluir="${r.id}">Excluir</button>
+        ${atual.pode_lancar ? `<button class="btn btn-sm" data-editar="${r.id}">Editar</button>
+        <button class="btn btn-sm btn-danger" data-excluir="${r.id}">Excluir</button>` : ""}
       </div></td></tr>`).join("");
 
     const faltam = totalRegistros - registros.length;
@@ -316,9 +316,11 @@ const Modulos = (() => {
   }
 
   // Dono e quem vê (relatório, problema 2): estrutura, compartilhar e excluir
-  // só para o dono ou um admin.
+  // só para o dono ou um admin. Lançar registros: `pode_lancar` (o dono libera
+  // em Compartilhar; o servidor também confere).
   function mostrarPermissoes() {
     ["btn-estrutura", "btn-excluir-modulo", "btn-compartilhar-modulo"].forEach((id) => { $(id).hidden = !atual.editavel; });
+    $("btn-novo-registro").hidden = !atual.pode_lancar;
     const quem = Compartilhar.descrever(atual.visibilidade === "todos" ? "equipe" : atual.visibilidade, atual.equipes);
     const meu = atual.dono_id === App.usuario()?.id;
     $("mod-selo").innerHTML = `${Util.icone(atual.visibilidade === "privado" ? "cadeado" : "equipe")} ${esc(quem)}${meu || !atual.dono_nome ? "" : ` · de ${esc(atual.dono_nome)}`}`;
@@ -340,7 +342,7 @@ const Modulos = (() => {
 
   // Dados de exemplo do template (marcados na instalação): um botão apaga só eles.
   function mostrarBotaoExemplos() {
-    $("btn-apagar-exemplos").hidden = !atual.exemplos;
+    $("btn-apagar-exemplos").hidden = !atual.exemplos || !atual.editavel;
     $("btn-apagar-exemplos").textContent = `Apagar dados de exemplo (${atual.exemplos || 0})`;
   }
 
@@ -463,6 +465,7 @@ const Modulos = (() => {
   function lancar(slug, depois) {
     const modulo = App.modulo(slug);
     if (!modulo) { Util.aviso("Módulo não encontrado", "erro"); return; }
+    if (!modulo.pode_lancar) { Util.aviso(`Só quem criou ${modulo.nome} lança registros nele.`, "erro"); return; }
     abrirFormulario(null, modulo, depois);
   }
 

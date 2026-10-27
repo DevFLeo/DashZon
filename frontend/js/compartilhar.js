@@ -26,6 +26,9 @@ const Compartilhar = (() => {
       ? equipes.map((e) => `<label class="field-check"><input type="checkbox" value="${e.id}" ${marcadas.includes(e.id) ? "checked" : ""}> ${esc(e.nome)}${e.empresa ? ' <span class="chip">Empresa</span>' : ""}</label>`).join("")
       : '<span class="hint">Você não está em nenhuma equipe.</span>';
     document.querySelectorAll('input[name="comp-visibilidade"]').forEach((r) => { r.checked = r.value === atual.visibilidade; });
+    // Módulo: quem lança registros (pentest de 26/10/2026, achado 1).
+    $("comp-lancamento-wrap").hidden = tipo !== "modulo";
+    document.querySelectorAll('input[name="comp-lancamento"]').forEach((r) => { r.checked = r.value === (atual.lancamento || "dono"); });
     atualizar();
 
     const admin = App.usuario()?.admin;
@@ -41,6 +44,8 @@ const Compartilhar = (() => {
 
   function atualizar() {
     const vis = document.querySelector('input[name="comp-visibilidade"]:checked')?.value;
+    // Privado: só o dono vê, então a escolha de quem lança não faz diferença.
+    $("comp-lancamento-wrap").disabled = vis === "privado";
     $("comp-equipes").classList.toggle("desligada", vis !== "equipes");
     $("comp-equipes").querySelectorAll("input").forEach((c) => { c.disabled = vis !== "equipes"; });
   }
@@ -49,6 +54,7 @@ const Compartilhar = (() => {
     ev.preventDefault();
     const corpo = { visibilidade: document.querySelector('input[name="comp-visibilidade"]:checked')?.value };
     if (corpo.visibilidade === "equipes") corpo.equipes = [...$("comp-equipes").querySelectorAll("input:checked")].map((c) => Number(c.value));
+    if (!$("comp-lancamento-wrap").hidden) corpo.lancamento = document.querySelector('input[name="comp-lancamento"]:checked')?.value;
     if (!$("comp-dono-wrap").hidden) corpo.dono_id = Number($("comp-dono").value);
     try {
       await salvar(corpo);

@@ -215,7 +215,9 @@ const Admin = (() => {
     dashboard_alterado: "Alterou dashboard", dashboard_excluido: "Excluiu dashboard", modulo_criado: "Criou módulo",
     modulo_alterado: "Alterou módulo", modulo_compartilhado: "Compartilhou módulo", modulo_excluido: "Excluiu módulo",
     exemplos_apagados: "Apagou dados de exemplo", template_instalado: "Instalou template", pedido_criado: "Pediu aprovação",
-    pedido_aprovado: "Aprovou pedido", pedido_negado: "Negou pedido"
+    pedido_aprovado: "Aprovou pedido", pedido_negado: "Negou pedido",
+    // Registros (pentest de 26/10/2026, achado 2)
+    registro_criado: "Criou registro", registro_alterado: "Alterou registro", registro_excluido: "Excluiu registro"
   };
   const ACESSOS = new Set(["login_ok", "login_falhou", "logout", "bloqueio", "desbloqueio", "senha_atual_errada", "link_invalido",
     "pedido_link", "senha_trocada", "senha_redefinida", "sessoes_encerradas", "origem_recusada", "excesso_requisicoes"]);
