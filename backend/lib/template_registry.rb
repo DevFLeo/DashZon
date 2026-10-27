@@ -139,9 +139,11 @@ module TemplateRegistry
         mapa[m["slug"]] = slug
         ordem += 1
         schema = ModuleSchema.schema_de(m)
+        # Módulo novo: só o dono (e os admins) lançam registros, até ele liberar
+        # em "Compartilhar" (Database::COLUNAS_MODULO, `lancamento`).
         modulo_id = Database.insert(
-          "INSERT INTO modulos (slug, nome, descricao, icone, schema, template_origem, ordem, criado_em, dono_id, visibilidade)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO modulos (slug, nome, descricao, icone, schema, template_origem, ordem, criado_em, dono_id, visibilidade, lancamento)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'dono')",
           [slug, nome, m["descricao"], m["icone"], JSON.generate(schema), tpl["id"], ordem, now, dono_id, vis_modulo]
         )
         next unless com_exemplos

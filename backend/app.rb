@@ -111,8 +111,12 @@ helpers do
 
   # Toda rota espera um objeto: um array ou valor solto viraria TypeError (500)
   # no primeiro body_json["campo"].
+  # Corpo com bytes que não são UTF-8 (ex.: texto em CP1252) responde 400: antes
+  # o texto inválido seguia adiante e estourava como 500 (pentest, achado 3).
   def body_json
-    raw = request.body.read
+    raw = request.body.read.dup.force_encoding(Encoding::UTF_8)
+    halt json({ error: "O corpo deve estar em UTF-8" }, 400) unless raw.valid_encoding?
+
     d = raw.empty? ? {} : JSON.parse(raw)
     halt json({ error: "O corpo deve ser um objeto JSON" }, 400) unless d.is_a?(Hash)
 
@@ -233,13 +237,24 @@ helpers do
     m
   end
 
+  # Módulo em que a pessoa pode criar, alterar e excluir registros. O servidor
+  # confere sempre: a tela só esconde os botões (pentest, achado 1).
+  def modulo_lancavel!(slug)
+    m = modulo!(slug)
+    halt json({ error: "Os registros deste módulo só podem ser alterados por quem o criou (ou um administrador)" }, 403) unless acesso.pode_lancar?(m)
+
+    m
+  end
+
   def modulo_json(m, totais = nil, exemplos = nil)
     dono = m["dono_id"] && Usuarios.por_id(m["dono_id"])
     m.merge(
       "visibilidade" => m["visibilidade"] || "todos",
       "equipes" => nomes_das_equipes(acesso.equipes_dos_modulos[m["id"]]),
       "dono_nome" => dono && (dono["nome"].to_s.empty? ? dono["login"] : dono["nome"]),
-      "editavel" => acesso.modulo_editavel?(m)
+      "editavel" => acesso.modulo_editavel?(m),
+      "lancamento" => m["lancamento"] || "todos",
+      "pode_lancar" => acesso.pode_lancar?(m)
     ).merge(totais ? { "total" => totais[m["id"]] || 0 } : {}).merge(exemplos ? { "exemplos" => exemplos[m["id"]] || 0 } : {})
   end
 
@@ -435,6 +450,8 @@ end
 # Toda escrita que deu certo em usuários, equipes, dashboards, módulos,
 # templates, regras e pedidos de aprovação fica registrada com quem fez, o
 # alvo e um resumo do pedido (nunca senha, documento ou dados de registros).
+# Registros (pentest de 26/10/2026, achado 2): criar, alterar e excluir ficam
+# registrados com o módulo e o número do registro, sem os valores.
 # O `before` guarda o nome do alvo enquanto ele existe (para exclusões).
 AUDITORIA = [
   ["POST", %r{\A/api/admin/usuarios\z}, "usuario_criado", nil],
@@ -462,9 +479,17 @@ AUDITORIA = [
   ["POST", %r{\A/api/templates/instalar\z}, "template_instalado", nil],
   ["POST", %r{\A/api/solicitacoes/(\d+)/aprovar\z}, "pedido_aprovado", :pedido],
   ["POST", %r{\A/api/solicitacoes/(\d+)/negar\z}, "pedido_negado", :pedido],
-  # Visualizador: o registro não muda; vira pedido (resposta 202).
-  [%w[POST PUT PATCH DELETE], %r{\A/api/modulos/([^/]+)/registros(?:/\d+)?\z}, "pedido_criado", :modulo]
+  # O tipo sai da resposta (ver TIPO_REGISTRO): 202 é pedido do visualizador.
+  [%w[POST PUT PATCH DELETE], %r{\A/api/modulos/([^/]+)/registros(?:/\d+)?\z}, "registro", :modulo]
 ].freeze
+
+TIPO_REGISTRO = { "POST" => "registro_criado", "PUT" => "registro_alterado",
+                  "PATCH" => "registro_alterado", "DELETE" => "registro_excluido" }.freeze
+
+# O caderno de notas grava sozinho enquanto a pessoa digita (PATCH a cada
+# pausa): alterações do mesmo registro pela mesma pessoa dentro desta janela
+# viram um evento só, senão o diário enche com uma nota escrita.
+JANELA_REGISTRO_ALTERADO = 10 * 60
 
 helpers do
   def regra_de_auditoria
@@ -472,7 +497,10 @@ helpers do
       next unless Array(metodo).include?(request.request_method)
 
       m = caminho.match(request.path_info)
-      return [tipo, alvo, m[1]] if m
+      # O path_info chega como texto binário, que o SQLite compara como BLOB:
+      # sem converter, Database.modulo(slug) não achava o módulo e o diário
+      # saía sem o nome dele.
+      return [tipo, alvo, Seguranca.texto(m[1])] if m
     end
     nil
   end
@@ -493,11 +521,16 @@ helpers do
     end
   end
 
+  def alteracao_recente?(detalhe)
+    !Database.row("SELECT 1 FROM eventos_seguranca WHERE tipo = 'registro_alterado' AND usuario_id = ? AND detalhe = ? AND quando > ?",
+                  [usuario_atual["id"], Seguranca.texto(detalhe), Time.now.to_i - JANELA_REGISTRO_ALTERADO]).nil?
+  end
+
   # Resumo do pedido: nomes e escolhas; senha e documento nunca entram.
   def resumo_da_auditoria(d)
     return "" unless d.is_a?(Hash)
 
-    partes = %w[nome login perfil visibilidade template_id].filter_map { |k| "#{k}: #{d[k]}" unless d[k].to_s.empty? }
+    partes = %w[nome login perfil visibilidade lancamento template_id].filter_map { |k| "#{k}: #{d[k]}" unless d[k].to_s.empty? }
     partes << "ativo: #{d['ativo']}" if d.key?("ativo")
     if d["equipes"].is_a?(Array)
       nomes = Database.rows("SELECT id, nome FROM equipes").to_h { |e| [e["id"], e["nome"]] }
@@ -506,7 +539,7 @@ helpers do
     partes << "membros: #{d['usuario_ids'].size}" if d["usuario_ids"].is_a?(Array)
     partes << "dono: #{Usuarios.por_id(d['dono_id'])&.dig('login')}" if d["dono_id"]
     partes << "fixo: #{d['fixo']}" if d.key?("fixo")
-    outros = d.keys - %w[nome login perfil visibilidade template_id ativo equipes usuario_ids dono_id fixo senha documento motivo]
+    outros = d.keys - %w[nome login perfil visibilidade lancamento template_id ativo equipes usuario_ids dono_id fixo senha documento motivo]
     partes << "campos: #{outros.first(8).join(', ')}" unless outros.empty?
     partes << "motivo: #{d['motivo']}" unless d["motivo"].to_s.strip.empty?
     partes.join(" · ")
@@ -521,11 +554,22 @@ end
 after "/api/*" do
   tipo, = @auditoria
   next unless tipo && usuario_atual
-  next if tipo == "pedido_criado" && response.status != 202
   next unless response.status.between?(200, 299)
 
-  # @auditoria_extra: o que a rota fez além do pedido (ex.: módulos excluídos junto).
-  detalhe = [@auditoria_alvo, resumo_da_auditoria(@corpo_auditoria), @auditoria_extra].reject { |s| s.to_s.empty? }.join(" · ")
+  if tipo == "registro"
+    if response.status == 202
+      tipo = "pedido_criado"
+      detalhe = @auditoria_alvo
+    else
+      tipo = TIPO_REGISTRO[request.request_method]
+      reg = @registro_auditoria || request.path_info[%r{/registros/(\d+)\z}, 1]
+      detalhe = [@auditoria_alvo, "registro ##{reg}"].compact.join(" · ")
+      next if tipo == "registro_alterado" && alteracao_recente?(detalhe)
+    end
+  else
+    # @auditoria_extra: o que a rota fez além do pedido (ex.: módulos excluídos junto).
+    detalhe = [@auditoria_alvo, resumo_da_auditoria(@corpo_auditoria), @auditoria_extra].reject { |s| s.to_s.empty? }.join(" · ")
+  end
   Seguranca.registrar!(tipo, ip: request.ip, usuario_id: usuario_atual["id"], detalhe: detalhe)
 rescue StandardError => e
   warn "[DashZon] diário de alterações: #{e.class}: #{e.message}" # o diário nunca derruba a resposta
@@ -664,6 +708,9 @@ put "/api/modulos/:slug/compartilhar" do
   halt json({ error: "Visibilidade inválida (use todos, privado ou equipes)" }, 422) unless Acesso::VIS_MODULO.include?(vis)
 
   ids = vis == "equipes" ? equipes_para_compartilhar!(d["equipes"]) : []
+  # Quem lança registros (Acesso#pode_lancar?); sem a chave, fica como está.
+  lancamento = d.key?("lancamento") ? d["lancamento"].to_s : (m["lancamento"] || "todos")
+  halt json({ error: "Lançamento inválido (use dono ou todos)" }, 422) unless Acesso::LANCAMENTO.include?(lancamento)
   dono = m["dono_id"]
   if d.key?("dono_id") && d["dono_id"].to_i != m["dono_id"]
     halt json({ error: "Só um administrador transfere módulos" }, 403) unless acesso.admin?
@@ -672,7 +719,7 @@ put "/api/modulos/:slug/compartilhar" do
     dono = alvo["id"]
   end
   Database.transaction do
-    Database.execute("UPDATE modulos SET visibilidade = ?, dono_id = ? WHERE id = ?", [vis, dono, m["id"]])
+    Database.execute("UPDATE modulos SET visibilidade = ?, dono_id = ?, lancamento = ? WHERE id = ?", [vis, dono, lancamento, m["id"]])
     gravar_equipes_do_modulo!(m["id"], ids)
   end
   json ok: true
@@ -681,7 +728,7 @@ end
 # Apaga só os registros de exemplo do módulo (os que vieram com o template).
 delete "/api/modulos/:slug/exemplos" do
   nao_visualizador!
-  m = modulo!(params[:slug])
+  m = modulo_editavel!(params[:slug])
   json ok: true, apagados: Database.apagar_exemplos!(m["id"])
 end
 
@@ -786,7 +833,7 @@ end
 # Alteração parcial: só os campos enviados mudam; o resto vem do banco. É o que
 # o checklist usa para marcar um campo sim/não sem reenviar o registro inteiro.
 patch "/api/modulos/:slug/registros/:id" do
-  m = modulo!(params[:slug])
+  m = modulo_lancavel!(params[:slug])
   id = params[:id].to_i
   atual = Database.registro(m, id) || halt(json({ error: "Registro não encontrado" }, 404))
   ids = m["schema"]["campos"].map { |c| c["id"] }
@@ -800,15 +847,16 @@ patch "/api/modulos/:slug/registros/:id" do
 end
 
 post "/api/modulos/:slug/registros" do
-  m = modulo!(params[:slug])
+  m = modulo_lancavel!(params[:slug])
   dados = ModuleSchema.coerce_registro!(m["schema"], body_json)
   pedir_aprovacao!(m, "criar", dados: dados)
   id = Database.inserir_registro(m, dados)
+  @registro_auditoria = id # o caminho não tem o id do registro novo
   json Database.registro(m, id), 201
 end
 
 put "/api/modulos/:slug/registros/:id" do
-  m = modulo!(params[:slug])
+  m = modulo_lancavel!(params[:slug])
   id = params[:id].to_i
   halt json({ error: "Registro não encontrado" }, 404) unless Database.registro(m, id)
 
@@ -819,7 +867,7 @@ put "/api/modulos/:slug/registros/:id" do
 end
 
 delete "/api/modulos/:slug/registros/:id" do
-  m = modulo!(params[:slug])
+  m = modulo_lancavel!(params[:slug])
   halt json({ error: "Registro não encontrado" }, 404) unless Database.registro(m, params[:id].to_i)
   pedir_aprovacao!(m, "excluir", registro_id: params[:id].to_i)
   Database.remover_registro(m, params[:id].to_i)
@@ -921,6 +969,9 @@ def exemplos_do_dashboard(dash)
     m = Database.modulo(s)
     n = m && exemplos[m["id"]].to_i
     next unless n&.positive?
+    # Só apaga exemplos de módulo que a pessoa pode alterar, como em
+    # DELETE /api/modulos/:slug/exemplos (pentest de 26/10/2026, achado 1).
+    next unless acesso.modulo_editavel?(m)
 
     # Outros dashboards com cards neste módulo também perdem os exemplos
     # (relatório, problema 8): só os nomes que a pessoa vê; o resto é contado.

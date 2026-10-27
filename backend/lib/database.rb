@@ -325,9 +325,15 @@ module Database
 
   # Módulos ganharam dono e visibilidade (todos, privado, equipes). Os que já
   # existiam ficam "todos", do primeiro administrador: ninguém perde acesso.
+  # `lancamento` (pentest de 26/10/2026, achado 1): quem cria, altera e exclui
+  # registros além de quem altera o módulo. "todos" = todos que veem; "dono" =
+  # só o dono e os administradores. Os de tabela que já existiam continuam
+  # "todos" (eram colaborativos); os de notas viram "dono", que é o que a tela
+  # já mostrava (notas só leitura para os outros).
   COLUNAS_MODULO = {
     "dono_id" => "INTEGER",
-    "visibilidade" => "TEXT NOT NULL DEFAULT 'todos'"
+    "visibilidade" => "TEXT NOT NULL DEFAULT 'todos'",
+    "lancamento" => "TEXT NOT NULL DEFAULT 'todos'"
   }.freeze
 
   def self.migrar_modulos!
@@ -341,6 +347,15 @@ module Database
       UPDATE modulos SET dono_id = (SELECT MIN(id) FROM usuarios WHERE perfil = 'admin' AND ativo = 1)
       WHERE dono_id IS NULL OR dono_id NOT IN (SELECT id FROM usuarios)
     SQL
+    notas_so_do_dono! unless existentes.include?("lancamento")
+  end
+
+  def self.notas_so_do_dono!
+    modulos.each do |m|
+      next unless m["schema"].dig("visao", "tipo") == "notas"
+
+      connection.execute("UPDATE modulos SET lancamento = 'dono' WHERE id = ?", [m["id"]])
+    end
   end
 
   def self.modulo_por_id(id)

@@ -19,11 +19,14 @@ require_relative "database"
 #   (o card já mostra esses dados; lançar por ele precisa do módulo).
 # Alterar (nome, cards, estrutura, compartilhamento, excluir): o dono, ou um
 # administrador quando não é privado.
+# Lançar registros num módulo (`lancamento`): quem o altera, ou todos que o
+# veem quando está "todos" (pentest de 26/10/2026, achado 1).
 # Perfil "visualizador": só vê. Criar, alterar ou excluir registros vira um
 # pedido para aprovação (lib/solicitacoes.rb); não cria dashboards nem módulos.
 class Acesso
   VIS_DASHBOARD = %w[privado equipe equipes].freeze
   VIS_MODULO = %w[todos privado equipes].freeze
+  LANCAMENTO = %w[dono todos].freeze
 
   attr_reader :usuario
 
@@ -97,6 +100,13 @@ class Acesso
 
   def modulo_editavel?(m)
     m["dono_id"] == id || (admin? && m["visibilidade"] != "privado")
+  end
+
+  # Criar, alterar e excluir registros de um módulo que a pessoa vê: quem
+  # altera o módulo, ou todos quando o dono liberou (`lancamento` = "todos").
+  # O visualizador passa por aqui antes de virar pedido de aprovação.
+  def pode_lancar?(m)
+    modulo_editavel?(m) || m["lancamento"] == "todos"
   end
 
   def modulos_visiveis
