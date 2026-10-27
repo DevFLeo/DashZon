@@ -126,7 +126,7 @@ Docker Compose (`.env`): `DASHZON_DOMINIO` vira `DASHZON_HOSTS` e o domínio do 
 | Tabela | Colunas | Observações |
 |---|---|---|
 | `config` | `id` (=1), `org_name`, `moeda`, `configured_at` | Uma linha |
-| `modulos` | `id`, `slug` UNIQUE, `nome`, `descricao`, `icone`, `schema` (JSON: `campos`, `rotulo`, `resumo`, `slots`), `template_origem`, `ordem`, `criado_em`, `dono_id`, `visibilidade` (`todos`/`privado`/`equipes`) | `dono_id` e `visibilidade` por `ALTER TABLE` (`migrar_modulos!`): os que já existiam viram `todos` do primeiro admin. Nome único sem diferenciar maiúsculas (comparado em Ruby, por causa dos acentos) |
+| `modulos` | `id`, `slug` UNIQUE, `nome`, `descricao`, `icone`, `schema` (JSON: `campos`, `rotulo`, `resumo`, `slots`), `template_origem`, `ordem`, `criado_em`, `dono_id`, `visibilidade` (`todos`/`privado`/`equipes`), `lancamento` (`dono`/`todos`) | `dono_id`, `visibilidade` e `lancamento` por `ALTER TABLE` (`migrar_modulos!`): os que já existiam viram `todos` do primeiro admin. `lancamento` (§7.0): módulo novo nasce `dono`; na criação da coluna, os de tabela ficam `todos` e os de notas viram `dono` (`notas_so_do_dono!`). Nome único sem diferenciar maiúsculas (comparado em Ruby, por causa dos acentos) |
 | `registros` | `id` INTEGER PK, `modulo_id` → modulos ON DELETE CASCADE, `dados` (array JSON compacto), `criado_em` INTEGER (epoch), `atualizado_em` INTEGER NULL | Índice `idx_registros_modulo` |
 | `dashboards` | `id`, `nome`, `criado_em`, `atualizado_em`, `dono_id`, `visibilidade` (`privado`/`equipe`), `fixo` (0/1) | Colunas novas por `ALTER TABLE` (`migrar_dashboards!`); os que já existiam viram `equipe` do primeiro admin |
 | `widgets` | `id`, `dashboard_id` → dashboards CASCADE, `titulo`, `tipo` (kpi/bar/line/table/pie/calendario), `modulo_slug`, `config` (JSON), `x`, `y`, `w`, `h` | Índice `idx_widgets_dashboard`; grade de 12 colunas |
@@ -222,7 +222,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | 422 | Validação (`ModuleSchema::Error`, `Usuarios::Erro`) |
 | 413 | Corpo acima de 64 MB (`LimiteCorpo`, pelo `Content-Length`) |
 | 429 | Limite de tentativas (login, links e a senha atual em `PUT /api/eu/senha`) |
-| 400 | JSON inválido, ou corpo que não é um objeto |
+| 400 | JSON inválido, corpo que não é um objeto ou que não está em UTF-8 |
 | 500 | Motor ou migração (com a causa); erro inesperado responde "Erro interno" e o detalhe vai só para o log |
 | 502 | SMTP |
 
@@ -243,7 +243,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | `GET/PUT /api/eu`, `PUT /api/eu/senha`, `PUT /api/eu/preferencias`, `POST /api/eu/sair-outros`, `POST /api/eu/verificar-email` | Configurações da pessoa. Preferências: `tema`, `fonte`, `tamanho_fonte`, `pagina_inicial`, `privacidade`, `modulos_ocultos` (slugs desligados no menu dela, até 100) e `ordem_menu` (`{dashboards: [ids], modulos: [slugs]}`, até 500 cada: a ordem arrastada na barra lateral) |
 | `GET/PUT /api/admin/ajustes`, `PUT /api/admin/config` | Regras de cadastro; organização e moeda |
 | `GET /api/equipes` | Equipes que a pessoa pode escolher ao compartilhar |
-| `PUT /api/modulos/:slug/compartilhar` | `visibilidade` (todos/privado/equipes), `equipes`, `dono_id` (só admin) |
+| `PUT /api/modulos/:slug/compartilhar` | `visibilidade` (todos/privado/equipes), `equipes`, `lancamento` (dono/todos; sem a chave, fica como está), `dono_id` (só admin) |
 | `GET /api/solicitacoes`, `GET /api/solicitacoes/contagem`, `POST /api/solicitacoes/:id/aprovar`, `.../negar` (`motivo`) | Pedidos do perfil visualizador: os que a pessoa decide e os dela |
 | `GET /api/admin/seguranca`, `POST /api/admin/seguranca/desbloquear` | Checagem da instalação, bloqueios em vigor e os últimos 300 eventos (acessos e alterações); desbloqueio de um IP (`ip`) ou conta (`conta` = hash) |
 | `GET/POST /api/admin/usuarios`, `PUT/DELETE /api/admin/usuarios/:id`, `POST .../:id/ativo`, `.../senha-temporaria`, `.../link-redefinicao`, `.../email-verificado`, `.../enviar-verificacao` | Gestão de usuários. A lista traz `equipes` de cada um (`[]` = nenhuma); `POST`/`PUT` aceitam `equipes` (ids; define exatamente em quais está, na mesma transação) |
@@ -255,7 +255,7 @@ Formato JSON (`application/json;charset=utf-8`, também nos erros dos middleware
 | `GET /api/modulos/:slug/registros?q=&f[campo]=&inicio=&limite=` | Busca (`search`), ordenada pela `ordenacao` do módulo (`ModuleSchema.ordenar_registros`) e paginada (`limite` padrão 200, máx. 1000; `count` = total). O cache guarda só a página |
 | `GET /api/modulos/:slug/registros/:id` | Um registro lido do banco (base do formulário de edição: a lista vem do motor) |
 | `PATCH /api/modulos/:slug/registros/:id` | Altera só os campos enviados; o resto vem do banco, e o registro inteiro passa por `coerce_registro!` (checklist) |
-| `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD validado por `coerce_registro!` |
+| `POST/PUT/DELETE /api/modulos/:slug/registros[/:id]` | CRUD validado por `coerce_registro!`. Escrita (com o `PATCH`) exige `pode_lancar` (§7.0): senão 403 |
 | `GET/POST /api/dashboards`, `GET/PUT/DELETE /api/dashboards/:id` | Dashboards **por usuário**: a lista traz os seus e os da equipe (com `dono_nome`, `fixo`, `editavel`); o privado de outra pessoa responde 404; `PUT` parcial (`nome`, `fixo`, `visibilidade`; `dono_id` só admin); alterar exige ser o dono ou admin num da equipe (403). O `GET :id` traz os widgets |
 | `GET /api/dashboards/:id/exemplos`, `DELETE /api/dashboards/:id?exemplos=1&modulos=1`, `DELETE /api/modulos/:slug/exemplos` | Dados de exemplo: quantos os módulos do dashboard ainda têm; excluir o dashboard levando só esses registros; apagar os exemplos de um módulo. `/api/modulos` e `GET /api/modulos/:slug` trazem `exemplos`. O `GET` também traz `modulos_do_dashboard` (os dos cards e os que o template instalou junto: mesmo horário, dono e template que declara um dashboard com esse nome), com `registros`, `exemplos`, `removivel` e `motivo`; `modulos=1` exclui os removíveis (que a pessoa pode alterar e que nenhum outro dashboard usa), com os registros, e o diário registra quais |
 | `POST /api/dashboards/:id/widgets`, `PUT/DELETE /api/widgets/:id`, `PUT /api/widgets/:id/layout` | Widgets (o `layout` altera só x/y/w/h) |
@@ -277,17 +277,19 @@ Regras num só lugar, um objeto por requisição (helper `acesso` no `app.rb`):
 | Todos | `equipe` (nome antigo mantido) | `todos` |
 | Além disso | | quem vê um dashboard vê os módulos dos cards dele |
 | Alterar | dono, ou admin quando não é privado | dono, ou admin quando não é privado (estrutura, compartilhar, excluir, apagar exemplos) |
+| Lançar registros | | quem altera o módulo; com `lancamento` = `todos`, também todos que o veem |
 
 - Novo dashboard e novo módulo nascem privados de quem criou; o setup cria os do template como "todos". Instalar um template só reaproveita módulo (de mesmo nome ou uma cópia "Nome (n)") que a pessoa vê **e** com o mesmo alcance do dashboard: privado reaproveita só módulo privado dela; para todos, só módulo de todos. Senão cria "Nome (2)", com os dados de exemplo. Assim um teste privado não grava nos dados de todos, e um dashboard para todos não expõe o módulo privado de ninguém.
 - Na janela "Novo dashboard", "Quem vê este dashboard?" fica no topo (um clique no template já instala), com "Só eu" marcado sempre que ela abre.
 - Quem não é admin só compartilha com as próprias equipes (`GET /api/equipes` lista as que pode usar). Excluir uma conta passa dashboards **e módulos** dela para quem excluiu.
-- `modulo!(slug)` responde 404 para módulo que a pessoa não vê; `modulo_editavel!` responde 403. A exportação leva só o visível.
+- `modulo!(slug)` responde 404 para módulo que a pessoa não vê; `modulo_editavel!` e `modulo_lancavel!` respondem 403. A exportação leva só o visível.
+- **Quem lança registros** (pentest de 26/10/2026, achado 1): criar, alterar e excluir registros é regra do servidor (`Acesso#pode_lancar?`, helper `modulo_lancavel!`), não só da tela. O dono escolhe em Compartilhar ("Só eu e os administradores" ou "Todos que veem o módulo"); a API traz `lancamento` e `pode_lancar` em cada módulo. Sem `pode_lancar`, a tabela esconde "Novo registro", "Editar", "Excluir" e trava o checklist; as notas ficam só leitura; os cards do dashboard perdem o "+" de lançar. Apagar exemplos (direto ou ao excluir um dashboard com `?exemplos=1`) só nos módulos que a pessoa altera.
 - **Perfil `visualizador`** (`Usuarios::PERFIS`): não cria dashboards, módulos nem instala templates (403). `POST/PUT/PATCH/DELETE` de registro valida os dados e responde **202** com `{pendente, mensagem}`, sem gravar: vira um pedido em `solicitacoes`. Decide o dono do módulo (se ativo e não visualizador) ou um admin: `POST /api/solicitacoes/:id/aprovar|negar`, que revalida e aplica na hora. No navegador: tela Aprovações (`js/aprovacoes.js`, `#/aprovacoes`) com o antes e o depois de cada campo; link no menu com o número de pedidos; notas só leitura para o visualizador.
 
 ### 7.1 Dashboards: dono, equipe e layout fixo
 
 - Cada dashboard tem **dono** (quem criou) e **visibilidade**: `privado` (só o dono vê, nem os administradores) ou `equipe` (todos veem). Novo nasce `privado`; o setup cria os do template como `equipe`; instalar um template depois cria os dele como `privado` de quem instalou (ou `equipe`, se pedido).
-- **Alterar** (nome, cards, layout, compartilhamento, excluir): o dono, ou um administrador quando é da equipe. Os demais só veem e lançam registros. Helpers `dashboard!` (ver; 404 se não pode) e `dashboard_editavel!` / `widget!(editar: true)` (403) no `app.rb`.
+- **Alterar** (nome, cards, layout, compartilhamento, excluir): o dono, ou um administrador quando é da equipe. Os demais só veem e lançam registros nos módulos em que podem (§7.0). Helpers `dashboard!` (ver; 404 se não pode) e `dashboard_editavel!` / `widget!(editar: true)` (403) no `app.rb`.
 - **Transferir:** só administrador, para uma conta ativa (`PUT {dono_id}`). Excluir uma conta passa os dashboards dela para quem excluiu.
 - **Fixo:** `PUT /api/widgets/:id/layout` responde 409 enquanto o dashboard está fixado; no navegador, `GridStack.setStatic` trava arrastar/redimensionar (a grade e o layout salvo não mudam, REGRA §12.1).
 - A exportação leva só os dashboards que a pessoa vê.
@@ -307,7 +309,7 @@ Regras num só lugar, um objeto por requisição (helper `acesso` no `app.rb`):
   - login errado espera 0,5 s;
   - o login digitado é gravado só como HMAC (alguém pode digitar a senha no campo errado);
   - IP e conta vão ao SQLite sempre como TEXT (`Seguranca.texto`): o driver grava texto binário como BLOB, e BLOB nunca é igual a TEXT.
-- **Diário de alterações** (`AUDITORIA` no `app.rb`): um `before` lê o nome do alvo (antes de excluir) e um `after` grava, se a resposta deu certo, quem criou, alterou ou excluiu usuários, equipes, dashboards, módulos, regras, templates e pedidos de aprovação, com um resumo do pedido sem senha nem documento (o corpo vem do `body_json`). Painel do adm: filtro tudo / alterações / acessos.
+- **Diário de alterações** (`AUDITORIA` no `app.rb`): um `before` lê o nome do alvo (antes de excluir) e um `after` grava, se a resposta deu certo, quem criou, alterou ou excluiu usuários, equipes, dashboards, módulos, regras, templates e pedidos de aprovação, com um resumo do pedido sem senha nem documento (o corpo vem do `body_json`). Registros (pentest, achado 2): `registro_criado`, `registro_alterado` e `registro_excluido` com módulo e número do registro, sem os valores; alterações seguidas do mesmo registro pela mesma pessoa em 10 min (`JANELA_REGISTRO_ALTERADO`) viram um evento, porque as notas gravam a cada pausa da digitação. O 202 do visualizador continua `pedido_criado`. O alvo vem do caminho convertido para UTF-8 (`Seguranca.texto`): como texto binário, o SQLite o comparava como BLOB e o nome do módulo não aparecia. Painel do adm: filtro tudo / alterações / acessos.
 - **Diário de segurança:** login, saída, falhas, bloqueios, desbloqueios, trocas e redefinições de senha, "sair dos outros", escrita de outro site e excesso de requisições (os dois últimos no máximo 1 vez por minuto por IP). Aparece no Painel do adm, junto da checagem da instalação: HTTPS, cookie seguro, quantidade de admins, senhas temporárias, logins errados em 24 h e validade da sessão.
 - **Regras de senha** (Painel do adm > Regras de senha; `Usuarios.regras_senha`): só o tamanho é regra fixa (mínimo de 6 a 64, padrão 8; máximo 200). São **opções** do administrador, desligadas por padrão: "senha forte" (recusa a igual ao login, as ~60 mais comuns como `12345678` e `senha123`, um caractere repetido e as sequências `abcdefgh`/`87654321`), maiúsculas e minúsculas, letras e números, e um símbolo. Vale para cadastro, troca e redefinição; o setup usa o padrão (o banco ainda não existe). A senha temporária gerada cumpre as regras em vigor. `/api/status` expõe `regras_senha`, e as telas mostram "mínimo N, com..." e ajustam o `minlength`.
 - **Sessão:** cai depois de `DASHZON_SESSAO_HORAS` (12) sem uso e, no máximo, em `DASHZON_SESSAO_DIAS` (30); cada login começa uma sessão nova.
@@ -443,7 +445,7 @@ Experimento, fora do frontend oficial (que continua sem build e sem CDN, §12.6)
 
 ## 11. Testes
 
-- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 197 testes (com `equipes`, `dashboards_acesso`, `cores`, `cards_estudo`, `exemplos`, `acesso`); os do motor dão `skip` se o binário não existir.
+- **Comando:** `cd backend; bundle exec rake test`. Arquivos `test/**/*_test.rb`: `usuarios`, `documento`, `ambiente`, `cookie_seguro`, `preferencias`, `modulos`, `desempenho`, `registro_codec`, `registros_compactos`, `json_guardado`, `migracao`, `revisao`, `cronograma`, `anotacoes`, `seguranca`. São 210 testes (com `equipes`, `dashboards_acesso`, `cores`, `cards_estudo`, `exemplos`, `acesso`, `pentest_registros`); os do motor dão `skip` se o binário não existir.
 - **Importador (Python):** `python -m unittest discover -s scripts -p "test_*.py"` (13 testes: conversão por tipo, leitura de `.xlsx`/`.csv` e as planilhas de `exemplos/`).
 - **Isolamento:** `test_helper.rb` define `DASHZON_DB_PATH` num diretório temporário **antes** de carregar o app, zera o banco a cada teste e define `DASHZON_HOSTS=example.org`.
 - **`migracao_test`:** monta um banco v2 real e cobre:

@@ -6,6 +6,20 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-27 · `atualizacao-de-seguranca` · Correções do pentest de 26/10/2026
+
+**O que:**
+- **Quem lança registros (achado 1, crítico):** coluna `lancamento` nos módulos (`dono` ou `todos`), conferida no servidor em todo POST, PUT, PATCH e DELETE de registro. O dono escolhe em Compartilhar. Módulo novo nasce "só o dono"; os de tabela que já existiam continuam colaborativos e os de notas viram "só o dono". Apagar exemplos, direto ou ao excluir um dashboard, só em módulo que a pessoa altera. Telas: tabela, notas e o lançar do dashboard escondem as ações sem `pode_lancar`.
+- **Diário de registros (achado 2):** `registro_criado`, `registro_alterado` e `registro_excluido`, com módulo e número, sem valores; edições seguidas viram um evento por 10 min. Corrigido o nome do módulo que não aparecia no diário (slug binário comparado como BLOB).
+- **Corpo que não é UTF-8 (achado 3):** 400 em vez de 500.
+- **Achado 4 (senha e SMTP):** sem mudança no código, por decisão: as regras de senha forte ficam no Painel do adm > Regras de senha e o SMTP em `DASHZON_SMTP_*`.
+
+**Validação:** `rake test` 210/210 (7 testes novos em `pentest_registros_test.rb`); roteiro de ponta a ponta no navegador (setup, usuário comum só leitura, API recusando, admin liberando pela janela, diário, 400, layout intacto) em duas rodadas com banco zerado; `auditar-responsivo.ps1` numa instância zerada.
+
+**Por quê:** relatório de pentest de 26/10/2026: um usuário comum editou e apagou notas de outra pessoa pela API, sem rastro no diário.
+
+---
+
 ## 2026-10-23 · `desenvolvimento-mobile-parte-2` · APK testável do app
 
 **O que:**
