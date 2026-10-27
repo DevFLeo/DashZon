@@ -36,17 +36,31 @@ Co-Authored-By: ... (quando houver)
 
 | Tipo | Commits |
 |---|---|
-| Novidades (`feat`) | 75 |
-| Correções (`fix`) | 25 |
+| Novidades (`feat`) | 76 |
+| Correções (`fix`) | 26 |
 | Desempenho (`perf`) | 1 |
 | Refatoração (`refactor`) | 3 |
 | Testes (`test`) | 18 |
-| Documentação (`docs`) | 81 |
+| Documentação (`docs`) | 83 |
 | Manutenção (`chore`) | 4 |
 | Fora do padrão | 4 |
-| **Total** | **211** |
+| **Total** | **215** |
 
 As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeito que deixou de existir.
+
+## 2026-10-27
+
+### Novidades (`feat`)
+
+- **interface:** quem lança registros no Compartilhar do módulo (`b504f01`)
+
+### Correções (`fix`)
+
+- **seguranca:** registros só para quem pode lançar, diário e UTF-8 (`07a56d5`)
+
+### Documentação (`docs`)
+
+- correções do pentest no Sistema.md e no Log.md (`317df41`)
 
 ## 2026-10-23
 
@@ -61,6 +75,7 @@ As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeit
 
 ### Documentação (`docs`)
 
+- **changelog:** APK testável do app (`b753bf6`)
 - **mobile:** como gerar e instalar o APK (`ba12113`)
 - **changelog:** pré-teste no emulador Android (`5491779`)
 - **mobile:** teste no emulador Android no README, Sistema.md e Log.md (`6d59fe6`)
