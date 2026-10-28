@@ -365,6 +365,7 @@
       <header class="page-header">
         <div>
           <h1 id="notas-modulo"></h1>
+          <p class="dash-selo" id="notas-selo" hidden></p>
           <p class="hint" id="notas-descricao"></p>
         </div>
         <div class="actions">
@@ -527,6 +528,7 @@
           <select id="seg-filtro">
             <option value="tudo">Tudo</option>
             <option value="alteracoes">Só alterações</option>
+            <option value="registros">Só registros</option>
             <option value="acessos">Só acessos</option>
           </select>
         </div>
@@ -782,6 +784,13 @@
     <div class="lista-marcar comp-equipes" id="comp-equipes"></div>
     <label class="opcao-radio"><input type="radio" name="comp-visibilidade" value="equipe" id="comp-opcao-todos">
       <span><strong>Todos</strong><span class="hint" id="comp-dica-todos"></span></span></label>
+    <fieldset class="field comp-lancamento" id="comp-lancamento-wrap" hidden>
+      <legend>Quem cria, altera e exclui registros</legend>
+      <label class="opcao-radio"><input type="radio" name="comp-lancamento" value="dono">
+        <span><strong>Só eu e os administradores</strong><span class="hint">Os outros veem os registros, mas não mudam nada.</span></span></label>
+      <label class="opcao-radio"><input type="radio" name="comp-lancamento" value="todos">
+        <span><strong>Todos que veem o módulo</strong><span class="hint">Qualquer um que vê cadastra, edita e exclui registros. Cada mudança fica no diário do administrador.</span></span></label>
+    </fieldset>
     <div class="field" id="comp-dono-wrap" hidden>
       <label for="comp-dono">Dono (administrador pode transferir)</label>
       <select id="comp-dono"></select>

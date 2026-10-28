@@ -6,6 +6,33 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-28 · `atualizacao-de-seguranca` · UX das permissões de lançamento
+
+**O que:**
+- **Selo de quem lança** no módulo e no caderno de notas: quem não pode lançar lê "Você só vê os registros" (ou "as notas"), com o nome do dono na dica; o dono vê "Só você e os administradores lançam" ou "Todos que veem lançam". Antes os botões só sumiam, sem explicação.
+- **Diário do Painel do adm:** filtro "Só registros"; "Só alterações" não mistura mais os registros. A API manda até 300 acessos e alterações mais até 300 eventos de registro.
+- **Protótipos:** React/Next e o app de celular escondem as ações de registro sem `pode_lancar` e mostram "só leitura".
+
+**Validação:** `rake test` 211/211; ponta a ponta no navegador (com os selos e os filtros) em duas rodadas com banco zerado; `auditar-responsivo.ps1` sem erros; build do React e 17 testes de unidade do celular.
+
+**Por quê:** continuação com foco em UX: a pessoa precisa entender por que não consegue lançar, e o admin achar os eventos de registro sem perder os de acesso.
+
+---
+
+## 2026-10-27 · `atualizacao-de-seguranca` · Correções do pentest de 26/10/2026
+
+**O que:**
+- **Quem lança registros (achado 1, crítico):** coluna `lancamento` nos módulos (`dono` ou `todos`), conferida no servidor em todo POST, PUT, PATCH e DELETE de registro. O dono escolhe em Compartilhar. Módulo novo nasce "só o dono"; os de tabela que já existiam continuam colaborativos e os de notas viram "só o dono". Apagar exemplos, direto ou ao excluir um dashboard, só em módulo que a pessoa altera. Telas: tabela, notas e o lançar do dashboard escondem as ações sem `pode_lancar`.
+- **Diário de registros (achado 2):** `registro_criado`, `registro_alterado` e `registro_excluido`, com módulo e número, sem valores; edições seguidas viram um evento por 10 min. Corrigido o nome do módulo que não aparecia no diário (slug binário comparado como BLOB).
+- **Corpo que não é UTF-8 (achado 3):** 400 em vez de 500.
+- **Achado 4 (senha e SMTP):** sem mudança no código, por decisão: as regras de senha forte ficam no Painel do adm > Regras de senha e o SMTP em `DASHZON_SMTP_*`.
+
+**Validação:** `rake test` 210/210 (7 testes novos em `pentest_registros_test.rb`); roteiro de ponta a ponta no navegador (setup, usuário comum só leitura, API recusando, admin liberando pela janela, diário, 400, layout intacto) em duas rodadas com banco zerado; `auditar-responsivo.ps1` numa instância zerada.
+
+**Por quê:** relatório de pentest de 26/10/2026: um usuário comum editou e apagou notas de outra pessoa pela API, sem rastro no diário.
+
+---
+
 ## 2026-10-23 · `desenvolvimento-mobile-parte-2` · APK testável do app
 
 **O que:**

@@ -639,6 +639,8 @@ textarea.code.nota-editor { white-space: pre-wrap; }
 .lista-marcar { display: grid; gap: 6px; max-height: 200px; overflow-y: auto; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 fieldset.field { border: none; padding: 0; margin: 0 0 12px; min-width: 0; }
 fieldset.field > legend { font-size: calc(13px * var(--fs)); color: var(--text-secondary); font-weight: 600; margin-bottom: 5px; padding: 0; }
+.comp-lancamento { margin-top: 4px; }
+.comp-lancamento:disabled { opacity: .55; }
 .chip-teste { color: var(--status-warning); background: color-mix(in srgb, var(--status-warning) 16%, transparent); }
 .eq-empresa-campos { margin: 8px 0 4px 26px; }
 #admin-equipes td.membros { max-width: 420px; }

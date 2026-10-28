@@ -148,13 +148,22 @@ module Seguranca
     lista
   end
 
-  def eventos(limite = 100)
+  # `registros`: nil = todos os eventos; false = sem os de registro; true = só
+  # eles. O painel pede as duas listas separadas: um dia de muito lançamento
+  # não empurra os logins e as alterações para fora da lista.
+  SQL_EVENTOS = {
+    nil => "SELECT * FROM eventos_seguranca ORDER BY id DESC LIMIT ?",
+    false => "SELECT * FROM eventos_seguranca WHERE substr(tipo, 1, 9) <> 'registro_' ORDER BY id DESC LIMIT ?",
+    true => "SELECT * FROM eventos_seguranca WHERE substr(tipo, 1, 9) = 'registro_' ORDER BY id DESC LIMIT ?"
+  }.freeze
+
+  def eventos(limite = 100, registros: nil)
     return [] unless ativo?
 
     Database.garantir_tabelas!
     logins = Database.rows("SELECT id, login FROM usuarios").to_h { |u| [u["id"], u["login"]] }
-    Database.rows("SELECT * FROM eventos_seguranca ORDER BY id DESC LIMIT ?", [limite.to_i.clamp(1, 1000)]).map do |e|
-      { "quando" => Time.at(e["quando"]).utc.iso8601, "tipo" => e["tipo"], "ip" => e["ip"],
+    Database.rows(SQL_EVENTOS.fetch(registros), [limite.to_i.clamp(1, 1000)]).map do |e|
+      { "id" => e["id"], "quando" => Time.at(e["quando"]).utc.iso8601, "tipo" => e["tipo"], "ip" => e["ip"],
         "login" => logins[e["usuario_id"]], "detalhe" => e["detalhe"] }
     end
   end

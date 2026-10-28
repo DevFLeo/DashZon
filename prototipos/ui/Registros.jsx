@@ -37,13 +37,13 @@ function Filtros({ campos, valores, onMudar }) {
   ));
 }
 
-function Celula({ campo, registro, rotulo, moeda, onMarcar }) {
+function Celula({ campo, registro, rotulo, moeda, onMarcar, pode }) {
   const v = registro[campo.id];
   const nome = { "data-rotulo": campo.nome };
   if (campo.tipo === "booleano") {
     return (
       <td className="cel-check" {...nome}>
-        <input type="checkbox" checked={!!v} onChange={(e) => onMarcar(registro, campo, e.target.checked)}
+        <input type="checkbox" checked={!!v} disabled={!pode} onChange={(e) => onMarcar(registro, campo, e.target.checked)}
           aria-label={`${campo.nome}: ${registro[rotulo] ?? `registro ${registro.id}`}`} />
       </td>
     );
@@ -227,6 +227,8 @@ export function Modulo({ slug, sessao, onMudou = () => {} }) {
   const rotulo = modulo.schema.rotulo;
   const filtrando = busca.trim() || Object.values(filtros).some(Boolean);
   const faltam = regs ? total - regs.length : 0;
+  // Quem só vê o módulo não lança (o servidor responde 403); servidor antigo, sem o campo: pode.
+  const pode = modulo.pode_lancar !== false;
 
   return (
     <>
@@ -234,8 +236,9 @@ export function Modulo({ slug, sessao, onMudou = () => {} }) {
         <div>
           <h1>{modulo.nome}</h1>
           {modulo.descricao && <p className="card-sub">{modulo.descricao}</p>}
+          {!pode && <p className="card-sub">Você só vê os registros: só {modulo.dono_nome || "quem criou"} e os administradores lançam aqui.</p>}
         </div>
-        <button className="btn btn-primario" onClick={() => setForm({ aberta: true, registro: null })}><Icone nome="mais" /> Novo registro</button>
+        {pode && <button className="btn btn-primario" onClick={() => setForm({ aberta: true, registro: null })}><Icone nome="mais" /> Novo registro</button>}
       </header>
 
       <Resumo itens={resumo} moeda={sessao.moeda} />
@@ -256,7 +259,7 @@ export function Modulo({ slug, sessao, onMudou = () => {} }) {
         <div className="vazio">
           <h2>Nenhum registro</h2>
           <p>{filtrando ? "Nada encontrado com essa busca ou filtro." : "Comece cadastrando o primeiro."}</p>
-          {!filtrando && <button className="btn btn-primario" onClick={() => setForm({ aberta: true, registro: null })}><Icone nome="mais" /> Novo registro</button>}
+          {!filtrando && pode && <button className="btn btn-primario" onClick={() => setForm({ aberta: true, registro: null })}><Icone nome="mais" /> Novo registro</button>}
         </div>
       ) : (
         <div className="tabela-moldura">
@@ -265,10 +268,12 @@ export function Modulo({ slug, sessao, onMudou = () => {} }) {
             <tbody>
               {regs.map((r) => (
                 <tr key={r.id}>
-                  {colunas.map((c) => <Celula key={c.id} campo={c} registro={r} rotulo={rotulo} moeda={sessao.moeda} onMarcar={marcar} />)}
+                  {colunas.map((c) => <Celula key={c.id} campo={c} registro={r} rotulo={rotulo} moeda={sessao.moeda} onMarcar={marcar} pode={pode} />)}
                   <td className="acoes">
-                    <button className="btn btn-pequeno" onClick={() => editar(r.id)} aria-label={`Editar ${r[rotulo] ?? ""}`}><Icone nome="lapis" /> Editar</button>
-                    <button className="btn btn-pequeno btn-perigo-leve" onClick={() => setExcluir(r)} aria-label={`Excluir ${r[rotulo] ?? ""}`}><Icone nome="lixeira" /></button>
+                    {pode && <>
+                      <button className="btn btn-pequeno" onClick={() => editar(r.id)} aria-label={`Editar ${r[rotulo] ?? ""}`}><Icone nome="lapis" /> Editar</button>
+                      <button className="btn btn-pequeno btn-perigo-leve" onClick={() => setExcluir(r)} aria-label={`Excluir ${r[rotulo] ?? ""}`}><Icone nome="lixeira" /></button>
+                    </>}
                   </td>
                 </tr>
               ))}

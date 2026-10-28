@@ -179,7 +179,9 @@ const Dashboards = (() => {
         </div>
         <div class="widget-body" id="wb-${w.id}"></div>
       </div>`;
-    item.querySelector("[data-lancar]").addEventListener("click", () => Modulos.lancar(w.modulo_slug, aposLancar));
+    // Lançar só onde a pessoa pode (pode_lancar; o servidor também confere).
+    if (!App.modulo(w.modulo_slug)?.pode_lancar) item.querySelector("[data-lancar]").remove();
+    item.querySelector("[data-lancar]")?.addEventListener("click", () => Modulos.lancar(w.modulo_slug, aposLancar));
     if (!atual.editavel) item.querySelectorAll("[data-editar], [data-remover]").forEach((b) => b.remove());
     item.querySelector("[data-editar]")?.addEventListener("click", () => abrirFormulario(atual.widgets.find((x) => x.id === w.id)));
     item.querySelector("[data-remover]")?.addEventListener("click", () => remover(w.id));
@@ -989,9 +991,12 @@ const Dashboards = (() => {
   }
 
   function escolherLancar() {
-    const usados = [...new Set(atual.widgets.map((w) => w.modulo_slug))].filter((s) => App.modulo(s));
-    const outros = App.modulos().map((m) => m.slug).filter((s) => !usados.includes(s));
-    if (!usados.length && !outros.length) { Util.aviso("Adicione um módulo antes de lançar.", "erro"); return; }
+    const usados = [...new Set(atual.widgets.map((w) => w.modulo_slug))].filter((s) => App.modulo(s)?.pode_lancar);
+    const outros = App.modulos().filter((m) => m.pode_lancar).map((m) => m.slug).filter((s) => !usados.includes(s));
+    if (!usados.length && !outros.length) {
+      Util.aviso(App.modulos().length ? "Você não pode lançar em nenhum dos módulos que vê." : "Adicione um módulo antes de lançar.", "erro");
+      return;
+    }
     if (usados.length === 1) { Modulos.lancar(usados[0], aposLancar); return; }
 
     const botao = (slug, usado) => {

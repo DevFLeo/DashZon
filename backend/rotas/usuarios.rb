@@ -220,7 +220,9 @@ end
 
 # Segurança: checagem da instalação, bloqueios em vigor e o diário recente.
 get "/api/admin/seguranca" do
-  json checagens: checagens_de_seguranca, bloqueios: Seguranca.bloqueios_ativos, eventos: Seguranca.eventos(300),
+  # Até 300 acessos e alterações e até 300 eventos de registro, juntos do mais novo ao mais antigo.
+  eventos = (Seguranca.eventos(300, registros: false) + Seguranca.eventos(300, registros: true)).sort_by { |e| -e["id"] }
+  json checagens: checagens_de_seguranca, bloqueios: Seguranca.bloqueios_ativos, eventos: eventos,
        limites: { janela_minutos: Seguranca::JANELA / 60, por_ip: Seguranca::MAX_POR_IP, por_conta: Seguranca::MAX_POR_CONTA }
 end
 

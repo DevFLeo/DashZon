@@ -215,7 +215,9 @@ const Admin = (() => {
     dashboard_alterado: "Alterou dashboard", dashboard_excluido: "Excluiu dashboard", modulo_criado: "Criou módulo",
     modulo_alterado: "Alterou módulo", modulo_compartilhado: "Compartilhou módulo", modulo_excluido: "Excluiu módulo",
     exemplos_apagados: "Apagou dados de exemplo", template_instalado: "Instalou template", pedido_criado: "Pediu aprovação",
-    pedido_aprovado: "Aprovou pedido", pedido_negado: "Negou pedido"
+    pedido_aprovado: "Aprovou pedido", pedido_negado: "Negou pedido",
+    // Registros (pentest de 26/10/2026, achado 2)
+    registro_criado: "Criou registro", registro_alterado: "Alterou registro", registro_excluido: "Excluiu registro"
   };
   const ACESSOS = new Set(["login_ok", "login_falhou", "logout", "bloqueio", "desbloqueio", "senha_atual_errada", "link_invalido",
     "pedido_link", "senha_trocada", "senha_redefinida", "sessoes_encerradas", "origem_recusada", "excesso_requisicoes"]);
@@ -242,10 +244,12 @@ const Admin = (() => {
     renderEventos();
   }
 
-  // Filtro do diário: tudo, só acessos (login, senha, bloqueio) ou só alterações.
+  // Filtro do diário: tudo, só acessos (login, senha, bloqueio), só alterações
+  // (usuários, módulos, dashboards...) ou só registros (criados, alterados, excluídos).
+  const grupo = (tipo) => ACESSOS.has(tipo) ? "acessos" : tipo.startsWith("registro_") ? "registros" : "alteracoes";
   function renderEventos() {
     const filtro = $("seg-filtro").value;
-    const lista = eventos.filter((e) => filtro === "tudo" || (filtro === "acessos") === ACESSOS.has(e.tipo)).slice(0, 150);
+    const lista = eventos.filter((e) => filtro === "tudo" || grupo(e.tipo) === filtro).slice(0, 150);
     const data = (iso) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "medium" });
     $("seg-eventos").innerHTML = lista.length
       ? `<div class="table-wrap"><table class="data"><thead><tr><th>Quando</th><th>O quê</th><th>Quem</th><th>IP</th><th>Detalhe</th></tr></thead><tbody>${

@@ -26,6 +26,9 @@ const Compartilhar = (() => {
       ? equipes.map((e) => `<label class="field-check"><input type="checkbox" value="${e.id}" ${marcadas.includes(e.id) ? "checked" : ""}> ${esc(e.nome)}${e.empresa ? ' <span class="chip">Empresa</span>' : ""}</label>`).join("")
       : '<span class="hint">Você não está em nenhuma equipe.</span>';
     document.querySelectorAll('input[name="comp-visibilidade"]').forEach((r) => { r.checked = r.value === atual.visibilidade; });
+    // Módulo: quem lança registros (pentest de 26/10/2026, achado 1).
+    $("comp-lancamento-wrap").hidden = tipo !== "modulo";
+    document.querySelectorAll('input[name="comp-lancamento"]').forEach((r) => { r.checked = r.value === (atual.lancamento || "dono"); });
     atualizar();
 
     const admin = App.usuario()?.admin;
@@ -41,6 +44,8 @@ const Compartilhar = (() => {
 
   function atualizar() {
     const vis = document.querySelector('input[name="comp-visibilidade"]:checked')?.value;
+    // Privado: só o dono vê, então a escolha de quem lança não faz diferença.
+    $("comp-lancamento-wrap").disabled = vis === "privado";
     $("comp-equipes").classList.toggle("desligada", vis !== "equipes");
     $("comp-equipes").querySelectorAll("input").forEach((c) => { c.disabled = vis !== "equipes"; });
   }
@@ -49,6 +54,7 @@ const Compartilhar = (() => {
     ev.preventDefault();
     const corpo = { visibilidade: document.querySelector('input[name="comp-visibilidade"]:checked')?.value };
     if (corpo.visibilidade === "equipes") corpo.equipes = [...$("comp-equipes").querySelectorAll("input:checked")].map((c) => Number(c.value));
+    if (!$("comp-lancamento-wrap").hidden) corpo.lancamento = document.querySelector('input[name="comp-lancamento"]:checked')?.value;
     if (!$("comp-dono-wrap").hidden) corpo.dono_id = Number($("comp-dono").value);
     try {
       await salvar(corpo);
@@ -67,10 +73,21 @@ const Compartilhar = (() => {
     return "Todos veem";
   }
 
+  // Quem lança registros no módulo, para o selo da tela: sem isso os botões
+  // somem e a pessoa não sabe por quê. Privado: só o dono vê, nada a dizer.
+  function descreverLancamento(m) {
+    if (m.visibilidade === "privado") return null;
+    if (!m.pode_lancar) return { texto: "Você só vê os registros", dica: `Só ${m.dono_nome || "quem criou"} e os administradores criam, alteram e excluem registros aqui.` };
+    if (!m.editavel) return null;
+    return m.lancamento === "todos"
+      ? { texto: "Todos que veem lançam", dica: "Qualquer um que vê o módulo cria, altera e exclui registros. Mude em Compartilhar." }
+      : { texto: "Só você e os administradores lançam", dica: "Os outros só veem os registros. Para deixar todos lançarem, use Compartilhar." };
+  }
+
   function init() {
     $("form-compartilhar").addEventListener("submit", enviar);
     $("form-compartilhar").addEventListener("change", (e) => { if (e.target.name === "comp-visibilidade") atualizar(); });
   }
 
-  return { init, abrir, descrever };
+  return { init, abrir, descrever, descreverLancamento };
 })();

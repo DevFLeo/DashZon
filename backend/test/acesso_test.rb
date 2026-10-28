@@ -257,7 +257,8 @@ class AcessoTest < Minitest::Test
     post_json "/api/templates/instalar", { "template_id" => "lote-producao", "com_exemplos" => true }
     dash = resposta["dashboards"].first
     put_json "/api/dashboards/#{dash}", { "visibilidade" => "equipes", "equipes" => [lote], "dono_id" => t4 }
-    put_json "/api/modulos/lotes_producao/compartilhar", { "visibilidade" => "equipes", "equipes" => [lote], "dono_id" => t4 }
+    put_json "/api/modulos/lotes_producao/compartilhar", { "visibilidade" => "equipes", "equipes" => [lote], "dono_id" => t4,
+                                                           "lancamento" => "todos" }
     assert_equal 200, last_response.status, last_response.body
 
     id_existente = nil
@@ -319,7 +320,7 @@ class AcessoTest < Minitest::Test
     dash = resposta["id"]
     put_json "/api/dashboards/#{dash}", { "nome" => "Painel V" }
     post_json "/api/templates/instalar", { "template_id" => "lote-producao", "com_exemplos" => true }
-    put_json "/api/modulos/lotes_producao/compartilhar", { "visibilidade" => "todos" }
+    put_json "/api/modulos/lotes_producao/compartilhar", { "visibilidade" => "todos", "lancamento" => "todos" }
     delete "/api/dashboards/#{dash}"
     como("teste 5") { post_json "/api/modulos/lotes_producao/registros", { "codigo" => "X", "produto" => "Y", "quantidade" => 1, "status" => "Planejado" } }
     post_json "/api/admin/usuarios", { "login" => "ruim", "nome" => "x", "senha" => "1" } # falha: não registra
