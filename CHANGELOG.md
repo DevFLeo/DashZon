@@ -36,17 +36,29 @@ Co-Authored-By: ... (quando houver)
 
 | Tipo | Commits |
 |---|---|
-| Novidades (`feat`) | 76 |
+| Novidades (`feat`) | 79 |
 | Correções (`fix`) | 26 |
 | Desempenho (`perf`) | 1 |
 | Refatoração (`refactor`) | 3 |
 | Testes (`test`) | 18 |
-| Documentação (`docs`) | 83 |
+| Documentação (`docs`) | 85 |
 | Manutenção (`chore`) | 4 |
 | Fora do padrão | 4 |
-| **Total** | **215** |
+| **Total** | **220** |
 
 As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeito que deixou de existir.
+
+## 2026-10-28
+
+### Novidades (`feat`)
+
+- **interface:** selo diz quem lança registros no módulo e nas notas (`1e21dfd`)
+- **prototipos:** web e celular escondem o lançar sem permissão (`2cdde9b`)
+- **seguranca:** diário com cota própria e filtro para registros (`8e8317d`)
+
+### Documentação (`docs`)
+
+- UX das permissões de lançamento no Sistema.md e no Log.md (`1f8f0c9`)
 
 ## 2026-10-27
 
@@ -60,6 +72,7 @@ As **correções** (`fix`) são as issues resolvidas: cada uma descreve o defeit
 
 ### Documentação (`docs`)
 
+- **changelog:** correções do pentest (`6275e66`)
 - correções do pentest no Sistema.md e no Log.md (`317df41`)
 
 ## 2026-10-23
