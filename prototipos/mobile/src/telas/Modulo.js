@@ -65,10 +65,12 @@ export default function Modulo({ slug, voltar, ir, versao }) {
   const rotulo = modulo.schema.rotulo;
   const visiveis = campos.filter((c) => c.id !== rotulo && c.lista !== false && !FORA.includes(c.tipo)).slice(0, 4);
   const faltam = regs ? total - regs.length : 0;
+  // Quem só vê o módulo não lança nem edita (o servidor responde 403).
+  const pode = modulo.pode_lancar !== false;
 
   const Cartao = ({ item: r }) => (
-    <Pressable onPress={() => ir({ tela: "form", slug, id: r.id })} accessibilityRole="button"
-      accessibilityLabel={`${r[rotulo] ?? `Registro ${r.id}`}. Tocar para editar`}
+    <Pressable onPress={pode ? () => ir({ tela: "form", slug, id: r.id }) : undefined} disabled={!pode} accessibilityRole={pode ? "button" : "text"}
+      accessibilityLabel={`${r[rotulo] ?? `Registro ${r.id}`}${pode ? ". Tocar para editar" : ""}`}
       style={({ pressed }) => [s.cartao, { backgroundColor: tema.cor("superficie"), borderColor: tema.cor("borda"), opacity: pressed ? 0.85 : 1 }]}>
       <Text style={[s.cartaoTitulo, { color: tema.cor("texto") }]} numberOfLines={1}>{String(r[rotulo] ?? `Registro ${r.id}`)}</Text>
       <View style={s.cartaoCampos}>
@@ -90,7 +92,7 @@ export default function Modulo({ slug, voltar, ir, versao }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <Cabecalho titulo={modulo.nome} sub={`${fmtNumero(total, 0)} registro(s)`} onVoltar={voltar} />
+      <Cabecalho titulo={modulo.nome} sub={`${fmtNumero(total, 0)} registro(s)${pode ? "" : " · só leitura"}`} onVoltar={voltar} />
       <FlatList
         data={regs || []}
         keyExtractor={(r) => String(r.id)}
@@ -131,10 +133,10 @@ export default function Modulo({ slug, voltar, ir, versao }) {
           </Pressable>
         ) : <View style={{ height: 90 }} />}
       />
-      <Pressable onPress={() => ir({ tela: "form", slug })} accessibilityRole="button" accessibilityLabel={`Lançar em ${modulo.nome}`}
+      {pode ? <Pressable onPress={() => ir({ tela: "form", slug })} accessibilityRole="button" accessibilityLabel={`Lançar em ${modulo.nome}`}
         style={({ pressed }) => [s.fab, { backgroundColor: tema.cor("destaque"), opacity: pressed ? 0.85 : 1 }]}>
         <Text style={{ color: tema.cor("destaque-tinta"), fontSize: 30, lineHeight: 32, fontWeight: "400" }}>+</Text>
-      </Pressable>
+      </Pressable> : null}
     </View>
   );
 }

@@ -45,12 +45,12 @@ export default function Inicio({ ir, recarregando, recarregar }) {
             <Pressable style={s.itemAbrir} onPress={() => ir({ tela: "modulo", slug: m.slug })} accessibilityRole="button"
               accessibilityLabel={`${m.nome}, ${m.total} registros`}>
               <Text style={[s.itemNome, { color: tema.cor("texto") }]} numberOfLines={1}>{m.nome}</Text>
-              <Text style={{ color: tema.cor("texto-fraco"), fontSize: 13 }}>{m.total} registro(s){m.visibilidade === "privado" ? " · só você vê" : ""}</Text>
+              <Text style={{ color: tema.cor("texto-fraco"), fontSize: 13 }}>{m.total} registro(s){m.visibilidade === "privado" ? " · só você vê" : ""}{m.pode_lancar === false ? " · só leitura" : ""}</Text>
             </Pressable>
-            <Pressable onPress={() => ir({ tela: "form", slug: m.slug })} accessibilityRole="button" accessibilityLabel={`Lançar em ${m.nome}`}
+            {m.pode_lancar === false ? null : <Pressable onPress={() => ir({ tela: "form", slug: m.slug })} accessibilityRole="button" accessibilityLabel={`Lançar em ${m.nome}`}
               style={[s.lancar, { backgroundColor: tema.cor("destaque") }]}>
               <Text style={{ color: tema.cor("destaque-tinta"), fontWeight: "800", fontSize: 15 }}>+ Lançar</Text>
-            </Pressable>
+            </Pressable>}
           </View>
         )}
       />
