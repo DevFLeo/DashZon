@@ -244,10 +244,12 @@ const Admin = (() => {
     renderEventos();
   }
 
-  // Filtro do diário: tudo, só acessos (login, senha, bloqueio) ou só alterações.
+  // Filtro do diário: tudo, só acessos (login, senha, bloqueio), só alterações
+  // (usuários, módulos, dashboards...) ou só registros (criados, alterados, excluídos).
+  const grupo = (tipo) => ACESSOS.has(tipo) ? "acessos" : tipo.startsWith("registro_") ? "registros" : "alteracoes";
   function renderEventos() {
     const filtro = $("seg-filtro").value;
-    const lista = eventos.filter((e) => filtro === "tudo" || (filtro === "acessos") === ACESSOS.has(e.tipo)).slice(0, 150);
+    const lista = eventos.filter((e) => filtro === "tudo" || grupo(e.tipo) === filtro).slice(0, 150);
     const data = (iso) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "medium" });
     $("seg-eventos").innerHTML = lista.length
       ? `<div class="table-wrap"><table class="data"><thead><tr><th>Quando</th><th>O quê</th><th>Quem</th><th>IP</th><th>Detalhe</th></tr></thead><tbody>${
