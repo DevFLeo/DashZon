@@ -73,10 +73,21 @@ const Compartilhar = (() => {
     return "Todos veem";
   }
 
+  // Quem lança registros no módulo, para o selo da tela: sem isso os botões
+  // somem e a pessoa não sabe por quê. Privado: só o dono vê, nada a dizer.
+  function descreverLancamento(m) {
+    if (m.visibilidade === "privado") return null;
+    if (!m.pode_lancar) return { texto: "Você só vê os registros", dica: `Só ${m.dono_nome || "quem criou"} e os administradores criam, alteram e excluem registros aqui.` };
+    if (!m.editavel) return null;
+    return m.lancamento === "todos"
+      ? { texto: "Todos que veem lançam", dica: "Qualquer um que vê o módulo cria, altera e exclui registros. Mude em Compartilhar." }
+      : { texto: "Só você e os administradores lançam", dica: "Os outros só veem os registros. Para deixar todos lançarem, use Compartilhar." };
+  }
+
   function init() {
     $("form-compartilhar").addEventListener("submit", enviar);
     $("form-compartilhar").addEventListener("change", (e) => { if (e.target.name === "comp-visibilidade") atualizar(); });
   }
 
-  return { init, abrir, descrever };
+  return { init, abrir, descrever, descreverLancamento };
 })();

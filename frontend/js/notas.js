@@ -62,6 +62,10 @@ const Notas = (() => {
     $("notas-excluir-modulo").hidden = !pode;
     ["notas-nova", "notas-vazia-nova", "notas-btn-importar", "notas-btn-importar-pasta", "nota-excluir"]
       .forEach((id) => { $(id).hidden = soLeitura(); });
+    const lanca = Compartilhar.descreverLancamento(modulo);
+    $("notas-selo").hidden = !lanca;
+    $("notas-selo").textContent = lanca ? lanca.texto.replace("os registros", "as notas").replace("lançam", "escrevem") : "";
+    $("notas-selo").title = lanca?.dica.replaceAll("registros", "notas") || "";
     $("notas-apagar-exemplos").hidden = !exemplos;
     $("notas-apagar-exemplos").textContent = `Apagar notas de exemplo (${exemplos})`;
   }

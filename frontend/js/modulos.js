@@ -323,7 +323,9 @@ const Modulos = (() => {
     $("btn-novo-registro").hidden = !atual.pode_lancar;
     const quem = Compartilhar.descrever(atual.visibilidade === "todos" ? "equipe" : atual.visibilidade, atual.equipes);
     const meu = atual.dono_id === App.usuario()?.id;
-    $("mod-selo").innerHTML = `${Util.icone(atual.visibilidade === "privado" ? "cadeado" : "equipe")} ${esc(quem)}${meu || !atual.dono_nome ? "" : ` · de ${esc(atual.dono_nome)}`}`;
+    const lanca = Compartilhar.descreverLancamento(atual);
+    $("mod-selo").innerHTML = `${Util.icone(atual.visibilidade === "privado" ? "cadeado" : "equipe")} ${esc(quem)}${meu || !atual.dono_nome ? "" : ` · de ${esc(atual.dono_nome)}`}${lanca ? ` · ${esc(lanca.texto)}` : ""}`;
+    $("mod-selo").title = lanca?.dica || "";
   }
 
   async function compartilharModulo() {
