@@ -6,6 +6,19 @@ Como registrar: uma entrada por entrega (um ou mais commits), com data, branch, 
 
 ---
 
+## 2026-10-28 · `atualizacao-de-seguranca` · UX das permissões de lançamento
+
+**O que:**
+- **Selo de quem lança** no módulo e no caderno de notas: quem não pode lançar lê "Você só vê os registros" (ou "as notas"), com o nome do dono na dica; o dono vê "Só você e os administradores lançam" ou "Todos que veem lançam". Antes os botões só sumiam, sem explicação.
+- **Diário do Painel do adm:** filtro "Só registros"; "Só alterações" não mistura mais os registros. A API manda até 300 acessos e alterações mais até 300 eventos de registro.
+- **Protótipos:** React/Next e o app de celular escondem as ações de registro sem `pode_lancar` e mostram "só leitura".
+
+**Validação:** `rake test` 211/211; ponta a ponta no navegador (com os selos e os filtros) em duas rodadas com banco zerado; `auditar-responsivo.ps1` sem erros; build do React e 17 testes de unidade do celular.
+
+**Por quê:** continuação com foco em UX: a pessoa precisa entender por que não consegue lançar, e o admin achar os eventos de registro sem perder os de acesso.
+
+---
+
 ## 2026-10-27 · `atualizacao-de-seguranca` · Correções do pentest de 26/10/2026
 
 **O que:**
